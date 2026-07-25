@@ -1,0 +1,1086 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>نظام إدارة الاستشارات</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Amiri:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#F6F2E8;
+  --surface:#FFFFFF;
+  --surface-2:#FBF8F1;
+  --ink:#1E241F;
+  --ink-soft:#5B6660;
+  --ink-faint:#8B9088;
+  --border:#E3DCC8;
+  --primary:#0F4A3E;
+  --primary-light:#166B57;
+  --primary-100:#E8F0EC;
+  --gold:#B4863A;
+  --gold-100:#F7EEDC;
+  --urgent:#AE3A31;
+  --urgent-100:#F8E7E4;
+  --overdue:#9C2E26;
+  --overdue-100:#F6E1DE;
+  --blue:#2A5695;
+  --blue-100:#E8EEF7;
+  --normal:#2E7A52;
+  --normal-100:#E7F2EB;
+  --archived:#8A8577;
+  --archived-100:#EEECE4;
+  --radius:14px;
+  --shadow: 0 1px 2px rgba(30,36,31,0.04), 0 4px 16px rgba(30,36,31,0.06);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:'Tajawal',sans-serif;
+  min-height:100vh;
+}
+.app{display:flex; min-height:100vh;}
+
+/* Sidebar */
+.sidebar{
+  width:240px; flex:0 0 240px;
+  background:var(--primary);
+  color:#EFF5F1;
+  display:flex; flex-direction:column;
+  padding:22px 16px;
+  position:sticky; top:0; height:100vh;
+}
+.brand{
+  display:flex; align-items:center; gap:10px;
+  margin-bottom:28px; padding:0 6px;
+}
+.brand-seal{
+  width:38px; height:38px; border-radius:50%;
+  border:2px dashed rgba(239,245,241,0.55);
+  display:flex; align-items:center; justify-content:center;
+  font-family:'Amiri',serif; font-weight:700; font-size:16px;
+  flex:0 0 38px;
+}
+.brand-text{font-family:'Amiri',serif; font-weight:700; font-size:17px; line-height:1.3;}
+.brand-text small{display:block; font-family:'Tajawal',sans-serif; font-weight:400; font-size:11px; color:rgba(239,245,241,0.65);}
+.nav{display:flex; flex-direction:column; gap:2px; margin-top:6px;}
+.nav-item{
+  display:flex; align-items:center; gap:10px;
+  padding:10px 12px; border-radius:10px;
+  color:rgba(239,245,241,0.82); text-decoration:none;
+  font-size:14px; cursor:pointer; border:none; background:transparent;
+  text-align:right; width:100%; font-family:inherit;
+}
+.nav-item:hover{background:rgba(255,255,255,0.08);}
+.nav-item.active{background:rgba(255,255,255,0.14); color:#fff; font-weight:700;}
+.nav-sep{height:1px; background:rgba(255,255,255,0.12); margin:12px 4px;}
+.sidebar-foot{margin-top:auto; font-size:11px; color:rgba(239,245,241,0.5); padding:0 8px;}
+
+/* Main */
+.main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.topbar{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:14px 26px; background:var(--surface);
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:5;
+}
+.topbar-title{font-size:19px; font-weight:900;}
+.topbar-right{display:flex; align-items:center; gap:14px;}
+.role-switch{display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:4px; }
+.role-btn{border:none; background:transparent; padding:6px 14px; border-radius:999px; font-family:inherit; font-size:13px; cursor:pointer; color:var(--ink-soft);}
+.role-btn.active{background:var(--primary); color:#fff; font-weight:700;}
+select.consultant-pick{border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-family:inherit; font-size:13px; background:#fff; color:var(--ink);}
+.bell{position:relative; width:38px; height:38px; border-radius:50%; background:var(--surface-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:16px; cursor:default;}
+.bell .badge{position:absolute; top:-4px; left:-4px; background:var(--urgent); color:#fff; font-size:10px; font-weight:700; min-width:17px; height:17px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 3px;}
+
+.content{padding:24px 26px; flex:1;}
+
+/* Cards / stats */
+.stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:22px;}
+.stat-card{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:16px 18px; box-shadow:var(--shadow);}
+.stat-card .num{font-size:26px; font-weight:900; font-family:'Amiri',serif;}
+.stat-card .lbl{font-size:12.5px; color:var(--ink-soft); margin-top:2px;}
+.stat-card.accent-urgent .num{color:var(--urgent);}
+.stat-card.accent-normal .num{color:var(--normal);}
+.stat-card.accent-gold .num{color:var(--gold);}
+.stat-card.accent-blue .num{color:var(--blue);}
+
+.panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:20px;}
+.panel-head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--border);}
+.panel-head h3{margin:0; font-size:15.5px;}
+.panel-body{padding:16px 18px;}
+
+/* Buttons */
+.btn{border:none; border-radius:10px; padding:9px 16px; font-family:inherit; font-size:13.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:6px;}
+.btn-primary{background:var(--primary); color:#fff;}
+.btn-primary:hover{background:var(--primary-light);}
+.btn-gold{background:var(--gold); color:#fff;}
+.btn-outline{background:transparent; color:var(--primary); border:1px solid var(--primary);}
+.btn-ghost{background:var(--surface-2); color:var(--ink);}
+.btn-danger{background:var(--urgent-100); color:var(--urgent);}
+.btn-sm{padding:6px 11px; font-size:12.5px; border-radius:8px;}
+.btn:disabled{opacity:0.5; cursor:not-allowed;}
+
+/* Forms */
+label{display:block; font-size:12.5px; color:var(--ink-soft); margin-bottom:5px; font-weight:700;}
+input[type=text],input[type=date],textarea,select{
+  width:100%; border:1px solid var(--border); border-radius:9px; padding:9px 11px;
+  font-family:inherit; font-size:13.5px; color:var(--ink); background:#fff;
+}
+textarea{resize:vertical; min-height:90px;}
+.field{margin-bottom:14px;}
+.grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+.checks{display:flex; flex-wrap:wrap; gap:8px;}
+.chip-check{display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer; background:#fff;}
+.chip-check input{margin:0;}
+.chip-check.checked{border-color:var(--primary); background:var(--primary-100); color:var(--primary); font-weight:700;}
+.dropzone{border:2px dashed var(--border); border-radius:12px; padding:22px; text-align:center; color:var(--ink-soft); font-size:13px; background:var(--surface-2); cursor:pointer;}
+.dropzone.drag{border-color:var(--primary); background:var(--primary-100);}
+.file-thumbs{display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;}
+.file-thumb{width:64px; height:64px; border-radius:8px; overflow:hidden; border:1px solid var(--border); position:relative; background:#fff;}
+.file-thumb img{width:100%; height:100%; object-fit:cover;}
+.file-thumb .pdf-tag{display:flex; align-items:center; justify-content:center; height:100%; font-size:11px; color:var(--ink-soft);}
+
+/* Stamp / status badges */
+.stamp{
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 10px 3px 8px; border-radius:999px;
+  border:1.5px dashed currentColor; font-family:'Amiri',serif; font-weight:700; font-size:12.5px;
+}
+.dot{width:7px; height:7px; border-radius:50%; background:currentColor; flex:0 0 7px;}
+.stamp.st-new{color:var(--primary); background:var(--primary-100);}
+.stamp.st-pending{color:var(--gold); background:var(--gold-100);}
+.stamp.st-answered{color:var(--blue); background:var(--blue-100);}
+.stamp.st-approved{color:var(--normal); background:var(--normal-100);}
+.stamp.st-archived{color:var(--archived); background:var(--archived-100);}
+.stamp.st-overdue{color:var(--overdue); background:var(--overdue-100);}
+.pill{display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:3px 9px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); color:var(--ink-soft);}
+.pill.urgent{color:var(--urgent); border-color:var(--urgent-100); background:var(--urgent-100);}
+.pill.normal{color:var(--normal); border-color:var(--normal-100); background:var(--normal-100);}
+
+/* Table */
+table{width:100%; border-collapse:collapse; font-size:13.5px;}
+th{text-align:right; color:var(--ink-soft); font-size:12px; font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border);}
+td{padding:11px 10px; border-bottom:1px solid var(--border); vertical-align:middle;}
+tr.row-click{cursor:pointer;}
+tr.row-click:hover{background:var(--surface-2);}
+.muted{color:var(--ink-faint); font-size:12px;}
+
+/* Search bar */
+.searchbar{display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:16px;}
+.searchbar .field{margin-bottom:0; min-width:150px;}
+.searchbar .field.grow{flex:1; min-width:220px;}
+
+/* Modal */
+.modal-overlay{position:fixed; inset:0; background:rgba(20,24,20,0.5); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;}
+.modal{background:#fff; border-radius:16px; width:100%; max-width:420px; padding:24px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+.modal .modal-seal{width:56px; height:56px; margin:0 auto 14px; border-radius:50%; border:2px dashed var(--gold); display:flex; align-items:center; justify-content:center; font-size:24px;}
+.modal h3{margin:0 0 8px; font-family:'Amiri',serif; font-size:19px;}
+.modal p{color:var(--ink-soft); font-size:13.5px; margin:0 0 18px;}
+
+/* Detail layout */
+.detail-grid{display:grid; grid-template-columns:1.15fr 0.85fr; gap:18px;}
+@media (max-width:900px){.detail-grid{grid-template-columns:1fr;} .grid-2{grid-template-columns:1fr;} .sidebar{position:fixed; z-index:20; height:100vh; transform:translateX(100%); transition:.2s;} .sidebar.open{transform:translateX(0);} .app{display:block;}}
+.img-viewer{background:var(--ink); border-radius:12px; overflow:hidden; position:relative; min-height:280px; display:flex; align-items:center; justify-content:center;}
+.img-viewer img{max-width:100%; max-height:420px; transition:transform .15s;}
+.img-toolbar{position:absolute; bottom:10px; right:10px; display:flex; gap:6px;}
+.img-toolbar button{width:32px; height:32px; border-radius:8px; border:none; background:rgba(255,255,255,0.9); cursor:pointer; font-size:14px;}
+.thumb-strip{display:flex; gap:6px; margin-top:8px; overflow-x:auto;}
+.thumb-strip img{width:52px; height:52px; object-fit:cover; border-radius:6px; cursor:pointer; border:2px solid transparent;}
+.thumb-strip img.active{border-color:var(--gold);}
+
+.timeline{list-style:none; margin:0; padding:0; border-right:2px solid var(--border); margin-right:6px;}
+.timeline li{position:relative; padding:0 0 16px 0; padding-right:18px; font-size:13px;}
+.timeline li::before{content:''; position:absolute; right:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:var(--primary);}
+.timeline li .t-action{font-weight:700;}
+.timeline li .t-meta{color:var(--ink-faint); font-size:11.5px; margin-top:2px;}
+
+.kv{display:grid; grid-template-columns:110px 1fr; gap:6px 10px; font-size:13.5px; margin-bottom:4px;}
+.kv b{color:var(--ink-soft); font-weight:700; font-size:12.5px;}
+
+.bars{display:flex; flex-direction:column; gap:10px;}
+.bar-row{display:flex; align-items:center; gap:10px; font-size:13px;}
+.bar-row .bar-label{width:130px; flex:0 0 130px; color:var(--ink-soft);}
+.bar-track{flex:1; height:9px; background:var(--surface-2); border-radius:99px; overflow:hidden;}
+.bar-fill{height:100%; background:var(--primary); border-radius:99px;}
+.bar-row .bar-num{width:26px; text-align:left; font-weight:700;}
+
+.empty{padding:40px 20px; text-align:center; color:var(--ink-faint);}
+.empty .e-icon{font-size:30px; margin-bottom:8px;}
+
+.toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; font-size:13px; z-index:100; box-shadow:var(--shadow);}
+.copybtn{display:inline-flex; align-items:center; gap:6px;}
+.hidden{display:none !important;}
+.notice-banner{background:var(--gold-100); border:1px solid var(--gold); color:#7A5A22; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:flex; align-items:center; gap:8px;}
+.mobile-toggle{display:none; border:none; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; width:36px; height:36px; font-size:16px; cursor:pointer;}
+@media(max-width:900px){.mobile-toggle{display:block;}}
+@media print{.sidebar,.topbar,.no-print{display:none !important;} .content{padding:0;}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<script>
+/* ===================== STATE & STORAGE ===================== */
+const OCR_MODEL = 'claude-sonnet-4-6';
+let state = {
+  role: 'admin',            // 'admin' | 'consultant'
+  currentConsultant: null,
+  view: 'dashboard',        // dashboard | list | add | detail | reports | audit | settings
+  detailId: null,
+  consultations: [],
+  consultants: [],
+  audit: [],
+  sidebarOpen: false,
+  filters: { q:'', status:'', priority:'', consultant:'' }
+};
+let pendingFiles = [];       // {name, mime, dataUrl, base64}
+let notifShown = false;      // session flag
+let imgViewerIndex = 0;
+let imgZoom = 1, imgRot = 0;
+
+function uid(p){ return p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
+function nowIso(){ return new Date().toISOString(); }
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('ar-EG',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/[٠-٩]/g,d=>'0123456789'['٠١٢٣٤٥٦٧٨٩'.indexOf(d)]); }
+function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('ar-EG',{hour:'2-digit',minute:'2-digit'}); }
+function daysSince(iso){ if(!iso) return 0; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
+
+async function storeGet(key, shared){ try{ const r = await window.storage.get(key, !!shared); return r ? r.value : null; }catch(e){ return null; } }
+async function storeSet(key, value, shared){ try{ await window.storage.set(key, value, !!shared); }catch(e){ console.error('storage set failed', e); } }
+
+async function loadAll(){
+  const c = await storeGet('consultations_v1', true);
+  const k = await storeGet('consultants_v1', true);
+  const a = await storeGet('audit_v1', true);
+  state.consultations = c ? JSON.parse(c) : [];
+  state.consultants = k ? JSON.parse(k) : ['د. أحمد المالكي','د. سارة العتيبي','د. خالد الشمري'];
+  state.audit = a ? JSON.parse(a) : [];
+  if(!k){ await storeSet('consultants_v1', JSON.stringify(state.consultants), true); }
+}
+async function persistConsultations(){ await storeSet('consultations_v1', JSON.stringify(state.consultations), true); }
+async function persistConsultants(){ await storeSet('consultants_v1', JSON.stringify(state.consultants), true); }
+async function persistAudit(){ await storeSet('audit_v1', JSON.stringify(state.audit), true); }
+
+function logAudit(action){
+  const actor = state.role==='admin' ? 'مدير النظام' : (state.currentConsultant||'مستشار');
+  state.audit.unshift({ ts: nowIso(), actor, action, device: (navigator.userAgent||'').slice(0,60) });
+  persistAudit();
+}
+
+/* ===================== DERIVED HELPERS ===================== */
+function isOverdue(c){
+  return daysSince(c.createdAt) >= 5 && !['تمت الإجابة','معتمدة','مؤرشفة'].includes(c.status);
+}
+function statusStamp(c){
+  if(isOverdue(c)) return {cls:'st-overdue', label:'متأخرة ⏰'};
+  const map = {
+    'جديدة':{cls:'st-new', label:'جديدة 📥'},
+    'تحت الإجابة':{cls:'st-pending', label:'تحت الإجابة ✍️'},
+    'تمت الإجابة':{cls:'st-answered', label:'تمت الإجابة ✅'},
+    'معتمدة':{cls:'st-approved', label:'معتمدة ✔️'},
+    'مؤرشفة':{cls:'st-archived', label:'مؤرشفة 🗄️'}
+  };
+  return map[c.status] || {cls:'st-new', label:c.status};
+}
+function visibleConsultations(){
+  let list = state.consultations.slice();
+  if(state.role==='consultant'){
+    list = list.filter(c => (c.assignedTo||[]).includes(state.currentConsultant));
+  }
+  const f = state.filters;
+  if(f.q){
+    const q = f.q.trim();
+    list = list.filter(c => [c.number,c.beneficiary,c.entity,c.subject].some(v=>(v||'').includes(q)));
+  }
+  if(f.status) list = list.filter(c => (isOverdue(c)?'متأخرة':c.status) === f.status);
+  if(f.priority) list = list.filter(c => c.priority === f.priority);
+  if(f.consultant) list = list.filter(c => (c.assignedTo||[]).includes(f.consultant));
+  return list.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+}
+function computeStats(list){
+  const s = { total:list.length, new:0, pending:0, answered:0, approved:0, overdue:0, urgent:0, normal:0, archived:0 };
+  list.forEach(c=>{
+    if(isOverdue(c)) s.overdue++;
+    if(c.status==='جديدة') s.new++;
+    if(c.status==='تحت الإجابة') s.pending++;
+    if(c.status==='تمت الإجابة') s.answered++;
+    if(c.status==='معتمدة') s.approved++;
+    if(c.status==='مؤرشفة') s.archived++;
+    if(c.priority==='مستعجل') s.urgent++; else s.normal++;
+  });
+  return s;
+}
+function avgResponseDays(list){
+  const done = list.filter(c=>c.answeredAt);
+  if(!done.length) return '—';
+  const total = done.reduce((sum,c)=> sum + Math.max(0,(new Date(c.answeredAt)-new Date(c.createdAt))/86400000), 0);
+  return (total/done.length).toFixed(1);
+}
+function complianceRate(list){
+  const done = list.filter(c=>c.answeredAt);
+  if(!done.length) return '—';
+  const onTime = done.filter(c=> (new Date(c.answeredAt)-new Date(c.createdAt))/86400000 <= 5).length;
+  return Math.round((onTime/done.length)*100) + '%';
+}
+function topConsultants(list){
+  const counts = {};
+  list.forEach(c=>{ if(c.status==='معتمدة' || c.status==='تمت الإجابة'){ (c.assignedTo||[]).forEach(n=>{ counts[n]=(counts[n]||0)+1; }); } });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+}
+function monthlyCounts(list){
+  const counts = {};
+  list.forEach(c=>{ const d=new Date(c.createdAt); const k = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); counts[k]=(counts[k]||0)+1; });
+  return Object.entries(counts).sort((a,b)=> a[0]<b[0]?1:-1).slice(0,6).reverse();
+}
+
+/* ===================== RENDER ===================== */
+function el(id){ return document.getElementById(id); }
+function setView(view, extra){
+  state.view = view;
+  if(extra) Object.assign(state, extra);
+  state.sidebarOpen = false;
+  render();
+}
+function render(){
+  const app = el('app');
+  app.innerHTML = layoutShell();
+  bindGlobalEvents();
+  renderContent();
+}
+function iconFor(view){
+  return {dashboard:'🏠', list:'📋', add:'➕', reports:'🖨️', audit:'🕵️', settings:'⚙️'}[view] || '•';
+}
+function navItems(){
+  if(state.role==='admin'){
+    return [
+      ['dashboard','لوحة التحكم'],
+      ['list','الاستشارات'],
+      ['add','إضافة استشارة'],
+      ['reports','التقارير'],
+      ['audit','سجل العمليات'],
+      ['settings','إدارة المستشارين']
+    ];
+  }
+  return [
+    ['dashboard','لوحة التحكم'],
+    ['list','استشاراتي']
+  ];
+}
+function layoutShell(){
+  const items = navItems().map(([v,label])=>`
+    <button class="nav-item ${state.view===v?'active':''}" data-nav="${v}">
+      <span>${iconFor(v)}</span><span>${label}</span>
+    </button>`).join('');
+  const list = visibleConsultations();
+  const unseenCount = state.role==='consultant'
+    ? state.consultations.filter(c=>(c.assignedTo||[]).includes(state.currentConsultant) && c.status==='تحت الإجابة').length
+    : state.consultations.filter(c=>c.status==='تمت الإجابة').length;
+
+  return `
+    <div class="sidebar ${state.sidebarOpen?'open':''}" id="sidebar">
+      <div class="brand">
+        <div class="brand-seal">است</div>
+        <div class="brand-text">نظام الاستشارات<small>إدارة وتتبع الردود</small></div>
+      </div>
+      <div class="nav">${items}</div>
+      <div class="nav-sep"></div>
+      <div class="sidebar-foot">نموذج تجريبي — البيانات مشتركة بين مستخدمي هذه الصفحة</div>
+    </div>
+    <div class="main">
+      <div class="topbar">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <button class="mobile-toggle" data-action="toggle-sidebar">☰</button>
+          <div class="topbar-title">${pageTitle()}</div>
+        </div>
+        <div class="topbar-right">
+          <div class="role-switch">
+            <button class="role-btn ${state.role==='admin'?'active':''}" data-action="set-role" data-role="admin">مدير النظام</button>
+            <button class="role-btn ${state.role==='consultant'?'active':''}" data-action="set-role" data-role="consultant">المستشار</button>
+          </div>
+          ${state.role==='consultant' ? `
+            <select class="consultant-pick" id="consultantPick" data-action="pick-consultant">
+              <option value="">اختر اسمك…</option>
+              ${state.consultants.map(n=>`<option value="${esc(n)}" ${state.currentConsultant===n?'selected':''}>${esc(n)}</option>`).join('')}
+            </select>` : ''}
+          <div class="bell" title="الإشعارات">🔔 ${unseenCount>0?`<span class="badge">${unseenCount}</span>`:''}</div>
+        </div>
+      </div>
+      <div class="content" id="content"></div>
+    </div>
+    <div id="modalRoot"></div>
+    <div id="toastRoot"></div>
+  `;
+}
+function pageTitle(){
+  const map = {dashboard:'لوحة التحكم', list: state.role==='admin'?'الاستشارات':'استشاراتي', add:'إضافة استشارة جديدة', detail:'تفاصيل الاستشارة', reports:'التقارير', audit:'سجل العمليات', settings:'إدارة المستشارين'};
+  return map[state.view] || 'نظام إدارة الاستشارات';
+}
+
+function renderContent(){
+  const c = el('content');
+  if(state.role==='consultant' && !state.currentConsultant && state.view!=='dashboard'){
+    c.innerHTML = `<div class="empty"><div class="e-icon">👤</div>يرجى اختيار اسمك من القائمة أعلاه أولاً</div>`;
+    return;
+  }
+  if(state.view==='dashboard') c.innerHTML = state.role==='admin' ? renderAdminDashboard() : renderConsultantDashboard();
+  else if(state.view==='list') c.innerHTML = renderList();
+  else if(state.view==='add') c.innerHTML = renderAddForm();
+  else if(state.view==='detail') c.innerHTML = renderDetail();
+  else if(state.view==='reports') c.innerHTML = renderReports();
+  else if(state.view==='audit') c.innerHTML = renderAudit();
+  else if(state.view==='settings') c.innerHTML = renderSettings();
+  bindContentEvents();
+}
+
+/* ---------- Admin dashboard ---------- */
+function renderAdminDashboard(){
+  const list = state.consultations;
+  const s = computeStats(list);
+  const tops = topConsultants(list);
+  const months = monthlyCounts(list);
+  const maxTop = Math.max(1, ...tops.map(t=>t[1]));
+  const maxMonth = Math.max(1, ...months.map(m=>m[1]));
+  return `
+    <div class="stats-grid">
+      <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الاستشارات</div></div>
+      <div class="stat-card accent-blue"><div class="num">${s.new}</div><div class="lbl">📥 جديدة</div></div>
+      <div class="stat-card accent-gold"><div class="num">${s.pending}</div><div class="lbl">✍️ تحت الإجابة</div></div>
+      <div class="stat-card accent-blue"><div class="num">${s.answered}</div><div class="lbl">✅ بانتظار الاعتماد</div></div>
+      <div class="stat-card accent-normal"><div class="num">${s.approved}</div><div class="lbl">معتمدة</div></div>
+      <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">⏰ متأخرة</div></div>
+      <div class="stat-card accent-urgent"><div class="num">${s.urgent}</div><div class="lbl">🔴 مستعجلة</div></div>
+      <div class="stat-card accent-normal"><div class="num">${s.normal}</div><div class="lbl">🟢 عادية</div></div>
+    </div>
+    <div class="grid-2">
+      <div class="panel">
+        <div class="panel-head"><h3>مؤشرات الأداء</h3></div>
+        <div class="panel-body">
+          <div class="kv"><b>متوسط مدة الرد</b><span>${avgResponseDays(list)} يوم</span></div>
+          <div class="kv"><b>الالتزام خلال 5 أيام</b><span>${complianceRate(list)}</span></div>
+          <div class="kv"><b>عدد المستشارين</b><span>${state.consultants.length}</span></div>
+        </div>
+      </div>
+      <div class="panel">
+        <div class="panel-head"><h3>أكثر المستشارين إنجازاً</h3></div>
+        <div class="panel-body">
+          ${tops.length? `<div class="bars">${tops.map(([n,v])=>`
+            <div class="bar-row"><div class="bar-label">${esc(n)}</div><div class="bar-track"><div class="bar-fill" style="width:${(v/maxTop*100)}%"></div></div><div class="bar-num">${v}</div></div>
+          `).join('')}</div>` : `<div class="muted">لا توجد بيانات كافية بعد</div>`}
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>عدد الاستشارات لكل شهر</h3></div>
+      <div class="panel-body">
+        ${months.length? `<div class="bars">${months.map(([m,v])=>`
+          <div class="bar-row"><div class="bar-label">${m}</div><div class="bar-track"><div class="bar-fill" style="width:${(v/maxMonth*100)}%; background:var(--gold);"></div></div><div class="bar-num">${v}</div></div>
+        `).join('')}</div>` : `<div class="muted">لا توجد بيانات بعد</div>`}
+      </div>
+    </div>
+    ${renderRecentTable(state.consultations.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6), 'أحدث الاستشارات')}
+  `;
+}
+
+/* ---------- Consultant dashboard ---------- */
+function renderConsultantDashboard(){
+  if(!state.currentConsultant){
+    return `<div class="empty"><div class="e-icon">👤</div>يرجى اختيار اسمك من القائمة أعلى الصفحة لعرض لوحتك</div>`;
+  }
+  const mine = state.consultations.filter(c=>(c.assignedTo||[]).includes(state.currentConsultant));
+  const s = computeStats(mine);
+  const unanswered = mine.filter(c=>c.status==='تحت الإجابة').length;
+  return `
+    <div class="notice-banner">📌 لديك حالياً <b>${unanswered}</b> استشارة لم يتم الرد عليها بعد.</div>
+    <div class="stats-grid">
+      <div class="stat-card accent-blue"><div class="num">${s.pending}</div><div class="lbl">✍️ تحت الإجابة</div></div>
+      <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">⏰ متأخرة</div></div>
+      <div class="stat-card accent-normal"><div class="num">${s.answered + s.approved}</div><div class="lbl">✅ تم الرد عليها</div></div>
+      <div class="stat-card"><div class="num">${mine.length}</div><div class="lbl">إجمالي المخصص لي</div></div>
+    </div>
+    ${renderRecentTable(mine.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,8), 'استشاراتي الأخيرة')}
+  `;
+}
+
+function renderRecentTable(list, title){
+  return `
+  <div class="panel">
+    <div class="panel-head"><h3>${title}</h3><button class="btn btn-outline btn-sm" data-nav="list">عرض الكل</button></div>
+    <div class="panel-body" style="padding:0;">
+      ${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد استشارات بعد</div>`}
+    </div>
+  </div>`;
+}
+
+/* ---------- List / search ---------- */
+function renderList(){
+  const list = visibleConsultations();
+  const f = state.filters;
+  const statusOptions = ['جديدة','تحت الإجابة','تمت الإجابة','معتمدة','مؤرشفة','متأخرة'];
+  return `
+    <div class="searchbar">
+      <div class="field grow"><label>بحث (رقم / مستفيد / جهة / موضوع)</label><input type="text" id="fq" value="${esc(f.q)}" placeholder="اكتب كلمة للبحث…"></div>
+      <div class="field"><label>الحالة</label><select id="fstatus"><option value="">الكل</option>${statusOptions.map(s=>`<option ${f.status===s?'selected':''}>${s}</option>`).join('')}</select></div>
+      <div class="field"><label>الأولوية</label><select id="fpriority"><option value="">الكل</option><option ${f.priority==='مستعجل'?'selected':''}>مستعجل</option><option ${f.priority==='عادي'?'selected':''}>عادي</option></select></div>
+      ${state.role==='admin' ? `<div class="field"><label>المستشار</label><select id="fconsultant"><option value="">الكل</option>${state.consultants.map(n=>`<option ${f.consultant===n?'selected':''}>${esc(n)}</option>`).join('')}</select></div>` : ''}
+      <div class="field"><button class="btn btn-primary" data-action="apply-filters">تصفية</button></div>
+    </div>
+    <div class="panel">
+      <div class="panel-body" style="padding:0;">
+        ${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`}
+      </div>
+    </div>
+  `;
+}
+function tableHtml(list){
+  return `<table>
+    <thead><tr>
+      <th>رقم</th><th>الموضوع</th><th>المستفيد</th><th>الأولوية</th><th>الحالة</th><th>منذ</th><th>المستشار</th>
+    </tr></thead>
+    <tbody>
+      ${list.map(c=>{
+        const st = statusStamp(c);
+        return `<tr class="row-click" data-detail="${c.id}">
+          <td>${esc(c.number)||'—'}</td>
+          <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}</td>
+          <td>${esc(c.beneficiary)||'—'}</td>
+          <td><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span></td>
+          <td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td>
+          <td class="muted">${daysSince(c.createdAt)} يوم</td>
+          <td>${(c.assignedTo||[]).map(esc).join('، ')||'<span class="muted">غير معيّن</span>'}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table>`;
+}
+
+/* ---------- Add form ---------- */
+function renderAddForm(){
+  return `
+  <div class="panel">
+    <div class="panel-head"><h3>بيانات الاستشارة</h3></div>
+    <div class="panel-body">
+      <div class="field">
+        <label>صور / ملفات الاستشارة (JPG, PNG, PDF)</label>
+        <div class="dropzone" id="dropzone">📎 اسحب وأفلت الملفات هنا، أو اضغط للاختيار<br><span class="muted">يمكن رفع أكثر من ملف</span></div>
+        <input type="file" id="fileInput" accept="image/*,application/pdf" multiple style="display:none;">
+        <div class="file-thumbs" id="fileThumbs"></div>
+        <div style="margin-top:10px;">
+          <button class="btn btn-gold btn-sm" id="ocrBtn" disabled data-action="run-ocr">🔎 قراءة البيانات تلقائياً (OCR)</button>
+          <span class="muted" id="ocrStatus" style="margin-right:8px;"></span>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>رقم الاستشارة</label><input type="text" id="f_number" placeholder="يُملأ تلقائياً أو يدوياً"></div>
+        <div class="field"><label>تاريخ الاستشارة</label><input type="date" id="f_date"></div>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>اسم الجهة</label><input type="text" id="f_entity"></div>
+        <div class="field"><label>اسم المستفيد</label><input type="text" id="f_beneficiary"></div>
+      </div>
+      <div class="field"><label>موضوع الاستشارة</label><input type="text" id="f_subject"></div>
+      <div class="field"><label>ملاحظات داخلية (لا تظهر للمستشار)</label><textarea id="f_notes" placeholder="ملاحظات خاصة بالإدارة فقط"></textarea></div>
+      <div class="grid-2">
+        <div class="field">
+          <label>الأولوية</label>
+          <div class="checks">
+            <label class="chip-check"><input type="radio" name="priority" value="عادي" checked> 🟢 عادي</label>
+            <label class="chip-check"><input type="radio" name="priority" value="مستعجل"> 🔴 مستعجل</label>
+          </div>
+        </div>
+        <div class="field">
+          <label>تعيين المستشار (يمكن اختيار أكثر من واحد)</label>
+          <div class="checks">
+            ${state.consultants.map(n=>`<label class="chip-check"><input type="checkbox" class="assign-chk" value="${esc(n)}"> ${esc(n)}</label>`).join('') || '<span class="muted">لا يوجد مستشارون بعد — أضفهم من إدارة المستشارين</span>'}
+          </div>
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; margin-top:10px;">
+        <button class="btn btn-primary" data-action="save-consultation">حفظ الاستشارة</button>
+        <button class="btn btn-ghost" data-nav="list">إلغاء</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+/* ---------- Detail ---------- */
+function renderDetail(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  if(!c) return `<div class="empty">تعذر العثور على الاستشارة</div>`;
+  const st = statusStamp(c);
+  const canAnswer = state.role==='consultant' && (c.assignedTo||[]).includes(state.currentConsultant) && c.status==='تحت الإجابة';
+  const canReview = state.role==='admin' && c.status==='تمت الإجابة';
+  const images = c.images||[];
+  const activeImg = images[imgViewerIndex] || images[0];
+  return `
+    <button class="btn btn-ghost btn-sm no-print" data-nav="list" style="margin-bottom:14px;">→ الرجوع للقائمة</button>
+    <div class="detail-grid">
+      <div>
+        <div class="panel">
+          <div class="panel-head">
+            <h3>${esc(c.subject)||'استشارة بدون موضوع'}</h3>
+            <span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span>
+          </div>
+          <div class="panel-body">
+            ${images.length ? `
+              <div class="img-viewer">
+                ${activeImg.mime==='application/pdf' ? `<div style="color:#fff; text-align:center;">📄 ${esc(activeImg.name)}<br><a href="${activeImg.dataUrl}" target="_blank" style="color:#F7EEDC;">فتح ملف PDF</a></div>` :
+                `<img src="${activeImg.dataUrl}" style="transform:scale(${imgZoom}) rotate(${imgRot}deg);">`}
+                <div class="img-toolbar no-print">
+                  <button data-action="img-zoom-in">＋</button>
+                  <button data-action="img-zoom-out">－</button>
+                  <button data-action="img-rotate">⤾</button>
+                </div>
+              </div>
+              ${images.length>1 ? `<div class="thumb-strip">${images.map((im,i)=>`<img src="${im.mime==='application/pdf'?'':im.dataUrl}" class="${i===imgViewerIndex?'active':''}" data-imgidx="${i}" style="${im.mime==='application/pdf'?'background:#eee;':''}">`).join('')}</div>` : ''}
+            ` : `<div class="empty">لا توجد صور مرفقة</div>`}
+
+            <div style="margin-top:16px;" class="kv">
+              <b>رقم الاستشارة</b><span>${esc(c.number)||'—'}</span>
+              <b>تاريخ الاستشارة</b><span>${c.date?esc(c.date):'—'}</span>
+              <b>الجهة</b><span>${esc(c.entity)||'—'}</span>
+              <b>المستفيد</b><span>${esc(c.beneficiary)||'—'}</span>
+              <b>الأولوية</b><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span>
+              <b>تاريخ الإرسال</b><span>${fmtDate(c.createdAt)}</span>
+              <b>عدد الأيام</b><span>${daysSince(c.createdAt)} يوم</span>
+              <b>المستشار(ون)</b><span>${(c.assignedTo||[]).map(esc).join('، ')||'—'}</span>
+              ${state.role==='admin' ? `<b>ملاحظات داخلية</b><span>${esc(c.internalNotes)||'—'}</span>` : ''}
+            </div>
+
+            ${state.role==='admin' && !['معتمدة','مؤرشفة'].includes(c.status) ? `
+              <div class="field" style="margin-top:14px;">
+                <label>إعادة التعيين / إضافة مستشار</label>
+                <div class="checks">
+                  ${state.consultants.map(n=>`<label class="chip-check ${((c.assignedTo||[]).includes(n))?'checked':''}"><input type="checkbox" class="reassign-chk" value="${esc(n)}" ${((c.assignedTo||[]).includes(n))?'checked':''}> ${esc(n)}</label>`).join('')}
+                </div>
+                <button class="btn btn-outline btn-sm" style="margin-top:8px;" data-action="reassign">حفظ التعيين</button>
+              </div>` : ''}
+
+            ${c.answer ? `
+              <div class="field" style="margin-top:16px;">
+                <label>نص الإجابة</label>
+                <div style="background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:13.5px; white-space:pre-wrap;">${esc(c.answer)}</div>
+                <button class="btn btn-ghost btn-sm copybtn no-print" style="margin-top:8px;" data-action="copy-answer">📋 نسخ الإجابة</button>
+              </div>
+            ` : ''}
+
+            ${canAnswer ? `
+              <div class="field" style="margin-top:16px;">
+                <label>كتابة الإجابة</label>
+                <textarea id="answerText" placeholder="اكتب نص الإجابة هنا…" style="min-height:160px;">${esc(c.draftAnswer||'')}</textarea>
+                <button class="btn btn-primary" style="margin-top:8px;" data-action="submit-answer">إرسال الإجابة</button>
+              </div>
+            ` : ''}
+
+            ${canReview ? `
+              <div style="display:flex; gap:10px; margin-top:16px;">
+                <button class="btn btn-primary" data-action="approve-answer">✔️ اعتماد الإجابة</button>
+                <button class="btn btn-danger" data-action="return-answer">↩️ إعادة للتعديل</button>
+              </div>
+            ` : ''}
+            ${state.role==='admin' && c.status==='معتمدة' ? `<button class="btn btn-ghost btn-sm" style="margin-top:10px;" data-action="archive">🗄️ أرشفة</button>` : ''}
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="panel">
+          <div class="panel-head"><h3>السجل الزمني</h3></div>
+          <div class="panel-body">
+            <ul class="timeline">
+              ${(c.history||[]).map(h=>`<li><div class="t-action">${esc(h.action)}</div><div class="t-meta">${esc(h.actor)} — ${fmtDateTime(h.ts)}</div></li>`).join('')}
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- Reports ---------- */
+function renderReports(){
+  const list = state.consultations;
+  const s = computeStats(list);
+  return `
+    <div class="panel no-print">
+      <div class="panel-head"><h3>تصدير وطباعة</h3></div>
+      <div class="panel-body" style="display:flex; gap:10px; flex-wrap:wrap;">
+        <button class="btn btn-primary" data-action="print-report">🖨️ طباعة</button>
+        <button class="btn btn-outline" data-action="export-csv" data-set="all">⬇️ تصدير الكل (Excel/CSV)</button>
+        <button class="btn btn-outline" data-action="export-csv" data-set="answered">⬇️ تصدير المجاب عنها</button>
+        <button class="btn btn-outline" data-action="export-csv" data-set="overdue">⬇️ تصدير المتأخرة</button>
+        <button class="btn btn-outline" data-action="export-csv" data-set="urgent">⬇️ تصدير المستعجلة</button>
+      </div>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الاستشارات</div></div>
+      <div class="stat-card accent-blue"><div class="num">${s.answered}</div><div class="lbl">المجاب عنها</div></div>
+      <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
+      <div class="stat-card accent-urgent"><div class="num">${s.urgent}</div><div class="lbl">المستعجلة</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>تقرير حسب المستشار</h3></div>
+      <div class="panel-body" style="padding:0;">
+        <table><thead><tr><th>المستشار</th><th>إجمالي المخصص له</th><th>معتمدة</th><th>متأخرة</th></tr></thead>
+        <tbody>
+        ${state.consultants.map(n=>{
+          const mine = list.filter(c=>(c.assignedTo||[]).includes(n));
+          const approved = mine.filter(c=>c.status==='معتمدة').length;
+          const overdue = mine.filter(isOverdue).length;
+          return `<tr><td>${esc(n)}</td><td>${mine.length}</td><td>${approved}</td><td>${overdue}</td></tr>`;
+        }).join('')}
+        </tbody></table>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>كل الاستشارات</h3></div>
+      <div class="panel-body" style="padding:0;">${list.length?tableHtml(list.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt))):'<div class="empty">لا توجد بيانات</div>'}</div>
+    </div>
+  `;
+}
+
+/* ---------- Audit ---------- */
+function renderAudit(){
+  return `
+  <div class="panel">
+    <div class="panel-head"><h3>سجل العمليات (${state.audit.length})</h3></div>
+    <div class="panel-body" style="padding:0;">
+      ${state.audit.length ? `<table><thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>الجهاز</th></tr></thead>
+      <tbody>${state.audit.map(a=>`<tr><td>${fmtDateTime(a.ts)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="muted">${esc(a.device)}</td></tr>`).join('')}</tbody></table>`
+      : `<div class="empty">لا توجد عمليات مسجلة بعد</div>`}
+    </div>
+  </div>`;
+}
+
+/* ---------- Settings ---------- */
+function renderSettings(){
+  return `
+  <div class="panel">
+    <div class="panel-head"><h3>قائمة المستشارين</h3></div>
+    <div class="panel-body">
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <input type="text" id="newConsultantName" placeholder="اسم المستشار الجديد">
+        <button class="btn btn-primary" data-action="add-consultant">إضافة</button>
+      </div>
+      <table><thead><tr><th>الاسم</th><th>عدد الاستشارات المخصصة</th><th></th></tr></thead>
+      <tbody>
+      ${state.consultants.map(n=>{
+        const count = state.consultations.filter(c=>(c.assignedTo||[]).includes(n)).length;
+        return `<tr><td>${esc(n)}</td><td>${count}</td><td><button class="btn btn-danger btn-sm" data-action="remove-consultant" data-name="${esc(n)}">حذف</button></td></tr>`;
+      }).join('') || `<tr><td colspan="3" class="muted">لا يوجد مستشارون بعد</td></tr>`}
+      </tbody></table>
+    </div>
+  </div>`;
+}
+
+/* ===================== EVENTS ===================== */
+function toast(msg){
+  const root = el('toastRoot');
+  root.innerHTML = `<div class="toast">${esc(msg)}</div>`;
+  setTimeout(()=>{ if(el('toastRoot')) el('toastRoot').innerHTML=''; }, 2600);
+}
+function bindGlobalEvents(){
+  document.querySelectorAll('[data-nav]').forEach(b=>b.addEventListener('click', ()=> setView(b.getAttribute('data-nav'))));
+  const toggleBtn = document.querySelector('[data-action="toggle-sidebar"]');
+  if(toggleBtn) toggleBtn.addEventListener('click', ()=>{ state.sidebarOpen = !state.sidebarOpen; render(); });
+  document.querySelectorAll('[data-action="set-role"]').forEach(b=>b.addEventListener('click', ()=>{
+    const role = b.getAttribute('data-role');
+    state.role = role;
+    state.view = 'dashboard';
+    if(role==='consultant'){ notifShown = false; }
+    render();
+  }));
+  const pick = el('consultantPick');
+  if(pick) pick.addEventListener('change', ()=>{
+    state.currentConsultant = pick.value || null;
+    if(state.currentConsultant && !notifShown){
+      notifShown = true;
+      maybeShowNotifModal();
+    }
+    render();
+  });
+}
+async function maybeShowNotifModal(){
+  const name = state.currentConsultant;
+  const lastSeenRaw = await storeGet('lastseen_'+name, false);
+  const lastSeen = lastSeenRaw ? new Date(lastSeenRaw) : null;
+  const fresh = state.consultations.filter(c => (c.assignedTo||[]).includes(name) && c.status==='تحت الإجابة' && (!lastSeen || new Date(c.assignedAt||c.createdAt) > lastSeen));
+  await storeSet('lastseen_'+name, nowIso(), false);
+  if(fresh.length>0){
+    el('modalRoot').innerHTML = `
+      <div class="modal-overlay">
+        <div class="modal">
+          <div class="modal-seal">📥</div>
+          <h3>لديك (${fresh.length}) استشارات جديدة</h3>
+          <p>يرجى مراجعتها والرد عليها في أقرب وقت ممكن.</p>
+          <button class="btn btn-primary" data-action="close-modal">موافق</button>
+        </div>
+      </div>`;
+    document.querySelector('[data-action="close-modal"]').addEventListener('click', ()=>{ el('modalRoot').innerHTML=''; });
+  }
+}
+
+function bindContentEvents(){
+  // navigation to detail
+  document.querySelectorAll('[data-detail]').forEach(tr=>tr.addEventListener('click', ()=>{
+    imgViewerIndex = 0; imgZoom = 1; imgRot = 0;
+    setView('detail', {detailId: tr.getAttribute('data-detail')});
+  }));
+
+  // filters
+  const applyBtn = document.querySelector('[data-action="apply-filters"]');
+  if(applyBtn) applyBtn.addEventListener('click', ()=>{
+    state.filters = {
+      q: el('fq') ? el('fq').value : '',
+      status: el('fstatus') ? el('fstatus').value : '',
+      priority: el('fpriority') ? el('fpriority').value : '',
+      consultant: el('fconsultant') ? el('fconsultant').value : ''
+    };
+    renderContent();
+  });
+
+  // chip check styling
+  document.querySelectorAll('.assign-chk, .reassign-chk').forEach(chk=>chk.addEventListener('change', ()=>{
+    chk.closest('.chip-check').classList.toggle('checked', chk.checked);
+  }));
+
+  // dropzone / file input
+  const dz = el('dropzone'), fi = el('fileInput');
+  if(dz && fi){
+    dz.addEventListener('click', ()=> fi.click());
+    dz.addEventListener('dragover', e=>{ e.preventDefault(); dz.classList.add('drag'); });
+    dz.addEventListener('dragleave', ()=> dz.classList.remove('drag'));
+    dz.addEventListener('drop', e=>{ e.preventDefault(); dz.classList.remove('drag'); handleFiles(e.dataTransfer.files); });
+    fi.addEventListener('change', ()=> handleFiles(fi.files));
+  }
+  const ocrBtn = document.querySelector('[data-action="run-ocr"]');
+  if(ocrBtn) ocrBtn.addEventListener('click', runOcr);
+  const saveBtn = document.querySelector('[data-action="save-consultation"]');
+  if(saveBtn) saveBtn.addEventListener('click', saveConsultation);
+
+  // image viewer
+  document.querySelectorAll('[data-imgidx]').forEach(t=>t.addEventListener('click', ()=>{ imgViewerIndex = parseInt(t.getAttribute('data-imgidx')); imgZoom=1; imgRot=0; renderContent(); }));
+  const zi = document.querySelector('[data-action="img-zoom-in"]'); if(zi) zi.addEventListener('click', ()=>{ imgZoom = Math.min(3, imgZoom+0.25); renderContent(); });
+  const zo = document.querySelector('[data-action="img-zoom-out"]'); if(zo) zo.addEventListener('click', ()=>{ imgZoom = Math.max(0.5, imgZoom-0.25); renderContent(); });
+  const rt = document.querySelector('[data-action="img-rotate"]'); if(rt) rt.addEventListener('click', ()=>{ imgRot = (imgRot+90)%360; renderContent(); });
+
+  // detail actions
+  const reassign = document.querySelector('[data-action="reassign"]'); if(reassign) reassign.addEventListener('click', doReassign);
+  const submitAns = document.querySelector('[data-action="submit-answer"]'); if(submitAns) submitAns.addEventListener('click', submitAnswer);
+  const copyBtn = document.querySelector('[data-action="copy-answer"]'); if(copyBtn) copyBtn.addEventListener('click', copyAnswer);
+  const approveBtn = document.querySelector('[data-action="approve-answer"]'); if(approveBtn) approveBtn.addEventListener('click', approveAnswer);
+  const returnBtn = document.querySelector('[data-action="return-answer"]'); if(returnBtn) returnBtn.addEventListener('click', returnAnswer);
+  const archiveBtn = document.querySelector('[data-action="archive"]'); if(archiveBtn) archiveBtn.addEventListener('click', archiveConsultation);
+
+  // reports
+  const printBtn = document.querySelector('[data-action="print-report"]'); if(printBtn) printBtn.addEventListener('click', ()=> window.print());
+  document.querySelectorAll('[data-action="export-csv"]').forEach(b=>b.addEventListener('click', ()=> exportCsv(b.getAttribute('data-set'))));
+
+  // settings
+  const addCons = document.querySelector('[data-action="add-consultant"]'); if(addCons) addCons.addEventListener('click', addConsultant);
+  document.querySelectorAll('[data-action="remove-consultant"]').forEach(b=>b.addEventListener('click', ()=> removeConsultant(b.getAttribute('data-name'))));
+}
+
+/* ---------- File handling & OCR ---------- */
+function handleFiles(fileList){
+  const files = Array.from(fileList).slice(0, 6 - pendingFiles.length);
+  let remaining = files.length;
+  if(remaining===0) return;
+  files.forEach(f=>{
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      pendingFiles.push({ name:f.name, mime:f.type||'application/octet-stream', dataUrl:reader.result, base64:reader.result.split(',')[1] });
+      remaining--;
+      if(remaining===0) refreshFileThumbs();
+    };
+    reader.readAsDataURL(f);
+  });
+}
+function refreshFileThumbs(){
+  const box = el('fileThumbs');
+  if(!box) return;
+  box.innerHTML = pendingFiles.map((f,i)=> f.mime==='application/pdf'
+    ? `<div class="file-thumb"><div class="pdf-tag">📄 PDF</div></div>`
+    : `<div class="file-thumb"><img src="${f.dataUrl}"></div>`
+  ).join('');
+  const ocrBtn = el('ocrBtn');
+  if(ocrBtn) ocrBtn.disabled = pendingFiles.length===0;
+}
+async function runOcr(){
+  if(pendingFiles.length===0) return;
+  const statusEl = el('ocrStatus');
+  const ocrBtn = el('ocrBtn');
+  ocrBtn.disabled = true;
+  statusEl.textContent = 'جاري استخراج البيانات…';
+  const file = pendingFiles[0];
+  const isPdf = file.mime === 'application/pdf';
+  const prompt = 'استخرج من هذا المستند بيانات الاستشارة التالية وأعد النتيجة بصيغة JSON فقط دون أي نص إضافي أو علامات كود، بالحقول التالية بالضبط: number, date (بصيغة YYYY-MM-DD إن أمكن), entity, beneficiary, subject. إذا لم يتوفر حقل اجعل قيمته سلسلة نصية فارغة.';
+  try{
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        model: OCR_MODEL,
+        max_tokens: 1000,
+        messages: [{ role:'user', content:[
+          { type: isPdf?'document':'image', source:{ type:'base64', media_type: file.mime, data: file.base64 } },
+          { type:'text', text: prompt }
+        ]}]
+      })
+    });
+    const data = await res.json();
+    const textBlock = (data.content||[]).find(b=>b.type==='text');
+    if(!textBlock) throw new Error('no text');
+    const clean = textBlock.text.replace(/```json|```/g,'').trim();
+    const parsed = JSON.parse(clean);
+    if(el('f_number')) el('f_number').value = parsed.number || '';
+    if(el('f_date')) el('f_date').value = parsed.date || '';
+    if(el('f_entity')) el('f_entity').value = parsed.entity || '';
+    if(el('f_beneficiary')) el('f_beneficiary').value = parsed.beneficiary || '';
+    if(el('f_subject')) el('f_subject').value = parsed.subject || '';
+    statusEl.textContent = '✔️ تم استخراج البيانات — يمكنك التعديل عليها';
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = 'تعذر استخراج البيانات تلقائياً، يرجى تعبئتها يدوياً';
+  }finally{
+    ocrBtn.disabled = false;
+  }
+}
+async function saveConsultation(){
+  const priority = (document.querySelector('input[name=priority]:checked')||{}).value || 'عادي';
+  const assigned = Array.from(document.querySelectorAll('.assign-chk:checked')).map(x=>x.value);
+  const c = {
+    id: uid('c'),
+    number: el('f_number').value.trim(),
+    date: el('f_date').value,
+    entity: el('f_entity').value.trim(),
+    beneficiary: el('f_beneficiary').value.trim(),
+    subject: el('f_subject').value.trim(),
+    internalNotes: el('f_notes').value.trim(),
+    images: pendingFiles.map(f=>({name:f.name, mime:f.mime, dataUrl:f.dataUrl})),
+    priority,
+    assignedTo: assigned,
+    status: assigned.length ? 'تحت الإجابة' : 'جديدة',
+    answer:'', draftAnswer:'',
+    createdAt: nowIso(),
+    assignedAt: assigned.length ? nowIso() : null,
+    answeredAt: null, approvedAt: null,
+    history: [{ts: nowIso(), actor:'مدير النظام', action: 'تم إنشاء الاستشارة' + (assigned.length? ' وتعيينها إلى: '+assigned.join('، '): '')}]
+  };
+  state.consultations.push(c);
+  await persistConsultations();
+  logAudit('إنشاء استشارة رقم '+(c.number||c.id));
+  pendingFiles = [];
+  toastAfterRender('تم حفظ الاستشارة بنجاح');
+  setView('list');
+}
+function toastAfterRender(msg){ setTimeout(()=>toast(msg), 30); }
+
+/* ---------- Detail actions ---------- */
+async function doReassign(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  const assigned = Array.from(document.querySelectorAll('.reassign-chk:checked')).map(x=>x.value);
+  c.assignedTo = assigned;
+  if(assigned.length && c.status==='جديدة'){ c.status='تحت الإجابة'; c.assignedAt = nowIso(); }
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor:'مدير النظام', action:'تحديث التعيين: '+(assigned.join('، ')||'بدون تعيين')});
+  await persistConsultations();
+  logAudit('تعيين استشارة '+(c.number||c.id));
+  toast('تم حفظ التعيين');
+  renderContent();
+}
+async function submitAnswer(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  const text = el('answerText').value.trim();
+  if(!text){ toast('يرجى كتابة نص الإجابة قبل الإرسال'); return; }
+  c.answer = text; c.draftAnswer='';
+  c.status = 'تمت الإجابة';
+  c.answeredAt = nowIso();
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor:state.currentConsultant, action:'تم إرسال الإجابة'});
+  await persistConsultations();
+  logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
+  toast('تم إرسال الإجابة إلى الإدارة');
+  renderContent();
+}
+async function copyAnswer(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  try{ await navigator.clipboard.writeText(c.answer||''); toast('تم نسخ الإجابة'); }
+  catch(e){ toast('تعذر النسخ التلقائي — يرجى التحديد اليدوي'); }
+}
+async function approveAnswer(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  c.status='معتمدة'; c.approvedAt = nowIso();
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor:'مدير النظام', action:'تم اعتماد الإجابة'});
+  await persistConsultations();
+  logAudit('اعتماد إجابة استشارة '+(c.number||c.id));
+  toast('تم اعتماد الإجابة');
+  renderContent();
+}
+async function returnAnswer(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  const feedback = prompt('يرجى كتابة ملاحظات التعديل المطلوبة للمستشار:') || '';
+  c.status='تحت الإجابة';
+  c.draftAnswer = c.answer;
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor:'مدير النظام', action:'أعيدت للتعديل'+(feedback?(' — ملاحظة: '+feedback):'')});
+  await persistConsultations();
+  logAudit('إعادة استشارة للتعديل '+(c.number||c.id));
+  toast('تمت إعادة الاستشارة للمستشار');
+  renderContent();
+}
+async function archiveConsultation(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  c.status='مؤرشفة';
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor:'مدير النظام', action:'تمت الأرشفة'});
+  await persistConsultations();
+  logAudit('أرشفة استشارة '+(c.number||c.id));
+  toast('تمت الأرشفة');
+  renderContent();
+}
+
+/* ---------- Reports export ---------- */
+function exportCsv(set){
+  let list = state.consultations;
+  if(set==='answered') list = list.filter(c=>['تمت الإجابة','معتمدة'].includes(c.status));
+  if(set==='overdue') list = list.filter(isOverdue);
+  if(set==='urgent') list = list.filter(c=>c.priority==='مستعجل');
+  const headers = ['رقم','التاريخ','الجهة','المستفيد','الموضوع','الأولوية','الحالة','المستشار','تاريخ الإرسال','عدد الأيام'];
+  const rows = list.map(c=>[c.number,c.date,c.entity,c.beneficiary,c.subject,c.priority, (isOverdue(c)?'متأخرة':c.status), (c.assignedTo||[]).join(' / '), fmtDate(c.createdAt), daysSince(c.createdAt)]);
+  const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'تقرير_الاستشارات_'+set+'.csv';
+  a.click();
+  logAudit('تصدير تقرير: '+set);
+}
+
+/* ---------- Settings actions ---------- */
+async function addConsultant(){
+  const input = el('newConsultantName');
+  const name = input.value.trim();
+  if(!name) return;
+  if(state.consultants.includes(name)){ toast('هذا الاسم موجود بالفعل'); return; }
+  state.consultants.push(name);
+  await persistConsultants();
+  logAudit('إضافة مستشار: '+name);
+  toast('تمت إضافة المستشار');
+  renderContent();
+}
+async function removeConsultant(name){
+  if(!confirm('هل تريد حذف "'+name+'" من قائمة المستشارين؟')) return;
+  state.consultants = state.consultants.filter(n=>n!==name);
+  await persistConsultants();
+  logAudit('حذف مستشار: '+name);
+  toast('تم الحذف');
+  renderContent();
+}
+
+/* ===================== INIT ===================== */
+async function init(){
+  el('app').innerHTML = `<div style="padding:40px; font-family:Tajawal,sans-serif; color:#5B6660;">جاري التحميل…</div>`;
+  await loadAll();
+  render();
+}
+init();
+</script>
+</body>
+</html>
