@@ -9,9 +9,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 <style>
 /* ملاحظة: طلب استخدام "خط الوتد" (وزارة الثقافة) و"DG Forsha" (خط فرشة) — كلاهما خطوط تُحمَّل كملفات (TTF) وليست متاحة عبر Google Fonts أو أي CDN عام،
-   لذلك تعذّر تضمينهما تلقائياً هنا. تم استخدام خط "Aref Ruqaa" (خط عربي بطابع خط اليد/الفرشاة) للعناوين كبديل مقارب حتى تزوّدني بملفات الخطوط الفعلية (TTF/WOFF) لتضمينها مباشرة عبر @font-face.
-   ملاحظة إضافية: تم تعيين خط "Sakkal Majalla" كخط أساسي للموقع بناءً على الطلب. هذا الخط مرفق مع نظام Windows/Office وليس متاحاً عبر أي CDN عام لتضمينه في المتصفح مباشرة،
-   لذلك سيظهر تلقائياً فقط لدى من يفتح الصفحة على جهاز يحتوي هذا الخط مثبتاً (وهو شائع جداً على أجهزة Windows)، وإلا سيعود المتصفح تلقائياً للخط البديل التالي في القائمة. إن أرسلت لي ملف الخط (TTF/OTF) يمكن تضمينه عبر @font-face ليظهر للجميع دون الحاجة لتثبيته. */
+   لذلك تعذّر تضمينهما تلقائياً هنا. تم استخدام خط "Aref Ruqaa" (خط عربي بطابع خط اليد/الفرشاة) للعناوين كبديل مقارب حتى تزوّدني بملفات الخطوط الفعلية (TTF/WOFF) لتضمينها مباشرة عبر @font-face. */
 :root{
   --bg:#F6F2E8; --surface:#FFFFFF; --surface-2:#FBF8F1;
   --ink:#1E241F; --ink-soft:#5B6660; --ink-faint:#8B9088; --border:#E3DCC8;
@@ -28,22 +26,22 @@
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
-body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajawal',sans-serif; min-height:100vh;}
+body{background:var(--bg); color:var(--ink); font-family:'Tajawal',sans-serif; min-height:100vh;}
 .app{display:flex; min-height:100vh;}
 .sidebar{width:250px; flex:0 0 250px; background:var(--primary); color:#EFF5F1; display:flex; flex-direction:column; padding:22px 16px; position:sticky; top:0; height:100vh;}
 .brand{display:flex; align-items:center; gap:10px; margin-bottom:26px; padding:0 6px;}
-.brand-seal{width:40px; height:40px; border-radius:50%; border:2px dashed rgba(239,245,241,0.55); display:flex; align-items:center; justify-content:center; font-family:'Sakkal Majalla','Amiri',serif; font-weight:700; font-size:15px; flex:0 0 40px;}
+.brand-seal{width:40px; height:40px; border-radius:50%; border:2px dashed rgba(239,245,241,0.55); display:flex; align-items:center; justify-content:center; font-family:'Amiri',serif; font-weight:700; font-size:15px; flex:0 0 40px;}
 .brand-logo{width:40px; height:40px; border-radius:50%; object-fit:cover; flex:0 0 40px; background:#fff;}
 .login-screen{min-height:100vh; display:flex; align-items:center; justify-content:center; background:linear-gradient(160deg, var(--primary) 0%, #4a1420 55%, var(--bg) 55%);}
 .login-card{background:var(--surface); border-radius:20px; box-shadow:0 24px 70px rgba(0,0,0,0.25); padding:36px 32px; width:100%; max-width:380px; text-align:center;}
 .login-logo{width:76px; height:76px; border-radius:50%; object-fit:cover; margin:0 auto 14px; display:block; border:3px solid var(--primary-100);}
 .login-seal{width:76px; height:76px; margin:0 auto 14px; border:2px dashed var(--primary); color:var(--primary); font-size:24px;}
-.login-card h1{font-family:'Sakkal Majalla','Aref Ruqaa',serif; color:var(--blue); font-size:26px; margin:0 0 4px;}
+.login-card h1{font-family:'Aref Ruqaa',serif; color:var(--blue); font-size:26px; margin:0 0 4px;}
 .login-card .muted{font-size:13px;}
 .login-error{background:var(--urgent-100); color:var(--urgent); border-radius:8px; padding:8px 10px; font-size:12.5px; margin:10px 0;}
 .login-card input{text-align:right;}
-.brand-text{font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; font-size:17.5px; line-height:1.4;}
-.brand-text small{display:block; font-family:'Sakkal Majalla','Tajawal',sans-serif; font-weight:400; font-size:11px; color:rgba(239,245,241,0.68);}
+.brand-text{font-family:'Aref Ruqaa',serif; font-weight:700; font-size:17.5px; line-height:1.4;}
+.brand-text small{display:block; font-family:'Tajawal',sans-serif; font-weight:400; font-size:11px; color:rgba(239,245,241,0.68);}
 .nav{display:flex; flex-direction:column; gap:2px; margin-top:6px;}
 .nav-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; color:rgba(239,245,241,0.82); text-decoration:none; font-size:14px; cursor:pointer; border:none; background:transparent; text-align:right; width:100%; font-family:inherit; position:relative;}
 .nav-item:hover{background:rgba(255,255,255,0.08);}
@@ -53,16 +51,22 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .sidebar-foot{margin-top:auto; font-size:11px; color:rgba(239,245,241,0.5); padding:0 8px;}
 .main{flex:1; min-width:0; display:flex; flex-direction:column;}
 .topbar{display:flex; align-items:center; justify-content:space-between; padding:14px 26px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5;}
-.topbar-title{font-size:19px; font-weight:900; font-family:'Sakkal Majalla','Aref Ruqaa',serif; color:var(--blue);}
+.topbar-title{font-size:19px; font-weight:900; font-family:'Aref Ruqaa',serif; color:var(--blue);}
 .topbar-right{display:flex; align-items:center; gap:14px;}
 .role-switch{display:flex; align-items:center; gap:8px; background:var(--surface-2); border:1px solid var(--border); border-radius:999px; padding:4px;}
 .role-btn{border:none; background:transparent; padding:6px 14px; border-radius:999px; font-family:inherit; font-size:13px; cursor:pointer; color:var(--ink-soft);}
 .role-btn.active{background:var(--primary); color:#fff; font-weight:700;}
 .who-tag{font-size:12.5px; color:var(--ink-soft);}
 .content{padding:24px 26px; flex:1;}
+.stat-badge-row{display:flex; flex-wrap:wrap; gap:14px; margin-bottom:20px;}
+.stat-badge{flex:1; min-width:150px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px 16px; text-align:center;}
+.stat-badge-title{display:inline-block; border:2px dashed var(--ink); border-radius:999px; padding:5px 24px; font-family:'Aref Ruqaa',serif; font-weight:700; font-size:16px; color:var(--ink); margin-bottom:12px; letter-spacing:1px;}
+.stat-badge-num{font-family:'Amiri',serif; font-weight:900; font-size:42px; color:var(--normal); line-height:1;}
+.stat-badge.accent-urgent .stat-badge-num{color:var(--urgent);}
+.stat-badge.accent-archived .stat-badge-num{color:var(--archived);}
 .stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-bottom:18px;}
 .stat-card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow);}
-.stat-card .num{font-size:19px; font-weight:900; font-family:'Sakkal Majalla','Amiri',serif;}
+.stat-card .num{font-size:19px; font-weight:900; font-family:'Amiri',serif;}
 .stat-card .lbl{font-size:10.5px; color:var(--ink-soft); margin-top:1px;}
 .stat-card.accent-urgent .num{color:var(--urgent);}
 .stat-card.accent-normal .num{color:var(--normal);}
@@ -71,7 +75,7 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .stat-card.accent-apology .num{color:var(--apology);}
 .panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:20px;}
 .panel-head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:8px;}
-.panel-head h3{margin:0; font-size:17px; font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; color:var(--blue);}
+.panel-head h3{margin:0; font-size:17px; font-family:'Aref Ruqaa',serif; font-weight:700; color:var(--blue);}
 .panel-body{padding:16px 18px;}
 .btn{border:none; border-radius:10px; padding:9px 16px; font-family:inherit; font-size:13.5px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:6px;}
 .btn-primary{background:var(--primary); color:#fff;}
@@ -87,7 +91,6 @@ input[type=text],input[type=date],input[type=email],textarea,select{width:100%; 
 textarea{resize:vertical; min-height:90px;}
 .field{margin-bottom:14px;}
 .grid-2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
-.grid-5{display:grid; grid-template-columns:repeat(5,1fr); gap:14px;}
 .checks{display:flex; flex-wrap:wrap; gap:8px;}
 .chip-check{display:flex; align-items:center; gap:6px; border:1px solid var(--border); border-radius:999px; padding:6px 12px; font-size:13px; cursor:pointer; background:#fff;}
 .chip-check.checked{border-color:var(--primary); background:var(--primary-100); color:var(--primary); font-weight:700;}
@@ -97,7 +100,7 @@ textarea{resize:vertical; min-height:90px;}
 .file-thumb{width:64px; height:64px; border-radius:8px; overflow:hidden; border:1px solid var(--border); position:relative; background:#fff;}
 .file-thumb img{width:100%; height:100%; object-fit:cover;}
 .file-thumb .pdf-tag{display:flex; align-items:center; justify-content:center; height:100%; font-size:11px; color:var(--ink-soft);}
-.stamp{display:inline-flex; align-items:center; gap:5px; padding:3px 10px 3px 8px; border-radius:999px; border:1.5px dashed currentColor; font-family:'Sakkal Majalla','Amiri',serif; font-weight:700; font-size:12.5px;}
+.stamp{display:inline-flex; align-items:center; gap:5px; padding:3px 10px 3px 8px; border-radius:999px; border:1.5px dashed currentColor; font-family:'Amiri',serif; font-weight:700; font-size:12.5px;}
 .dot{width:7px; height:7px; border-radius:50%; background:currentColor; flex:0 0 7px;}
 .stamp.st-new{color:var(--primary); background:var(--primary-100);}
 .stamp.st-urgent-pending{color:var(--urgent); background:var(--urgent-100);}
@@ -107,40 +110,26 @@ textarea{resize:vertical; min-height:90px;}
 .stamp.st-printing{color:var(--gold); background:var(--gold-100);}
 .stamp.st-archived{color:var(--archived); background:var(--archived-100);}
 .stamp.st-apology{color:var(--apology); background:var(--apology-100);}
+.asker-banner{display:flex; align-items:center; gap:8px; background:var(--primary-100); color:var(--primary); border:1px solid var(--primary-100); border-radius:10px; padding:10px 14px; font-size:15px; font-weight:700; margin-bottom:14px;}
 .pill{display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:3px 9px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); color:var(--ink-soft);}
 .pill.urgent{color:var(--urgent); border-color:var(--urgent-100); background:var(--urgent-100);}
 .pill.normal{color:var(--normal); border-color:var(--normal-100); background:var(--normal-100);}
 table{width:100%; border-collapse:collapse; font-size:13.5px;}
-th{text-align:right; color:var(--ink-soft); font-size:12px; font-weight:700; padding:8px 10px; border-bottom:1px solid var(--border);}
-td{padding:11px 10px; border-bottom:1px solid var(--border); vertical-align:middle; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif;}
-.table-panel-outlined{border:2px solid var(--primary); border-radius:12px; overflow:hidden;}
-.table-panel-outlined table th{border-bottom:1px solid var(--primary);}
-.table-panel-outlined table td{border-bottom:1px dashed var(--border);}
-.table-panel-outlined table tr:last-child td{border-bottom:none;}
-.stat-badges-row{display:flex; gap:22px; justify-content:center; flex-wrap:wrap; margin-bottom:24px; padding-top:14px;}
-.stat-badge{display:flex; flex-direction:column; align-items:center; width:130px;}
-.stat-badge .badge-circle{width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,#fff 0%, var(--gold) 100%); border:3px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,.18); display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800; color:var(--primary); z-index:2; margin-bottom:-20px;}
-.stat-badge .badge-box{width:100%; background:linear-gradient(180deg,var(--primary) 0%, #0a4a42 100%); color:#fff; border-radius:18px; padding:28px 10px 14px; text-align:center; font-weight:700; font-size:13px; box-shadow:0 3px 10px rgba(0,0,0,.12);}
-.suggestion-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
-.suggestion-item{display:flex; align-items:center; gap:8px; padding:10px 8px; border-bottom:1px dashed var(--border);}
-.suggestion-item:last-child{border-bottom:none;}
-.suggestion-bullet{color:var(--primary); font-size:20px; line-height:1;}
-.suggestion-text{flex:1; font-size:14px;}
-.suggestion-edit-input{flex:1;}
-.suggestion-actions{display:flex; gap:4px;}
+th{text-align:right; color:var(--ink-soft); font-size:12px; font-weight:700; padding:8px 10px; border-bottom:1.5px dashed var(--border);}
+td{padding:11px 10px; border-bottom:1px dashed var(--border); vertical-align:middle; font-size:18px; font-weight:700; font-family:'Amiri',serif;}
 tr.row-click{cursor:pointer;}
 tr.row-click:hover{background:var(--surface-2);}
 .muted{color:var(--ink-faint); font-size:12px;}
-.searchbar{display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:16px;}
+.searchbar{display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:16px; border:1.5px solid var(--blue); border-radius:12px; padding:14px 16px; background:var(--surface);}
 .searchbar .field{margin-bottom:0; min-width:150px;}
 .searchbar .field.grow{flex:1; min-width:220px;}
 .modal-overlay{position:fixed; inset:0; background:rgba(20,24,20,0.5); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;}
 .modal{background:#fff; border-radius:16px; width:100%; max-width:420px; padding:24px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);}
 .modal .modal-seal{width:56px; height:56px; margin:0 auto 14px; border-radius:50%; border:2px dashed var(--gold); display:flex; align-items:center; justify-content:center; font-size:24px;}
-.modal h3{margin:0 0 8px; font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-size:20px; color:var(--blue);}
+.modal h3{margin:0 0 8px; font-family:'Aref Ruqaa',serif; font-size:20px; color:var(--blue);}
 .modal p{color:var(--ink-soft); font-size:13.5px; margin:0 0 18px;}
 .detail-grid{display:block;}
-@media (max-width:900px){.detail-grid{grid-template-columns:1fr;} .grid-2{grid-template-columns:1fr;} .grid-5{grid-template-columns:1fr 1fr;} .sidebar{position:fixed; z-index:20; height:100vh; transform:translateX(100%); transition:.2s;} .sidebar.open{transform:translateX(0);} .app{display:block;}}
+@media (max-width:900px){.detail-grid{grid-template-columns:1fr;} .grid-2{grid-template-columns:1fr;} .sidebar{position:fixed; z-index:20; height:100vh; transform:translateX(100%); transition:.2s;} .sidebar.open{transform:translateX(0);} .app{display:block;}}
 .img-viewer{background:var(--ink); border-radius:12px; overflow:hidden; position:relative; min-height:320px; display:flex; align-items:center; justify-content:center;}
 .img-viewer img{max-width:100%; max-height:560px; transition:transform .15s;}
 .img-toolbar{position:absolute; bottom:10px; right:10px; display:flex; gap:6px;}
@@ -153,10 +142,10 @@ tr.row-click:hover{background:var(--surface-2);}
 .timeline li::before{content:''; position:absolute; right:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:var(--primary);}
 .timeline li .t-action{font-weight:700; font-size:13px;}
 .timeline li .t-meta{color:var(--ink-faint); font-size:11.5px; margin-top:2px;}
-.kv{display:grid; grid-template-columns:120px 1fr; gap:7px 10px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; margin-bottom:4px;}
+.kv{display:grid; grid-template-columns:120px 1fr; gap:7px 10px; font-size:18px; font-weight:700; font-family:'Amiri',serif; margin-bottom:4px;}
 .info-bar{display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; margin-bottom:16px; padding:12px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;}
-.info-bar .info-item{display:flex; align-items:baseline; gap:6px; font-size:15.5px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif;}
-.info-bar .info-item b{color:var(--ink-soft); font-weight:700; font-size:11.5px; font-family:'Sakkal Majalla','Tajawal',sans-serif;}
+.info-bar .info-item{display:flex; align-items:baseline; gap:6px; font-size:15.5px; font-weight:700; font-family:'Amiri',serif;}
+.info-bar .info-item b{color:var(--ink-soft); font-weight:700; font-size:11.5px; font-family:'Tajawal',sans-serif;}
 .detail-title-actions{display:flex; align-items:center; gap:6px;}
 .icon-link{border:none; background:transparent; cursor:pointer; font-size:15px; padding:4px 6px; border-radius:6px; color:var(--ink-soft);}
 .icon-link:hover{background:var(--surface-2); color:var(--primary);}
@@ -173,16 +162,11 @@ tr.row-click:hover{background:var(--surface-2);}
 .toast{position:fixed; bottom:20px; left:50%; transform:translateX(-50%); background:var(--ink); color:#fff; padding:10px 18px; border-radius:10px; font-size:13px; z-index:100; box-shadow:var(--shadow);}
 .hidden{display:none !important;}
 .notice-banner{background:var(--gold-100); border:1px solid var(--gold); color:#7A5A22; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:flex; align-items:center; gap:8px;}
-.notice-critical{background:var(--urgent-100); border-color:var(--urgent); color:var(--urgent); font-weight:700;}
-tr.row-critical{background:var(--urgent-100);}
-tr.row-critical:hover{background:var(--urgent-100);}
-tr.row-critical td:first-child{border-right:3px solid var(--urgent);}
-.btn-outline-danger{background:#fff; border:1.5px solid var(--urgent); color:var(--urgent);}
 .mobile-toggle{display:none; border:none; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; width:36px; height:36px; font-size:16px; cursor:pointer;}
 @media(max-width:900px){.mobile-toggle{display:block;}}
 @media print{.sidebar,.topbar,.no-print{display:none !important;} .content{padding:0;}}
 .pasted-img{max-width:100%; border-radius:10px; border:1px solid var(--border); display:block;}
-.pasted-block{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; white-space:pre-wrap; max-height:320px; overflow:auto; text-align:justify; line-height:1.5; letter-spacing:0.2px;}
+.pasted-block{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; font-size:16.5px; font-weight:700; font-family:'Amiri',serif; line-height:1.65; text-align:justify; white-space:pre-wrap; max-height:320px; overflow:auto;}
 .icon-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
 .icon-btn{display:flex; flex-direction:column; align-items:center; gap:4px; border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 16px; cursor:pointer; font-family:inherit; font-size:11.5px; color:var(--ink-soft); min-width:92px;}
 .icon-btn .ic{font-size:20px;}
@@ -191,7 +175,7 @@ tr.row-critical td:first-child{border-right:3px solid var(--urgent);}
 .editor-toolbar{display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap;}
 .editor-toolbar button{border:1px solid var(--border); background:#fff; border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:13px;}
 .editor-toolbar button:hover{background:var(--surface-2);}
-.doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:20px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; line-height:1.5; text-align:justify; letter-spacing:0.2px;}
+.doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:18px 20px; font-size:16.5px; font-weight:700; font-family:'Amiri',serif; line-height:1.65; text-align:justify;}
 .doc-page:focus{outline:2px solid var(--primary-100); border-color:var(--primary);}
 .chat-thread{display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; padding:4px;}
 .chat-bubble{max-width:75%; padding:9px 13px; border-radius:12px; font-size:13.5px; position:relative;}
@@ -205,6 +189,9 @@ tr.row-critical td:first-child{border-right:3px solid var(--urgent);}
 .note-item{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:8px 12px; margin-bottom:8px; font-size:13px;}
 .note-item .n-meta{font-size:11px; color:var(--ink-faint); margin-bottom:3px;}
 .perm-list{margin:0; padding-right:18px; font-size:13px; color:var(--ink-soft); line-height:2;}
+.sugg-list{margin:0; padding-right:18px; list-style:disc; font-size:14px; color:var(--ink); line-height:1.7;}
+.sugg-list li{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed var(--border);}
+.sugg-list li:last-child{border-bottom:none;}
 </style>
 </head>
 <body>
@@ -264,11 +251,12 @@ let state = {
   logoUrl: '',
   sidebarOpen: false,
   filters: { q:'', status:'', priority:'' },
+  closedQuery: '',
+  reportType: 'incoming',
+  suggestions: [],
   selectedMonth: '',
   rangeFrom: '',
   rangeTo: '',
-  reportType: 'received',
-  suggestions: [],
   unseenMessages: 0
 };
 let editDetails = false;
@@ -277,23 +265,17 @@ let imgViewerIndex = 0, imgZoom = 1, imgRot = 0;
 function uid(p){ return p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function nowIso(){ return new Date().toISOString(); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function buildAnswerGreeting(c){
-  const name = (c && c.askerName ? c.askerName : '').trim();
-  return `بسم الله الرحمن الرحيم<br>الأخ الفاضل ${name?esc(name):''}<br>السلام عليكم ورحمة الله وبركاته.<br><br>`;
+function answerGreetingHtml(c){
+  const name = (c.askerName||'').trim();
+  return `<p style="text-align:center;"><b>بسم الله الرحمن الرحيم</b></p>`
+    + `<p>الأخ الفاضل${name?(' / '+esc(name)):''}</p>`
+    + `<p>السلام عليكم ورحمة الله وبركاته...</p>`
+    + `<p><br></p>`;
 }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
 function daysSince(iso){ if(!iso) return 0; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
-function hoursSince(iso){ if(!iso) return 0; return (Date.now()-new Date(iso).getTime())/3600000; }
-function effectivePriority(c){
-  if(c.status!=='تحت الإجابة') return c.priority;
-  if(c.priority==='مستعجل') return 'مستعجل';
-  return hoursSince(c.assignedAt||c.createdAt) >= 72 ? 'مستعجل' : 'عادي';
-}
-function isCritical(c){
-  if(c.status!=='تحت الإجابة') return false;
-  return hoursSince(c.assignedAt||c.createdAt) >= 96;
-}
+function daysSinceExact(iso){ if(!iso) return 0; return (Date.now()-new Date(iso).getTime())/86400000; }
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function monthKey(iso){ const d=new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function monthLabel(key){ if(!key) return ''; const [y,m]=key.split('-'); const names=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']; return names[parseInt(m,10)-1]+' '+y; }
@@ -346,13 +328,16 @@ function logAudit(action){
 /* ===================== DERIVED HELPERS ===================== */
 function statusKey(c){
   if(c.status==='تحت الإجابة'){
-    const hours = hoursSince(c.assignedAt||c.createdAt);
-    const autoUrgent = hours >= 72;   // 3 أيام — تتحول تلقائياً إلى مستعجلة
-    const urgent = c.priority==='مستعجل' || autoUrgent;
-    const late = hours >= 36;          // يوم ونصف — تصبح متأخرة
-    if(urgent && late) return 'مستعجلة ومتأخرة';
-    if(late) return 'متأخرة';
-    if(urgent) return 'مستعجلة';
+    const days = daysSinceExact(c.assignedAt||c.createdAt);
+    const urgent = c.priority==='مستعجل';
+    if(urgent){
+      if(days>=2) return 'مستعجلة ومتأخرة';
+      return 'مستعجلة';
+    }
+    /* تصعيد تلقائي للاستشارات العادية حسب الوقت المنقضي منذ الإرسال */
+    if(days>=4) return 'مستعجلة ومتأخرة';   /* تجاوزت 4 أيام — تصبح حمراء اللون */
+    if(days>=3) return 'مستعجلة';           /* بلغت 3 أيام — تتحول لمستعجلة */
+    if(days>=1.5) return 'متأخرة';          /* بلغت يوم ونصف — تتحول لمتأخرة */
     return 'جديدة';
   }
   return c.status;
@@ -387,10 +372,10 @@ function visibleConsultations(){
   const f = state.filters;
   if(f.q){
     const q = f.q.trim();
-    list = list.filter(c => [c.number,c.subject,c.askerName,c.question].some(v=>(v||'').includes(q)));
+    list = list.filter(c => [c.number,c.subject,c.askerInfoText,c.detailsText].some(v=>(v||'').includes(q)));
   }
   if(f.status) list = list.filter(c => statusKey(c) === f.status);
-  if(f.priority) list = list.filter(c => effectivePriority(c) === f.priority);
+  if(f.priority) list = list.filter(c => c.priority === f.priority);
   return list.sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
 }
 function computeStats(list){
@@ -406,7 +391,7 @@ function computeStats(list){
     if(k==='قيد الطباعة') s.printing++;
     if(k==='مؤرشفة') s.archived++;
     if(k==='اعتذار') s.apology++;
-    if(effectivePriority(c)==='مستعجل') s.urgent++; else s.normal++;
+    if(c.priority==='مستعجل') s.urgent++; else s.normal++;
   });
   return s;
 }
@@ -420,7 +405,8 @@ function complianceRate(list){
   const done = list.filter(c=>c.answeredAt);
   if(!done.length) return '—';
   const onTime = done.filter(c=>{
-    return (new Date(c.answeredAt)-new Date(c.assignedAt||c.createdAt))/86400000 <= 1.5;
+    const threshold = c.priority==='مستعجل' ? 2 : 4;
+    return (new Date(c.answeredAt)-new Date(c.assignedAt||c.createdAt))/86400000 <= threshold;
   }).length;
   return Math.round((onTime/done.length)*100) + '%';
 }
@@ -435,6 +421,10 @@ async function unseenMessagesFor(role){
   return state.messages.filter(m => m.from !== role && (!last || new Date(m.ts) > last)).length;
 }
 async function refreshUnseenMessages(){ state.unseenMessages = await unseenMessagesFor(state.role); }
+function reportsScope(){
+  if(state.role==='admin') return state.consultations;
+  return state.consultations.filter(c=>(c.assignedTo||[]).includes(state.consultantProfile.name));
+}
 
 /* ===================== RENDER ===================== */
 function el(id){ return document.getElementById(id); }
@@ -560,18 +550,6 @@ function renderContent(){
   if(state.view==='messages'){ storeSet('lastseen_msgs_'+state.role, nowIso(), false).then(()=>{ state.unseenMessages=0; }); }
 }
 
-function statBadgesHtml(s){
-  const items = [
-    {n:1, num:s.new, label:'استشارات جديدة'},
-    {n:2, num:s.archived, label:'استشارات مغلقة'},
-    {n:3, num:s.overdue, label:'استشارات متأخرة'}
-  ];
-  return `<div class="stat-badges-row">${items.map(it=>`
-    <div class="stat-badge">
-      <div class="badge-circle">${it.num}</div>
-      <div class="badge-box">${it.label}</div>
-    </div>`).join('')}</div>`;
-}
 /* ---------- Admin dashboard ---------- */
 function renderAdminDashboard(){
   const list = state.consultations;
@@ -622,7 +600,6 @@ function renderConsultantDashboard(){
   const s = computeStats(mine);
   const newOnes = mine.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   return `
-    <div class="notice-banner">👋 مرحباً بعودتك المستشار <b>${esc(state.consultantProfile.name)}</b></div>
     ${statBadgesHtml(s)}
     <div class="notice-banner">📌 لديك حالياً <b>${s.pendingTotal}</b> استشارة لم يتم الرد عليها بعد.</div>
     <div class="panel">
@@ -642,6 +619,13 @@ function renderRecentTable(list, title){
   return `<div class="panel"><div class="panel-head"><h3>${title}</h3><button class="btn btn-outline btn-sm" data-nav="list">عرض الكل</button></div>
   <div class="panel-body" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد استشارات بعد</div>`}</div></div>`;
 }
+function statBadgesHtml(s){
+  return `<div class="stat-badge-row">
+    <div class="stat-badge"><div class="stat-badge-title">جديدة</div><div class="stat-badge-num">${s.new}</div></div>
+    <div class="stat-badge accent-archived"><div class="stat-badge-title">مغلقة</div><div class="stat-badge-num">${s.archived}</div></div>
+    <div class="stat-badge accent-urgent"><div class="stat-badge-title">متأخرة</div><div class="stat-badge-num">${s.overdue}</div></div>
+  </div>`;
+}
 
 /* ---------- List ---------- */
 function renderList(){
@@ -654,7 +638,7 @@ function renderList(){
       <div class="field"><label>الحالة</label><select id="fstatus"><option value="">الكل</option>${statusOptions.map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${STATUS_DISPLAY[s]||s}</option>`).join('')}</select></div>
       <div class="field"><label>الأولوية</label><select id="fpriority"><option value="">الكل</option><option ${f.priority==='مستعجل'?'selected':''}>مستعجل</option><option ${f.priority==='عادي'?'selected':''}>عادي</option></select></div>
     </div>
-    <div class="panel table-panel-outlined"><div class="panel-body" id="listResultsBody" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`}</div></div>
+    <div class="panel"><div class="panel-body" id="listResultsBody" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`}</div></div>
   `;
 }
 function refreshListResults(){
@@ -666,31 +650,45 @@ function refreshListResults(){
 }
 function bindRowClicks(){
   document.querySelectorAll('[data-detail]').forEach(tr=>tr.addEventListener('click', ()=>{ setView('detail', {detailId: tr.getAttribute('data-detail')}); }));
-  document.querySelectorAll('[data-edit-row]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); setView('add', {editingId: b.getAttribute('data-edit-row')}); }));
-  document.querySelectorAll('[data-delete-row]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); deleteConsultation(b.getAttribute('data-delete-row')); }));
 }
 function tableHtml(list){
-  const showActions = state.role==='admin';
-  return `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>التاريخ</th><th>الأولوية</th><th>الحالة</th><th>منذ الوصول</th>${showActions?'<th class="no-print">إجراءات</th>':''}</tr></thead>
+  return `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>التاريخ</th><th>الأولوية</th><th>الحالة</th><th>منذ الوصول</th></tr></thead>
     <tbody>${list.map(c=>{
       const st = statusStamp(c);
-      const ep = effectivePriority(c);
-      return `<tr class="row-click ${isCritical(c)?'row-critical':''}" data-detail="${c.id}">
+      return `<tr class="row-click" data-detail="${c.id}">
         <td>${esc(c.number)||'—'}</td>
         <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}</td>
         <td>${c.date?esc(c.date):'—'}</td>
-        <td><span class="pill ${ep==='مستعجل'?'urgent':'normal'}">${ep==='مستعجل'?'🔴':'🟢'} ${ep}</span></td>
+        <td><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span></td>
         <td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td>
         <td class="muted">${daysSince(c.assignedAt||c.createdAt)} يوم</td>
-        ${showActions ? `<td class="no-print"><button class="icon-link" data-edit-row="${c.id}" title="تعديل">✏️</button><button class="icon-link danger" data-delete-row="${c.id}" title="حذف">🗑️</button></td>` : ''}
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+function closedTableHtml(list){
+  return `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>التاريخ</th><th>الأولوية</th><th>الحالة</th><th>تاريخ ووقت الإغلاق</th></tr></thead>
+    <tbody>${list.map(c=>{
+      const st = statusStamp(c);
+      return `<tr class="row-click" data-detail="${c.id}">
+        <td>${esc(c.number)||'—'}</td>
+        <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}</td>
+        <td>${c.date?esc(c.date):'—'}</td>
+        <td><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span></td>
+        <td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td>
+        <td class="muted">${fmtDateTime(c.archivedAt)}</td>
       </tr>`;
     }).join('')}</tbody></table>`;
 }
 function renderClosedList(){
-  const list = visibleConsultations().filter(c=>c.status==='مؤرشفة');
+  let list = visibleConsultations().filter(c=>c.status==='مؤرشفة');
+  const q = (state.closedQuery||'').trim();
+  if(q) list = list.filter(c=> [c.number,c.subject].some(v=>(v||'').includes(q)));
   return `
-    <div class="panel table-panel-outlined"><div class="panel-head"><h3>الاستشارات المغلقة (${list.length})</h3></div>
-      <div class="panel-body" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>لا توجد استشارات مغلقة بعد</div>`}</div>
+    <div class="searchbar">
+      <div class="field grow"><label>بحث في الاستشارات المغلقة (الموضوع أو الرقم)</label><input type="text" id="closedQ" value="${esc(state.closedQuery||'')}" placeholder="اكتب كلمة للبحث…"></div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>الاستشارات المغلقة (${list.length})</h3></div>
+      <div class="panel-body" style="padding:0;">${list.length ? closedTableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>لا توجد استشارات مغلقة بعد</div>`}</div>
     </div>`;
 }
 
@@ -698,40 +696,22 @@ function renderClosedList(){
 function renderAddForm(){
   const editing = state.editingId ? state.consultations.find(x=>x.id===state.editingId) : null;
   return `
-  <div class="panel" style="border:1.5px dashed var(--gold);">
-    <div class="panel-head"><h3>📋 لصق تلقائي</h3><span class="muted">الصق نص الاستشارة كما هو من الموقع وسيتم تعبئة الحقول أدناه تلقائياً</span></div>
-    <div class="panel-body">
-      <div class="field" style="margin-bottom:8px;">
-        <label>الصق البيانات هنا (رقم الاستشارة، السائل، العنوان، السؤال…)</label>
-        <textarea id="f_rawpaste" placeholder="الصق هنا كامل نص الاستشارة المنسوخ من الموقع…" style="min-height:130px;"></textarea>
-      </div>
-      <button type="button" class="btn btn-gold btn-sm" data-action="parse-paste">🔍 تحليل وتعبئة الحقول تلقائياً</button>
-      <span class="muted" style="margin-right:8px;">أو ستتم التعبئة تلقائياً فور اللصق</span>
-    </div>
-  </div>
-
   <div class="panel">
     <div class="panel-head"><h3>${editing?'تعديل الاستشارة':'بيانات الاستشارة'}</h3><span class="muted">${editing?'سيتم حفظ التعديلات فقط':'ستُرسل تلقائياً إلى: '+esc(state.consultantProfile.name)}</span></div>
     <div class="panel-body">
+      <div class="field"><label>اسم السائل (الأخ الفاضل...) — يُستخدم تلقائياً في مخاطبة بداية الإجابة</label><input type="text" id="f_askerName" placeholder="مثال: أحمد محمد العُمري" value="${editing?esc(editing.askerName||''):''}"></div>
       <div class="grid-2">
         <div class="field"><label>رقم الاستشارة</label><input type="text" id="f_number" placeholder="رقم الاستشارة" value="${editing?esc(editing.number):''}"></div>
         <div class="field"><label>تاريخ الاستشارة</label><input type="date" id="f_date" value="${editing?esc(editing.date):todayStr()}" ${editing?'':'readonly'}></div>
       </div>
-      <div class="grid-5">
-        <div class="field"><label>السائل</label><input type="text" id="f_asker" placeholder="اسم السائل" value="${editing?esc(editing.askerName):''}"></div>
-        <div class="field"><label>البلد</label><input type="text" id="f_country" placeholder="البلد" value="${editing?esc(editing.askerCountry):''}"></div>
-        <div class="field"><label>الجنس</label><input type="text" id="f_gender" placeholder="الجنس" value="${editing?esc(editing.askerGender):''}"></div>
-        <div class="field"><label>العمر</label><input type="text" id="f_age" placeholder="العمر" value="${editing?esc(editing.askerAge):''}"></div>
-        <div class="field"><label>الحالة الإجتماعية</label><input type="text" id="f_marital" placeholder="الحالة الإجتماعية" value="${editing?esc(editing.askerMarital):''}"></div>
-      </div>
-      <div class="field"><label>العنوان (موضوع الاستشارة)</label><input type="text" id="f_subject" placeholder="عنوان الاستشارة" value="${editing?esc(editing.subject):''}"></div>
-      <div class="field"><label>السؤال</label><textarea id="f_question" placeholder="الصق نص السؤال هنا…" style="min-height:130px;">${editing?esc(editing.question):''}</textarea></div>
+      <div class="field"><label>موضوع الاستشارة</label><input type="text" id="f_subject" value="${editing?esc(editing.subject):''}"></div>
+      <div class="field"><label>بيانات السائل وتفاصيل الاستشارة (الصق كل ذلك هنا — يظهر للمستشار كنص يمكنه نسخه ولا يمكنه تعديله)</label><textarea id="f_details" placeholder="بيانات السائل الإضافية ونص الاستشارة كاملاً…" style="min-height:170px;">${editing?esc(editing.detailsText):''}</textarea></div>
       <div class="field"><label>ملاحظات داخلية (لا تظهر للمستشار)</label><textarea id="f_notes" placeholder="ملاحظات خاصة بالإدارة فقط">${editing?esc(editing.internalNotes):''}</textarea></div>
       <div class="field">
         <label>الأولوية</label>
         <div class="checks">
-          <label class="chip-check"><input type="radio" name="priority" value="عادي" ${(!editing||editing.priority==='عادي')?'checked':''}> 🟢 عادي (تصبح متأخرة تلقائياً بعد يوم ونصف، وتتحول إلى مستعجلة تلقائياً بعد 3 أيام)</label>
-          <label class="chip-check"><input type="radio" name="priority" value="مستعجل" ${editing&&editing.priority==='مستعجل'?'checked':''}> 🔴 مستعجل (تصبح متأخرة بعد يوم ونصف)</label>
+          <label class="chip-check"><input type="radio" name="priority" value="عادي" ${(!editing||editing.priority==='عادي')?'checked':''}> 🟢 عادي (يُعتبر متأخراً بعد 4 أيام)</label>
+          <label class="chip-check"><input type="radio" name="priority" value="مستعجل" ${editing&&editing.priority==='مستعجل'?'checked':''}> 🔴 مستعجل (يُعتبر متأخراً بعد يومين)</label>
         </div>
       </div>
       <div style="display:flex; gap:10px; margin-top:10px;">
@@ -742,79 +722,6 @@ function renderAddForm(){
   </div>`;
 }
 
-/* ---------- Smart paste parser ---------- */
-function parseConsultationPaste(text){
-  const t = String(text||'').replace(/\r/g,'');
-  const result = {number:'', asker:'', country:'', gender:'', age:'', marital:'', subject:'', question:''};
-  if(!t.trim()) return result;
-  const lines = t.split('\n').map(l=>l.trim()).filter(Boolean);
-
-  const numMatch = t.match(/رقم\s*ال[إا]?\s*ستشارة[^\d]{0,10}(\d{3,})/);
-  if(numMatch) result.number = numMatch[1];
-
-  function findLabelLine(labelPattern){
-    const labelRe = new RegExp('^(?:'+labelPattern+')[؟]?$');
-    for(let i=0;i<lines.length;i++){
-      const line = lines[i];
-      const sep = line.includes(':') ? ':' : (line.includes('：') ? '：' : null);
-      if(!sep) continue;
-      const idx = line.indexOf(sep);
-      const left = line.slice(0,idx).trim();
-      const right = line.slice(idx+1).trim();
-      if(labelRe.test(left)) return {index:i, value:right};
-      if(labelRe.test(right)) return {index:i, value:left};
-    }
-    return null;
-  }
-  function findLabelIndexBare(labelPattern){
-    const labelRe = new RegExp('^(?:'+labelPattern+')[؟]?$');
-    for(let i=0;i<lines.length;i++){
-      const core = lines[i].replace(/[:：]/g,'').trim();
-      if(labelRe.test(core)) return i;
-    }
-    return -1;
-  }
-
-  const asker = findLabelLine('السائل'); if(asker) result.asker = asker.value;
-  const country = findLabelLine('البلد'); if(country) result.country = country.value;
-  const gender = findLabelLine('الجنس'); if(gender) result.gender = gender.value;
-  const age = findLabelLine('العمر'); if(age) result.age = age.value;
-  const marital = findLabelLine('الحالة\\s*ال[إا]جتماعية'); if(marital) result.marital = marital.value;
-  const subject = findLabelLine('العنوان'); if(subject) result.subject = subject.value;
-
-  let qStart = -1, firstPart = '';
-  const qLine = findLabelLine('السؤال');
-  if(qLine){ qStart = qLine.index; firstPart = qLine.value; }
-  else{ qStart = findLabelIndexBare('السؤال'); }
-  if(qStart !== -1){
-    const qLines = [];
-    if(firstPart) qLines.push(firstPart);
-    for(let i=qStart+1;i<lines.length;i++){
-      const core = lines[i].replace(/[:：]/g,'').trim();
-      if(/^(الإجابة|الاجابة)$/.test(core)) break;
-      qLines.push(lines[i]);
-    }
-    result.question = qLines.join('\n').trim();
-  }
-  return result;
-}
-function applyPastedData(){
-  const raw = el('f_rawpaste'); if(!raw) return;
-  const text = raw.value;
-  if(!text.trim()) { toast('الرجاء لصق البيانات أولاً'); return; }
-  const p = parseConsultationPaste(text);
-  const fNumber = el('f_number'), fAsker = el('f_asker'), fCountry = el('f_country'), fGender = el('f_gender'), fAge = el('f_age'), fMarital = el('f_marital'), fSubject = el('f_subject'), fQuestion = el('f_question');
-  if(fNumber && p.number && !fNumber.value.trim()) fNumber.value = p.number;
-  if(fAsker && p.asker) fAsker.value = p.asker;
-  if(fCountry && p.country) fCountry.value = p.country;
-  if(fGender && p.gender) fGender.value = p.gender;
-  if(fAge && p.age) fAge.value = p.age;
-  if(fMarital && p.marital) fMarital.value = p.marital;
-  if(fSubject && p.subject) fSubject.value = p.subject;
-  if(fQuestion && p.question) fQuestion.value = p.question;
-  toast('تمت تعبئة الحقول تلقائياً — يرجى مراجعتها');
-}
-
 /* ---------- Detail ---------- */
 function renderDetail(){
   const c = state.consultations.find(x=>x.id===state.detailId);
@@ -823,6 +730,14 @@ function renderDetail(){
   const isMine = (c.assignedTo||[]).includes(state.consultantProfile.name);
   const canAct = state.role==='consultant' && isMine && c.status==='تحت الإجابة';
   const canReview = state.role==='admin' && c.status==='تمت الإجابة';
+
+  const detailsBlock = state.role==='admin' ? `
+    <div class="field">
+      <div style="display:flex; justify-content:space-between; align-items:center;"><label style="margin:0;">بيانات السائل وتفاصيل الاستشارة (نص - للإدارة فقط)</label><button class="btn btn-ghost btn-sm" data-action="toggle-edit-details">${editDetails?'إلغاء':'تعديل'}</button></div>
+      ${editDetails ? `<textarea id="detailsEdit" style="min-height:150px;">${esc(c.detailsText||'')}</textarea><button class="btn btn-primary btn-sm" style="margin-top:6px;" data-action="save-details">حفظ</button>`
+        : `<div class="pasted-block">${esc(c.detailsText)||'—'}</div>`}
+    </div>` : `
+    <div class="field"><label>بيانات السائل وتفاصيل الاستشارة</label><div class="doc-page" style="white-space:pre-wrap; user-select:text;">${esc(c.detailsText)||'لا توجد بيانات'}</div><div class="muted" style="margin-top:4px;">يمكن نسخ هذا النص، ولا يمكن تعديله.</div></div>`;
 
   return `
     <button class="btn btn-ghost btn-sm no-print" data-nav="list" style="margin-bottom:14px;">→ الرجوع للقائمة</button>
@@ -840,27 +755,24 @@ function renderDetail(){
             </div>
           </div>
           <div class="panel-body">
-            ${(state.role==='admin' || (state.role==='consultant' && isMine)) ? `<button class="btn btn-outline-danger btn-sm no-print" style="margin-bottom:12px;" data-action="download-word">⬇️ تنزيل صفحة Word (رقم الاستشارة، البيانات، ومربع للإجابة)</button>` : ''}
-
-            ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDateTime(c.archivedAt)}</div>` : ''}
-            ${isCritical(c) ? `<div class="notice-banner notice-critical">🔴 تجاوزت هذه الاستشارة 4 أيام دون إجابة — تحتاج اهتماماً عاجلاً</div>` : ''}
+            ${c.askerName ? `<div class="asker-banner">👤 <b>السائل:</b> ${esc(c.askerName)}</div>` : ''}
 
             <div class="info-bar">
               <div class="info-item"><b>رقم الاستشارة</b><span>${esc(c.number)||'—'}</span></div>
-              <div class="info-item"><b>السائل</b><span>${esc(c.askerName)||'—'}</span></div>
-              <div class="info-item"><b>البلد</b><span>${esc(c.askerCountry)||'—'}</span></div>
-              <div class="info-item"><b>الجنس</b><span>${esc(c.askerGender)||'—'}</span></div>
-              <div class="info-item"><b>العمر</b><span>${esc(c.askerAge)||'—'}</span></div>
-              <div class="info-item"><b>الحالة الإجتماعية</b><span>${esc(c.askerMarital)||'—'}</span></div>
               <div class="info-item"><b>تاريخ الاستشارة</b><span>${c.date?esc(c.date):'—'}</span></div>
-              <div class="info-item"><b>الأولوية</b><span class="pill ${effectivePriority(c)==='مستعجل'?'urgent':'normal'}">${effectivePriority(c)==='مستعجل'?'🔴':'🟢'} ${effectivePriority(c)}</span></div>
+              <div class="info-item"><b>الأولوية</b><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span></div>
               <div class="info-item"><b>تاريخ الوصول</b><span>${fmtDate(c.assignedAt||c.createdAt)}</span></div>
               <div class="info-item"><b>عدد الأيام</b><span>${daysSince(c.assignedAt||c.createdAt)} يوم</span></div>
               ${c.archivedAt ? `<div class="info-item"><b>تاريخ ووقت الإغلاق</b><span>${fmtDateTime(c.archivedAt)}</span></div>` : ''}
             </div>
+
+            ${(state.role==='admin' || (state.role==='consultant' && isMine)) ? `<button class="btn btn-outline btn-sm no-print" style="margin:2px 0 16px;" data-action="download-word">⬇️ تنزيل صفحة Word (رقم الاستشارة، البيانات، ومربع للإجابة)</button>` : ''}
+
+            ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDate(c.archivedAt)}</div>` : ''}
+
             ${state.role==='admin' ? `<div class="kv" style="margin-bottom:16px;"><b>ملاحظات داخلية</b><span>${esc(c.internalNotes)||'—'}</span></div>` : ''}
 
-            ${c.question ? `<div class="field"><label>السؤال</label><div class="pasted-block">${esc(c.question)}</div></div>` : ''}
+            ${detailsBlock}
 
             ${c.status==='اعتذار' && c.apologyReason ? `<div class="notice-banner">🚫 اعتذر المستشار عن الإجابة — السبب: ${esc(c.apologyReason)}</div>` : ''}
 
@@ -882,7 +794,7 @@ function renderDetail(){
                   <button type="button" data-cmd="insertOrderedList" title="قائمة رقمية">1≡</button>
                   <button type="button" data-cmd="justifyRight" title="محاذاة يمين">⇥</button>
                 </div>
-                <div class="doc-page" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerGreeting(c)}</div>
+                <div class="doc-page" id="answerEditor" contenteditable="true">${c.draftAnswer || answerGreetingHtml(c)}</div>
                 ${c.returnFeedback ? `<div class="notice-banner" style="margin-top:10px;">📝 ملاحظة الإدارة على الإجابة السابقة: ${esc(c.returnFeedback)}</div>` : ''}
                 <div class="icon-actions">
                   <button class="icon-btn" data-action="answer-submit"><span class="ic">✅</span>إجابة السؤال</button>
@@ -919,7 +831,7 @@ function renderDetail(){
 
 /* ---------- Reports ---------- */
 function renderReports(){
-  const list = visibleConsultations();
+  const list = reportsScope();
   const s = computeStats(list);
   return `
     <div class="panel no-print"><div class="panel-head"><h3>تصدير وطباعة</h3></div>
@@ -938,58 +850,23 @@ function renderReports(){
       <div class="stat-card accent-urgent"><div class="num">${s.urgent}</div><div class="lbl">المستعجلة</div></div>
     </div>
     ${renderRangeReport(list)}
-    ${renderMonthlyReport(list, state.role==='admin' ? 'التقرير الشهري لجميع الاستشارات' : 'تقريري الشهري')}
-    ${state.role==='admin' ? `
+    ${renderMonthlyReport(list, state.role==='admin' ? 'التقرير الشهري لجميع الاستشارات' : 'تقاريري الشهرية')}
     <div class="panel"><div class="panel-head"><h3>ملخص المستشار المسؤول</h3></div>
       <div class="panel-body"><table><thead><tr><th>المستشار</th><th>إجمالي المخصص له</th><th>تم الإرسال/النشر</th><th>متأخرة</th><th>اعتذار</th></tr></thead>
       <tbody><tr><td>${esc(state.consultantProfile.name)}</td><td>${list.length}</td><td>${s.approved+s.printing}</td><td>${s.overdue}</td><td>${s.apology}</td></tr></tbody></table></div>
-    </div>` : ''}
+    </div>
   `;
 }
 function renderRangeReport(list){
   const from = state.rangeFrom, to = state.rangeTo;
-  const type = state.reportType || 'received';
+  const type = state.reportType || 'incoming';
   let filtered = list;
   if(from) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
   if(to) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
-
-  let bodyHtml = '';
-  if(type === 'answered'){
-    const answeredList = filtered.filter(c=> c.answeredAt && (!from || c.answeredAt.slice(0,10)>=from) && (!to || c.answeredAt.slice(0,10)<=to));
-    const s = computeStats(filtered);
-    bodyHtml = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">إجمالي الاستشارات في الفترة</div></div>
-        <div class="stat-card accent-blue"><div class="num">${answeredList.length}</div><div class="lbl">المجاب عنها في الفترة</div></div>
-        <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
-        <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
-      </div>
-      <div class="table-panel-outlined" style="margin-top:14px;">${answeredList.length ? tableHtml(answeredList) : `<div class="empty">لا توجد استشارات مجاب عنها في هذه الفترة</div>`}</div>`;
-  } else if(type === 'financial'){
-    const unit = 50;
-    const total = filtered.length * unit;
-    bodyHtml = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">عدد الاستشارات</div></div>
-        <div class="stat-card accent-gold"><div class="num">${unit}</div><div class="lbl">قيمة الاستشارة الواحدة (ريال قطري)</div></div>
-        <div class="stat-card accent-normal"><div class="num">${total}</div><div class="lbl">الإجمالي (ريال قطري)</div></div>
-      </div>
-      <div class="table-panel-outlined" style="margin-top:14px;"><table><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي (ر.ق)</th></tr></thead>
-        <tbody>${filtered.length ? filtered.map(c=>`<tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td><td>${unit}</td></tr>`).join('') : `<tr><td colspan="3" class="muted">لا توجد استشارات في هذه الفترة</td></tr>`}</tbody>
-        ${filtered.length ? `<tfoot><tr><td colspan="2" style="text-align:left; font-weight:800;">الإجمالي</td><td style="font-weight:800;">${total} ر.ق</td></tr></tfoot>` : ''}
-      </table></div>`;
-  } else {
-    const s = computeStats(filtered);
-    bodyHtml = `
-      <div class="stats-grid">
-        <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">إجمالي الاستشارات الواردة في الفترة</div></div>
-        <div class="stat-card accent-blue"><div class="num">${s.answered+s.approved+s.printing}</div><div class="lbl">المجاب عنها</div></div>
-        <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
-        <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
-      </div>
-      <div class="table-panel-outlined" style="margin-top:14px;">${filtered.length ? tableHtml(filtered) : `<div class="empty">لا توجد استشارات في هذه الفترة</div>`}</div>`;
-  }
-
+  if(type==='answered') filtered = filtered.filter(c=>['تمت الإجابة','معتمدة','قيد الطباعة'].includes(c.status));
+  const s = computeStats(filtered);
+  const amountPerConsultation = 50;
+  const financialTotal = filtered.length * amountPerConsultation;
   return `
   <div class="panel">
     <div class="panel-head"><h3>تقرير حسب الفترة</h3></div>
@@ -999,7 +876,7 @@ function renderRangeReport(list){
         <div class="field"><label>إلى تاريخ</label><input type="date" id="rangeTo" value="${esc(to)}"></div>
         <div class="field"><label>نوع التقرير</label>
           <select id="reportType">
-            <option value="received" ${type==='received'?'selected':''}>الاستشارات الواردة</option>
+            <option value="incoming" ${type==='incoming'?'selected':''}>الاستشارات الواردة</option>
             <option value="answered" ${type==='answered'?'selected':''}>الاستشارات المجاب عنها</option>
             <option value="financial" ${type==='financial'?'selected':''}>تقرير مالي</option>
           </select>
@@ -1007,7 +884,24 @@ function renderRangeReport(list){
         <div class="field"><button class="btn btn-primary" data-action="apply-range">عرض التقرير</button></div>
         <div class="field"><button class="btn btn-outline" data-action="export-range-csv">⬇️ تصدير</button></div>
       </div>
-      ${bodyHtml}
+      ${type==='financial' ? `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">عدد الاستشارات</div></div>
+          <div class="stat-card accent-normal"><div class="num">${financialTotal}</div><div class="lbl">إجمالي المبلغ (ريال قطري)</div></div>
+        </div>
+        ${filtered.length ? `<table><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي</th></tr></thead>
+          <tbody>${filtered.map(c=>`<tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td><td>${amountPerConsultation} ريال قطري</td></tr>`).join('')}
+          <tr><td colspan="2" style="text-align:left; color:var(--ink-soft); font-size:13px;">الإجمالي</td><td>${financialTotal} ريال قطري</td></tr>
+          </tbody></table>` : `<div class="empty">لا توجد بيانات ضمن الفترة المحددة</div>`}
+      ` : `
+        <div class="stats-grid">
+          <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">${type==='answered'?'الاستشارات المجاب عنها في الفترة':'إجمالي الاستشارات الواردة في الفترة'}</div></div>
+          <div class="stat-card accent-blue"><div class="num">${s.answered+s.approved+s.printing}</div><div class="lbl">المجاب عنها</div></div>
+          <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
+          <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
+        </div>
+        ${filtered.length ? tableHtml(filtered) : `<div class="empty">لا توجد بيانات ضمن الفترة المحددة</div>`}
+      `}
     </div>
   </div>`;
 }
@@ -1116,28 +1010,26 @@ function renderSettings(){
       </div>
     </div>
   </div></div>
+  <div class="panel"><div class="panel-head"><h3>صندوق المقترحات</h3></div>
+    <div class="panel-body">
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <input type="text" id="newSuggestion" placeholder="اكتب مقترحاً جديداً…">
+        <button class="btn btn-primary btn-sm" data-action="add-suggestion">➕ إضافة</button>
+      </div>
+      ${state.suggestions.length ? `<ul class="sugg-list">${state.suggestions.map(sg=>`
+        <li>
+          <span>${esc(sg.text)}</span>
+          <span style="display:flex; gap:4px;">
+            <button class="icon-link no-print" data-action="edit-suggestion" data-id="${sg.id}" title="تعديل">✏️</button>
+            <button class="icon-link danger no-print" data-action="delete-suggestion" data-id="${sg.id}" title="حذف">🗑️</button>
+          </span>
+        </li>`).join('')}</ul>` : `<div class="muted">لا توجد مقترحات مضافة بعد</div>`}
+    </div>
+  </div>
   <div class="panel"><div class="panel-head"><h3>النسخ الاحتياطي</h3></div>
     <div class="panel-body" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-outline btn-sm" data-action="export-backup">⬇️ تنزيل نسخة احتياطية</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer; margin:0;">⬆️ استعادة من نسخة<input type="file" id="restoreFile" accept="application/json" style="display:none;"></label>
-    </div>
-  </div>
-  <div class="panel"><div class="panel-head"><h3>📝 المقترحات والملاحظات</h3></div>
-    <div class="panel-body">
-      <div style="display:flex; gap:8px; margin-bottom:14px;">
-        <input type="text" id="suggestionInput" placeholder="اكتب مقترحاً جديداً واضغط إضافة…" style="flex:1;">
-        <button class="btn btn-primary btn-sm" data-action="add-suggestion">➕ إضافة</button>
-      </div>
-      ${state.suggestions.length ? `<ul class="suggestion-list">${state.suggestions.map((sTxt,i)=>`
-        <li class="suggestion-item" data-idx="${i}">
-          <span class="suggestion-bullet">•</span>
-          <span class="suggestion-text" data-view-idx="${i}">${esc(sTxt)}</span>
-          <input type="text" class="suggestion-edit-input" data-edit-idx="${i}" value="${esc(sTxt)}" style="display:none;">
-          <span class="suggestion-actions">
-            <button class="icon-link" data-action="edit-suggestion" data-idx="${i}" title="تعديل">✏️</button>
-            <button class="icon-link danger" data-action="delete-suggestion" data-idx="${i}" title="حذف">🗑️</button>
-          </span>
-        </li>`).join('')}</ul>` : `<div class="empty">لا توجد مقترحات مضافة بعد</div>`}
     </div>
   </div>`;
 }
@@ -1164,7 +1056,10 @@ function bindGlobalEvents(){
 }
 async function checkAndShowEntryModal(){
   const parts = [];
+  let greeting = '';
   if(state.role==='consultant'){
+    const displayName = (state.consultantProfile.name||'').replace(/^د\.\s*/,'').trim();
+    greeting = `مرحباً بعودتك، المستشار الدكتور ${esc(displayName||state.consultantProfile.name)}`;
     const raw = await storeGet('lastseen_consult', false);
     const last = raw ? new Date(raw) : null;
     const fresh = state.consultations.filter(c=> (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة' && (!last || new Date(c.assignedAt||c.createdAt) > last));
@@ -1172,8 +1067,8 @@ async function checkAndShowEntryModal(){
     if(fresh.length) parts.push(`لديك (${fresh.length}) استشارات جديدة`);
   }
   if(state.unseenMessages>0) parts.push(`لديك (${state.unseenMessages}) رسائل جديدة`);
-  if(parts.length){
-    el('modalRoot').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-seal">📬</div><h3>إشعارات جديدة</h3><p>${parts.join(' — ')}</p><button class="btn btn-primary" data-action="close-modal">موافق</button></div></div>`;
+  if(greeting || parts.length){
+    el('modalRoot').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-seal">${greeting?'👋':'📬'}</div><h3>${greeting || 'إشعارات جديدة'}</h3><p>${parts.length ? parts.join(' — ') : 'نتمنى لك يوماً موفقاً ومباركاً.'}</p><button class="btn btn-primary" data-action="close-modal">موافق</button></div></div>`;
     document.querySelector('[data-action="close-modal"]').addEventListener('click', ()=>{ el('modalRoot').innerHTML=''; });
   }
 }
@@ -1186,9 +1081,6 @@ function bindContentEvents(){
 
   const saveBtn = document.querySelector('[data-action="save-consultation"]'); if(saveBtn) saveBtn.addEventListener('click', saveConsultation);
 
-  const parseBtn = document.querySelector('[data-action="parse-paste"]'); if(parseBtn) parseBtn.addEventListener('click', applyPastedData);
-  const rawPaste = el('f_rawpaste'); if(rawPaste) rawPaste.addEventListener('paste', ()=>{ setTimeout(applyPastedData, 30); });
-
   const editor = el('answerEditor');
   if(editor){
     document.querySelectorAll('.editor-toolbar [data-cmd]').forEach(btn=>btn.addEventListener('click', ()=>{ editor.focus(); document.execCommand(btn.getAttribute('data-cmd'), false, null); }));
@@ -1198,6 +1090,8 @@ function bindContentEvents(){
   const asS = document.querySelector('[data-action="answer-save-draft"]'); if(asS) asS.addEventListener('click', saveDraftAnswer);
   const asB = document.querySelector('[data-action="answer-back"]'); if(asB) asB.addEventListener('click', ()=> setView('list'));
 
+  const toggleDetails = document.querySelector('[data-action="toggle-edit-details"]'); if(toggleDetails) toggleDetails.addEventListener('click', ()=>{ editDetails=!editDetails; renderContent(); });
+  const saveDetails = document.querySelector('[data-action="save-details"]'); if(saveDetails) saveDetails.addEventListener('click', saveDetailsText);
 
   const copyBtn = document.querySelector('[data-action="copy-answer"]'); if(copyBtn) copyBtn.addEventListener('click', copyAnswer);
   const downloadWordBtn = document.querySelector('[data-action="download-word"]'); if(downloadWordBtn) downloadWordBtn.addEventListener('click', downloadConsultationWord);
@@ -1214,8 +1108,10 @@ function bindContentEvents(){
   document.querySelectorAll('[data-action="export-csv"]').forEach(b=>b.addEventListener('click', ()=> exportCsv(b.getAttribute('data-set'))));
   const monthSelect = el('monthSelect'); if(monthSelect) monthSelect.addEventListener('change', ()=>{ state.selectedMonth = monthSelect.value; renderContent(); });
   const exportMonth = document.querySelector('[data-action="export-month-csv"]'); if(exportMonth) exportMonth.addEventListener('click', exportMonthCsv);
-  const applyRange = document.querySelector('[data-action="apply-range"]'); if(applyRange) applyRange.addEventListener('click', ()=>{ state.rangeFrom = el('rangeFrom').value; state.rangeTo = el('rangeTo').value; const rt = el('reportType'); if(rt) state.reportType = rt.value; renderContent(); });
+  const applyRange = document.querySelector('[data-action="apply-range"]'); if(applyRange) applyRange.addEventListener('click', ()=>{ state.rangeFrom = el('rangeFrom').value; state.rangeTo = el('rangeTo').value; state.reportType = el('reportType') ? el('reportType').value : state.reportType; renderContent(); });
   const exportRange = document.querySelector('[data-action="export-range-csv"]'); if(exportRange) exportRange.addEventListener('click', exportRangeCsv);
+  const reportTypeSel = el('reportType'); if(reportTypeSel) reportTypeSel.addEventListener('change', ()=>{ state.reportType = reportTypeSel.value; renderContent(); });
+  const closedQ = el('closedQ'); if(closedQ) closedQ.addEventListener('input', ()=>{ state.closedQuery = closedQ.value; renderContent(); });
 
   const sendMsgBtn = document.querySelector('[data-action="send-message"]'); if(sendMsgBtn) sendMsgBtn.addEventListener('click', sendMessage);
   document.querySelectorAll('[data-reply-id]').forEach(b=>b.addEventListener('click', ()=>{ replyingTo = b.getAttribute('data-reply-id'); renderContent(); const inp=el('msgInput'); if(inp) inp.focus(); }));
@@ -1229,39 +1125,23 @@ function bindContentEvents(){
   const restoreInput = el('restoreFile'); if(restoreInput) restoreInput.addEventListener('change', restoreBackup);
 
   const addSugBtn = document.querySelector('[data-action="add-suggestion"]'); if(addSugBtn) addSugBtn.addEventListener('click', addSuggestion);
-  const sugInput = el('suggestionInput'); if(sugInput) sugInput.addEventListener('keydown', e=>{ if(e.key==='Enter') addSuggestion(); });
-  document.querySelectorAll('[data-action="edit-suggestion"]').forEach(b=>b.addEventListener('click', ()=>{
-    const idx = b.getAttribute('data-idx');
-    const item = document.querySelector(`.suggestion-item[data-idx="${idx}"]`);
-    const viewSpan = item.querySelector('.suggestion-text');
-    const editInput = item.querySelector('.suggestion-edit-input');
-    const isEditing = editInput.style.display !== 'none';
-    if(!isEditing){
-      viewSpan.style.display = 'none'; editInput.style.display = 'inline-block'; editInput.focus();
-      b.textContent = '💾';
-    } else {
-      saveSuggestionEdit(Number(idx), editInput.value.trim());
-    }
-  }));
-  document.querySelectorAll('[data-action="delete-suggestion"]').forEach(b=>b.addEventListener('click', ()=>{ deleteSuggestion(Number(b.getAttribute('data-idx'))); }));
+  const newSugInput = el('newSuggestion'); if(newSugInput) newSugInput.addEventListener('keydown', e=>{ if(e.key==='Enter') addSuggestion(); });
+  document.querySelectorAll('[data-action="edit-suggestion"]').forEach(b=>b.addEventListener('click', ()=>editSuggestionPrompt(b.getAttribute('data-id'))));
+  document.querySelectorAll('[data-action="delete-suggestion"]').forEach(b=>b.addEventListener('click', ()=>deleteSuggestion(b.getAttribute('data-id'))));
 }
 
 async function saveConsultation(){
   const priority = (document.querySelector('input[name=priority]:checked')||{}).value || 'عادي';
+  const detailsText = el('f_details').value.trim();
+  const askerName = el('f_askerName').value.trim();
   const number = el('f_number').value.trim();
-  const askerName = el('f_asker').value.trim();
-  const askerCountry = el('f_country').value.trim();
-  const askerGender = el('f_gender').value.trim();
-  const askerAge = el('f_age').value.trim();
-  const askerMarital = el('f_marital').value.trim();
   const subject = el('f_subject').value.trim();
-  const question = el('f_question').value.trim();
   const internalNotes = el('f_notes').value.trim();
 
   if(state.editingId){
     const c = state.consultations.find(x=>x.id===state.editingId);
     if(!c){ toast('تعذر العثور على الاستشارة'); return; }
-    c.number = number; c.date = el('f_date').value || c.date; c.askerName = askerName; c.askerCountry = askerCountry; c.askerGender = askerGender; c.askerAge = askerAge; c.askerMarital = askerMarital; c.subject = subject; c.question = question; c.internalNotes = internalNotes; c.priority = priority;
+    c.number = number; c.date = el('f_date').value || c.date; c.subject = subject; c.askerName = askerName; c.detailsText = detailsText; c.internalNotes = internalNotes; c.priority = priority;
     c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم تعديل بيانات الاستشارة'});
     await persistConsultations();
     logAudit('تعديل استشارة رقم '+(c.number||c.id));
@@ -1274,7 +1154,8 @@ async function saveConsultation(){
   const ts = nowIso();
   const c = {
     id: uid('c'), number, date: todayStr(),
-    entity:'', beneficiary:'', askerName, askerCountry, askerGender, askerAge, askerMarital, subject, question,
+    entity:'', beneficiary:'', subject, askerName,
+    askerInfoText:'', askerInfoImage:'', detailsText,
     internalNotes,
     images: [],
     priority, assignedTo:[consultantName], status:'تحت الإجابة',
@@ -1302,6 +1183,14 @@ async function deleteConsultation(id){
 }
 
 /* ---------- Detail actions ---------- */
+async function saveDetailsText(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  const text = el('detailsEdit').value.trim();
+  c.detailsText = text;
+  await persistConsultations();
+  logAudit('تحديث تفاصيل استشارة '+(c.number||c.id));
+  editDetails = false; toast('تم الحفظ'); renderContent();
+}
 async function submitAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   const html = el('answerEditor').innerHTML.trim();
@@ -1338,11 +1227,11 @@ async function copyAnswer(){
 }
 function downloadConsultationWord(){
   const c = state.consultations.find(x=>x.id===state.detailId);
-  const answerContent = c.answer || c.draftAnswer || '';
+  const answerContent = c.answer || c.draftAnswer || answerGreetingHtml(c);
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
   <head><meta charset="utf-8"><title>استشارة رقم ${esc(c.number)||c.id}</title>
   <style>
-    body{ font-family:'Sakkal Majalla','Arial','Tahoma',sans-serif; direction:rtl; text-align:right; padding:20px; }
+    body{ font-family:'Arial','Tahoma',sans-serif; direction:rtl; text-align:right; padding:20px; }
     h2{ color:#2A5695; }
     .box{ border:1px solid #333; border-radius:4px; padding:14px; margin-bottom:18px; }
     .box b{ color:#7A1F2E; }
@@ -1350,10 +1239,9 @@ function downloadConsultationWord(){
   </style></head>
   <body dir="rtl">
     <h2>نظام الاستشارات — مكتب الدكتور عقيل محمد المقطري</h2>
-    <div class="box"><b>رقم الاستشارة:</b> ${esc(c.number)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>السائل:</b> ${esc(c.askerName)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>تاريخ الاستشارة:</b> ${c.date?esc(c.date):'—'}</div>
-    <div class="box"><b>البلد:</b> ${esc(c.askerCountry)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>الجنس:</b> ${esc(c.askerGender)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>العمر:</b> ${esc(c.askerAge)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>الحالة الإجتماعية:</b> ${esc(c.askerMarital)||'—'}</div>
-    ${c.question ? `<div class="box"><b>السؤال:</b><br><br>${esc(c.question).replace(/\n/g,'<br>')}</div>` : ''}
-    <div class="box answer-box"><b>الإجابة:</b><br><br>${answerContent || '&nbsp;'}</div>
+    <div class="box"><b>رقم الاستشارة:</b> ${esc(c.number)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>تاريخ الاستشارة:</b> ${c.date?esc(c.date):'—'}${c.askerName?(' &nbsp;&nbsp;&nbsp;&nbsp; <b>السائل:</b> '+esc(c.askerName)):''}</div>
+    <div class="box"><b>بيانات السائل وتفاصيل الاستشارة:</b><br><br>${esc(c.detailsText||'').replace(/\n/g,'<br>')}</div>
+    <div class="box answer-box"><b>الإجابة:</b><br><br>${answerContent}</div>
   </body></html>`;
   const blob = new Blob(['\ufeff', html], {type:'application/msword'});
   const a = document.createElement('a');
@@ -1380,7 +1268,7 @@ async function markPrinting(){
   c.status='مؤرشفة'; c.printedAt=nowIso(); c.archivedAt=nowIso();
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم نشر الاستشارة وإغلاقها'});
   await persistConsultations();
-  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
+  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ ووقت '+fmtDateTime(c.archivedAt));
   logAudit('نشر وإغلاق استشارة: '+(c.number||c.id)); toast('تم النشر وإغلاق الاستشارة'); renderContent();
 }
 async function archiveConsultation(){
@@ -1388,7 +1276,7 @@ async function archiveConsultation(){
   c.status='مؤرشفة'; c.archivedAt=nowIso();
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إغلاق الاستشارة'});
   await persistConsultations();
-  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
+  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ ووقت '+fmtDateTime(c.archivedAt));
   logAudit('إغلاق استشارة '+(c.number||c.id)); toast('تم إغلاق الاستشارة'); renderContent();
 }
 async function reopenConsultation(){
@@ -1424,15 +1312,15 @@ async function sendSystemMessage(text){
 
 /* ---------- Reports export ---------- */
 function exportCsv(set){
-  let list = visibleConsultations();
+  let list = reportsScope();
   if(set==='answered') list = list.filter(c=>['تمت الإجابة','معتمدة','قيد الطباعة'].includes(c.status));
   if(set==='overdue') list = list.filter(isOverdue);
-  if(set==='urgent') list = list.filter(c=>effectivePriority(c)==='مستعجل');
+  if(set==='urgent') list = list.filter(c=>c.priority==='مستعجل');
   downloadCsv(list, 'تقرير_الاستشارات_'+set+'.csv');
   logAudit('تصدير تقرير: '+set);
 }
 function exportMonthCsv(){
-  const list = visibleConsultations();
+  const list = reportsScope();
   const sel = state.selectedMonth || (Array.from(new Set(list.map(c=>monthKey(c.createdAt)))).sort().reverse()[0]||'');
   const filtered = sel ? list.filter(c=>monthKey(c.createdAt)===sel) : list;
   downloadCsv(filtered, 'التقرير_الشهري_'+(sel||'all')+'.csv');
@@ -1440,58 +1328,36 @@ function exportMonthCsv(){
 }
 function exportRangeCsv(){
   const from = state.rangeFrom, to = state.rangeTo;
-  let list = visibleConsultations();
+  const type = state.reportType || 'incoming';
+  let list = reportsScope();
   if(from) list = list.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
   if(to) list = list.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
-  if(state.reportType === 'financial'){
-    const unit = 50;
-    const headers = ['رقم الاستشارة','تاريخ الاستشارة','المبلغ المالي (ر.ق)'];
-    const rows = list.map(c=>[c.number, c.date, unit]);
-    rows.push(['','الإجمالي', list.length*unit]);
-    const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
-    const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'تقرير_مالي_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv'; a.click();
-    logAudit('تصدير تقرير مالي: '+from+' - '+to);
-    return;
+  if(type==='answered') list = list.filter(c=>['تمت الإجابة','معتمدة','قيد الطباعة'].includes(c.status));
+  if(type==='financial'){
+    downloadFinancialCsv(list, 'التقرير_المالي_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv');
+  } else {
+    downloadCsv(list, 'تقرير_الفترة_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv');
   }
-  if(state.reportType === 'answered') list = list.filter(c=> c.answeredAt && (!from || c.answeredAt.slice(0,10)>=from) && (!to || c.answeredAt.slice(0,10)<=to));
-  downloadCsv(list, 'تقرير_الفترة_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv');
-  logAudit('تصدير تقرير حسب الفترة: '+from+' - '+to);
+  logAudit('تصدير تقرير حسب الفترة: '+from+' - '+to+' — النوع: '+type);
 }
 function downloadCsv(list, filename){
   const headers = ['رقم','التاريخ','الموضوع','الأولوية','الحالة','تاريخ الوصول','عدد الأيام'];
-  const rows = list.map(c=>{ const k=statusKey(c); return [c.number,c.date,c.subject,effectivePriority(c), (STATUS_DISPLAY[k]||k), fmtDate(c.assignedAt||c.createdAt), daysSince(c.assignedAt||c.createdAt)]; });
+  const rows = list.map(c=>{ const k=statusKey(c); return [c.number,c.date,c.subject,c.priority, (STATUS_DISPLAY[k]||k), fmtDate(c.assignedAt||c.createdAt), daysSince(c.assignedAt||c.createdAt)]; });
+  const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
+}
+function downloadFinancialCsv(list, filename){
+  const amountPerConsultation = 50;
+  const headers = ['رقم الاستشارة','تاريخ الاستشارة','المبلغ المالي (ريال قطري)'];
+  const rows = list.map(c=>[c.number, c.date, amountPerConsultation]);
+  rows.push(['', 'الإجمالي', list.length*amountPerConsultation]);
   const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
 }
 
 /* ---------- Settings actions ---------- */
-async function addSuggestion(){
-  const input = el('suggestionInput'); if(!input) return;
-  const text = input.value.trim();
-  if(!text) return;
-  state.suggestions.push(text);
-  await persistSuggestions();
-  logAudit('إضافة مقترح جديد');
-  renderContent();
-  toast('تمت إضافة المقترح');
-}
-async function saveSuggestionEdit(idx, text){
-  if(!text){ toast('لا يمكن ترك المقترح فارغاً'); return; }
-  state.suggestions[idx] = text;
-  await persistSuggestions();
-  logAudit('تعديل مقترح');
-  renderContent();
-  toast('تم حفظ التعديل');
-}
-async function deleteSuggestion(idx){
-  state.suggestions.splice(idx,1);
-  await persistSuggestions();
-  logAudit('حذف مقترح');
-  renderContent();
-  toast('تم حذف المقترح');
-}
 async function saveAdminProfile(){
   state.adminProfile = { name: el('adminName').value.trim()||'الإدارة', email: el('adminEmail').value.trim(), phone: el('adminPhone').value.trim(), username: el('adminUsername').value.trim()||state.adminProfile.username, password: el('adminPassword').value.trim()||state.adminProfile.password };
   await persistProfiles(); logAudit('تحديث بيانات المدير'); toast('تم الحفظ'); render();
@@ -1546,6 +1412,31 @@ function exportBackup(){
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'نسخة_احتياطية_'+Date.now()+'.json'; a.click();
   logAudit('تنزيل نسخة احتياطية');
 }
+async function addSuggestion(){
+  const inp = el('newSuggestion'); if(!inp) return;
+  const text = (inp.value||'').trim();
+  if(!text) return;
+  state.suggestions.push({id: uid('sg'), text});
+  await persistSuggestions();
+  logAudit('إضافة مقترح جديد');
+  toast('تمت الإضافة'); renderContent();
+}
+async function editSuggestionPrompt(id){
+  const sg = state.suggestions.find(x=>x.id===id); if(!sg) return;
+  const val = prompt('تعديل المقترح:', sg.text);
+  if(val===null) return;
+  sg.text = val.trim() || sg.text;
+  await persistSuggestions();
+  logAudit('تعديل مقترح');
+  toast('تم الحفظ'); renderContent();
+}
+async function deleteSuggestion(id){
+  if(!confirm('هل تريد حذف هذا المقترح؟')) return;
+  state.suggestions = state.suggestions.filter(x=>x.id!==id);
+  await persistSuggestions();
+  logAudit('حذف مقترح');
+  toast('تم الحذف'); renderContent();
+}
 async function restoreBackup(){
   const input = el('restoreFile'); const file = input.files[0]; if(!file) return;
   if(!confirm('سيتم استبدال جميع البيانات الحالية بالنسخة المستوردة. هل أنت متأكد؟')){ input.value=''; return; }
@@ -1555,17 +1446,16 @@ async function restoreBackup(){
     state.consultations = payload.consultations || [];
     state.messages = payload.messages || [];
     state.audit = payload.audit || [];
-    state.suggestions = payload.suggestions || [];
     if(payload.profiles){ state.adminProfile = Object.assign({}, state.adminProfile, payload.profiles.admin||{}); state.consultantProfile = Object.assign({}, state.consultantProfile, payload.profiles.consultant||{}); }
     if(payload.logoUrl!==undefined) state.logoUrl = payload.logoUrl;
-    await persistConsultations(); await persistMessages(); await persistAudit(); await persistProfiles(); await persistBranding(); await persistSuggestions();
+    await persistConsultations(); await persistMessages(); await persistAudit(); await persistProfiles(); await persistBranding();
     toast('تمت الاستعادة بنجاح'); render();
   }catch(e){ toast('ملف غير صالح'); }
 }
 
 /* ===================== INIT ===================== */
 async function init(){
-  el('app').innerHTML = `<div style="padding:40px; font-family:'Sakkal Majalla',Tajawal,sans-serif; color:#5B6660;">جاري التحميل…</div>`;
+  el('app').innerHTML = `<div style="padding:40px; font-family:Tajawal,sans-serif; color:#5B6660;">جاري التحميل…</div>`;
   await loadAll();
   render();
 }
