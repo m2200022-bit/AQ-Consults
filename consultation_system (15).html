@@ -58,13 +58,13 @@ body{background:var(--bg); color:var(--ink); font-family:'Tajawal',sans-serif; m
 .role-btn.active{background:var(--primary); color:#fff; font-weight:700;}
 .who-tag{font-size:12.5px; color:var(--ink-soft);}
 .content{padding:24px 26px; flex:1;}
-.stat-badge-row{display:flex; flex-wrap:wrap; gap:14px; margin-bottom:20px;}
-.stat-badge{flex:1; min-width:150px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); padding:20px 16px; text-align:center;}
-.stat-badge-title{display:inline-block; border:2px dashed var(--ink); border-radius:999px; padding:5px 24px; font-family:'Aref Ruqaa',serif; font-weight:700; font-size:16px; color:var(--ink); margin-bottom:12px; letter-spacing:1px;}
-.stat-badge-num{font-family:'Amiri',serif; font-weight:900; font-size:42px; color:var(--normal); line-height:1;}
-.stat-badge.accent-urgent .stat-badge-num{color:var(--urgent);}
-.stat-badge.accent-archived .stat-badge-num{color:var(--archived);}
 .stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-bottom:18px;}
+.stat-circles{display:flex; gap:20px; flex-wrap:wrap; margin-bottom:20px;}
+.stat-circle-card{flex:1; min-width:160px; background:var(--surface); border:1px solid var(--border); border-radius:14px; padding:34px 14px 16px; text-align:center; position:relative; box-shadow:var(--shadow);}
+.stat-circle-badge{position:absolute; top:-28px; right:50%; transform:translateX(50%); width:58px; height:58px; border-radius:50%; background:radial-gradient(circle at 32% 28%, #eaf3ee, var(--primary) 70%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:21px; font-weight:900; font-family:'Amiri',serif; box-shadow:0 4px 10px rgba(0,0,0,0.22); border:3px solid #fff;}
+.stat-circle-card.gold .stat-circle-badge{background:radial-gradient(circle at 32% 28%, #fbf1de, var(--gold) 70%);}
+.stat-circle-card.urgent .stat-circle-badge{background:radial-gradient(circle at 32% 28%, #f9e6e3, var(--urgent) 70%);}
+.stat-circle-label{margin-top:8px; font-size:13.5px; font-weight:700; color:var(--ink-soft); font-family:'Aref Ruqaa',serif;}
 .stat-card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow);}
 .stat-card .num{font-size:19px; font-weight:900; font-family:'Amiri',serif;}
 .stat-card .lbl{font-size:10.5px; color:var(--ink-soft); margin-top:1px;}
@@ -110,17 +110,17 @@ textarea{resize:vertical; min-height:90px;}
 .stamp.st-printing{color:var(--gold); background:var(--gold-100);}
 .stamp.st-archived{color:var(--archived); background:var(--archived-100);}
 .stamp.st-apology{color:var(--apology); background:var(--apology-100);}
-.asker-banner{display:flex; align-items:center; gap:8px; background:var(--primary-100); color:var(--primary); border:1px solid var(--primary-100); border-radius:10px; padding:10px 14px; font-size:15px; font-weight:700; margin-bottom:14px;}
 .pill{display:inline-flex; align-items:center; gap:4px; font-size:12px; padding:3px 9px; border-radius:999px; background:var(--surface-2); border:1px solid var(--border); color:var(--ink-soft);}
 .pill.urgent{color:var(--urgent); border-color:var(--urgent-100); background:var(--urgent-100);}
 .pill.normal{color:var(--normal); border-color:var(--normal-100); background:var(--normal-100);}
 table{width:100%; border-collapse:collapse; font-size:13.5px;}
 th{text-align:right; color:var(--ink-soft); font-size:12px; font-weight:700; padding:8px 10px; border-bottom:1.5px dashed var(--border);}
 td{padding:11px 10px; border-bottom:1px dashed var(--border); vertical-align:middle; font-size:18px; font-weight:700; font-family:'Amiri',serif;}
+.panel-table{border:1.5px solid var(--blue); border-radius:var(--radius);}
 tr.row-click{cursor:pointer;}
 tr.row-click:hover{background:var(--surface-2);}
 .muted{color:var(--ink-faint); font-size:12px;}
-.searchbar{display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:16px; border:1.5px solid var(--blue); border-radius:12px; padding:14px 16px; background:var(--surface);}
+.searchbar{display:flex; flex-wrap:wrap; gap:10px; align-items:end; margin-bottom:16px;}
 .searchbar .field{margin-bottom:0; min-width:150px;}
 .searchbar .field.grow{flex:1; min-width:220px;}
 .modal-overlay{position:fixed; inset:0; background:rgba(20,24,20,0.5); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;}
@@ -166,7 +166,7 @@ tr.row-click:hover{background:var(--surface-2);}
 @media(max-width:900px){.mobile-toggle{display:block;}}
 @media print{.sidebar,.topbar,.no-print{display:none !important;} .content{padding:0;}}
 .pasted-img{max-width:100%; border-radius:10px; border:1px solid var(--border); display:block;}
-.pasted-block{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:14px 16px; font-size:16.5px; font-weight:700; font-family:'Amiri',serif; line-height:1.65; text-align:justify; white-space:pre-wrap; max-height:320px; overflow:auto;}
+.pasted-block{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:12px; font-size:17px; font-weight:700; font-family:'Amiri',serif; line-height:1.6; text-align:justify; white-space:pre-wrap; max-height:320px; overflow:auto;}
 .icon-actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;}
 .icon-btn{display:flex; flex-direction:column; align-items:center; gap:4px; border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 16px; cursor:pointer; font-family:inherit; font-size:11.5px; color:var(--ink-soft); min-width:92px;}
 .icon-btn .ic{font-size:20px;}
@@ -175,7 +175,7 @@ tr.row-click:hover{background:var(--surface-2);}
 .editor-toolbar{display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap;}
 .editor-toolbar button{border:1px solid var(--border); background:#fff; border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:13px;}
 .editor-toolbar button:hover{background:var(--surface-2);}
-.doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:18px 20px; font-size:16.5px; font-weight:700; font-family:'Amiri',serif; line-height:1.65; text-align:justify;}
+.doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:20px; font-size:17px; font-weight:700; font-family:'Amiri',serif; line-height:1.6; text-align:justify;}
 .doc-page:focus{outline:2px solid var(--primary-100); border-color:var(--primary);}
 .chat-thread{display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; padding:4px;}
 .chat-bubble{max-width:75%; padding:9px 13px; border-radius:12px; font-size:13.5px; position:relative;}
@@ -189,9 +189,6 @@ tr.row-click:hover{background:var(--surface-2);}
 .note-item{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:8px 12px; margin-bottom:8px; font-size:13px;}
 .note-item .n-meta{font-size:11px; color:var(--ink-faint); margin-bottom:3px;}
 .perm-list{margin:0; padding-right:18px; font-size:13px; color:var(--ink-soft); line-height:2;}
-.sugg-list{margin:0; padding-right:18px; list-style:disc; font-size:14px; color:var(--ink); line-height:1.7;}
-.sugg-list li{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px dashed var(--border);}
-.sugg-list li:last-child{border-bottom:none;}
 </style>
 </head>
 <body>
@@ -249,14 +246,13 @@ let state = {
   adminProfile: { name:'الإدارة', email:'', phone:'', username:'admin', password:'admin123' },
   consultantProfile: { name:'د. عقيل محمد المقطري', email:'', phone:'', username:'aqeel', password:'aqeel123' },
   logoUrl: '',
+  suggestions: [],
   sidebarOpen: false,
   filters: { q:'', status:'', priority:'' },
-  closedQuery: '',
-  reportType: 'incoming',
-  suggestions: [],
   selectedMonth: '',
   rangeFrom: '',
   rangeTo: '',
+  rangeKind: 'incoming',
   unseenMessages: 0
 };
 let editDetails = false;
@@ -265,17 +261,9 @@ let imgViewerIndex = 0, imgZoom = 1, imgRot = 0;
 function uid(p){ return p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function nowIso(){ return new Date().toISOString(); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function answerGreetingHtml(c){
-  const name = (c.askerName||'').trim();
-  return `<p style="text-align:center;"><b>بسم الله الرحمن الرحيم</b></p>`
-    + `<p>الأخ الفاضل${name?(' / '+esc(name)):''}</p>`
-    + `<p>السلام عليكم ورحمة الله وبركاته...</p>`
-    + `<p><br></p>`;
-}
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
 function daysSince(iso){ if(!iso) return 0; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
-function daysSinceExact(iso){ if(!iso) return 0; return (Date.now()-new Date(iso).getTime())/86400000; }
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function monthKey(iso){ const d=new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function monthLabel(key){ if(!key) return ''; const [y,m]=key.split('-'); const names=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']; return names[parseInt(m,10)-1]+' '+y; }
@@ -304,13 +292,13 @@ async function loadAll(){
   state.consultations = c ? JSON.parse(c) : [];
   state.messages = m ? JSON.parse(m) : [];
   state.audit = a ? JSON.parse(a) : [];
-  state.suggestions = sg ? JSON.parse(sg) : [];
   if(p){
     const parsed = JSON.parse(p);
     state.adminProfile = Object.assign({}, state.adminProfile, parsed.admin||{});
     state.consultantProfile = Object.assign({}, state.consultantProfile, parsed.consultant||{});
   } else { await persistProfiles(); }
   if(b){ const parsedB = JSON.parse(b); state.logoUrl = parsedB.logoUrl || ''; }
+  state.suggestions = sg ? JSON.parse(sg) : [];
 }
 async function persistConsultations(){ await storeSet('consultations_v2', JSON.stringify(state.consultations), true); }
 async function persistMessages(){ await storeSet('messages_v2', JSON.stringify(state.messages), true); }
@@ -328,16 +316,11 @@ function logAudit(action){
 /* ===================== DERIVED HELPERS ===================== */
 function statusKey(c){
   if(c.status==='تحت الإجابة'){
-    const days = daysSinceExact(c.assignedAt||c.createdAt);
+    const days = daysSince(c.assignedAt||c.createdAt);
     const urgent = c.priority==='مستعجل';
-    if(urgent){
-      if(days>=2) return 'مستعجلة ومتأخرة';
-      return 'مستعجلة';
-    }
-    /* تصعيد تلقائي للاستشارات العادية حسب الوقت المنقضي منذ الإرسال */
-    if(days>=4) return 'مستعجلة ومتأخرة';   /* تجاوزت 4 أيام — تصبح حمراء اللون */
-    if(days>=3) return 'مستعجلة';           /* بلغت 3 أيام — تتحول لمستعجلة */
-    if(days>=1.5) return 'متأخرة';          /* بلغت يوم ونصف — تتحول لمتأخرة */
+    if(urgent && days>=2) return 'مستعجلة ومتأخرة';
+    if(!urgent && days>=4) return 'متأخرة';
+    if(urgent) return 'مستعجلة';
     return 'جديدة';
   }
   return c.status;
@@ -421,10 +404,6 @@ async function unseenMessagesFor(role){
   return state.messages.filter(m => m.from !== role && (!last || new Date(m.ts) > last)).length;
 }
 async function refreshUnseenMessages(){ state.unseenMessages = await unseenMessagesFor(state.role); }
-function reportsScope(){
-  if(state.role==='admin') return state.consultations;
-  return state.consultations.filter(c=>(c.assignedTo||[]).includes(state.consultantProfile.name));
-}
 
 /* ===================== RENDER ===================== */
 function el(id){ return document.getElementById(id); }
@@ -440,7 +419,7 @@ function navItems(){
   if(state.role==='admin'){
     return [ ['dashboard','لوحة التحكم'], ['list','الاستشارات'], ['add','إضافة استشارة'], ['closed','الاستشارات المغلقة'], ['reports','التقارير'], ['messages','الرسائل'], ['audit','سجل العمليات'], ['settings','إدارة المستخدمين والصلاحيات'] ];
   }
-  return [ ['dashboard','لوحة التحكم'], ['list','استشاراتي'], ['closed','استشاراتي المغلقة'], ['reports','التقارير'], ['messages','الرسائل'] ];
+  return [ ['dashboard','لوحة التحكم'], ['list','استشاراتي'], ['closed','استشاراتي المغلقة'], ['reports','تقاريري'], ['messages','الرسائل'] ];
 }
 function pendingBadgeCount(){
   if(state.role==='consultant'){
@@ -551,6 +530,26 @@ function renderContent(){
 }
 
 /* ---------- Admin dashboard ---------- */
+function renderStatCircles(list){
+  const newCount = list.filter(c=>statusKey(c)==='جديدة').length;
+  const closedCount = list.filter(c=>c.status==='مؤرشفة').length;
+  const overdueCount = list.filter(isOverdue).length;
+  return `
+    <div class="stat-circles">
+      <div class="stat-circle-card">
+        <div class="stat-circle-badge">${newCount}</div>
+        <div class="stat-circle-label">استشارات جديدة</div>
+      </div>
+      <div class="stat-circle-card gold">
+        <div class="stat-circle-badge">${closedCount}</div>
+        <div class="stat-circle-label">استشارات مغلقة</div>
+      </div>
+      <div class="stat-circle-card urgent">
+        <div class="stat-circle-badge">${overdueCount}</div>
+        <div class="stat-circle-label">استشارات متأخرة</div>
+      </div>
+    </div>`;
+}
 function renderAdminDashboard(){
   const list = state.consultations;
   const s = computeStats(list);
@@ -558,7 +557,7 @@ function renderAdminDashboard(){
   const maxMonth = Math.max(1, ...months.map(m=>m[1]));
   const newOnes = list.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   return `
-    ${statBadgesHtml(s)}
+    ${renderStatCircles(list)}
     <div class="panel">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة (${newOnes.length})</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
@@ -600,8 +599,8 @@ function renderConsultantDashboard(){
   const s = computeStats(mine);
   const newOnes = mine.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   return `
-    ${statBadgesHtml(s)}
     <div class="notice-banner">📌 لديك حالياً <b>${s.pendingTotal}</b> استشارة لم يتم الرد عليها بعد.</div>
+    ${renderStatCircles(mine)}
     <div class="panel">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة (${newOnes.length})</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
@@ -619,13 +618,6 @@ function renderRecentTable(list, title){
   return `<div class="panel"><div class="panel-head"><h3>${title}</h3><button class="btn btn-outline btn-sm" data-nav="list">عرض الكل</button></div>
   <div class="panel-body" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد استشارات بعد</div>`}</div></div>`;
 }
-function statBadgesHtml(s){
-  return `<div class="stat-badge-row">
-    <div class="stat-badge"><div class="stat-badge-title">جديدة</div><div class="stat-badge-num">${s.new}</div></div>
-    <div class="stat-badge accent-archived"><div class="stat-badge-title">مغلقة</div><div class="stat-badge-num">${s.archived}</div></div>
-    <div class="stat-badge accent-urgent"><div class="stat-badge-title">متأخرة</div><div class="stat-badge-num">${s.overdue}</div></div>
-  </div>`;
-}
 
 /* ---------- List ---------- */
 function renderList(){
@@ -638,7 +630,7 @@ function renderList(){
       <div class="field"><label>الحالة</label><select id="fstatus"><option value="">الكل</option>${statusOptions.map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${STATUS_DISPLAY[s]||s}</option>`).join('')}</select></div>
       <div class="field"><label>الأولوية</label><select id="fpriority"><option value="">الكل</option><option ${f.priority==='مستعجل'?'selected':''}>مستعجل</option><option ${f.priority==='عادي'?'selected':''}>عادي</option></select></div>
     </div>
-    <div class="panel"><div class="panel-body" id="listResultsBody" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`}</div></div>
+    <div class="panel panel-table"><div class="panel-body" id="listResultsBody" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`}</div></div>
   `;
 }
 function refreshListResults(){
@@ -665,30 +657,11 @@ function tableHtml(list){
       </tr>`;
     }).join('')}</tbody></table>`;
 }
-function closedTableHtml(list){
-  return `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>التاريخ</th><th>الأولوية</th><th>الحالة</th><th>تاريخ ووقت الإغلاق</th></tr></thead>
-    <tbody>${list.map(c=>{
-      const st = statusStamp(c);
-      return `<tr class="row-click" data-detail="${c.id}">
-        <td>${esc(c.number)||'—'}</td>
-        <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}</td>
-        <td>${c.date?esc(c.date):'—'}</td>
-        <td><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span></td>
-        <td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td>
-        <td class="muted">${fmtDateTime(c.archivedAt)}</td>
-      </tr>`;
-    }).join('')}</tbody></table>`;
-}
 function renderClosedList(){
-  let list = visibleConsultations().filter(c=>c.status==='مؤرشفة');
-  const q = (state.closedQuery||'').trim();
-  if(q) list = list.filter(c=> [c.number,c.subject].some(v=>(v||'').includes(q)));
+  const list = visibleConsultations().filter(c=>c.status==='مؤرشفة');
   return `
-    <div class="searchbar">
-      <div class="field grow"><label>بحث في الاستشارات المغلقة (الموضوع أو الرقم)</label><input type="text" id="closedQ" value="${esc(state.closedQuery||'')}" placeholder="اكتب كلمة للبحث…"></div>
-    </div>
-    <div class="panel"><div class="panel-head"><h3>الاستشارات المغلقة (${list.length})</h3></div>
-      <div class="panel-body" style="padding:0;">${list.length ? closedTableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>لا توجد استشارات مغلقة بعد</div>`}</div>
+    <div class="panel panel-table"><div class="panel-head"><h3>الاستشارات المغلقة (${list.length})</h3></div>
+      <div class="panel-body" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>لا توجد استشارات مغلقة بعد</div>`}</div>
     </div>`;
 }
 
@@ -696,16 +669,26 @@ function renderClosedList(){
 function renderAddForm(){
   const editing = state.editingId ? state.consultations.find(x=>x.id===state.editingId) : null;
   return `
+  <div class="panel no-print">
+    <div class="panel-head"><h3>📋 لصق تلقائي وتعبئة الحقول</h3></div>
+    <div class="panel-body">
+      <div class="field"><label>الصق هنا النص الكامل المنسوخ من الموقع (رقم الاستشارة، السائل، العنوان، السؤال) ليقوم البرنامج بقراءته وتعبئة الحقول تلقائياً</label>
+        <textarea id="f_autoparse" placeholder="الصق النص هنا…" style="min-height:130px;"></textarea>
+      </div>
+      <button class="btn btn-gold btn-sm" data-action="autoparse">🔎 قراءة وتعبئة الحقول تلقائياً</button>
+      <span class="muted" id="autoparseStatus" style="margin-right:8px;"></span>
+    </div>
+  </div>
   <div class="panel">
     <div class="panel-head"><h3>${editing?'تعديل الاستشارة':'بيانات الاستشارة'}</h3><span class="muted">${editing?'سيتم حفظ التعديلات فقط':'ستُرسل تلقائياً إلى: '+esc(state.consultantProfile.name)}</span></div>
     <div class="panel-body">
-      <div class="field"><label>اسم السائل (الأخ الفاضل...) — يُستخدم تلقائياً في مخاطبة بداية الإجابة</label><input type="text" id="f_askerName" placeholder="مثال: أحمد محمد العُمري" value="${editing?esc(editing.askerName||''):''}"></div>
       <div class="grid-2">
         <div class="field"><label>رقم الاستشارة</label><input type="text" id="f_number" placeholder="رقم الاستشارة" value="${editing?esc(editing.number):''}"></div>
         <div class="field"><label>تاريخ الاستشارة</label><input type="date" id="f_date" value="${editing?esc(editing.date):todayStr()}" ${editing?'':'readonly'}></div>
       </div>
-      <div class="field"><label>موضوع الاستشارة</label><input type="text" id="f_subject" value="${editing?esc(editing.subject):''}"></div>
-      <div class="field"><label>بيانات السائل وتفاصيل الاستشارة (الصق كل ذلك هنا — يظهر للمستشار كنص يمكنه نسخه ولا يمكنه تعديله)</label><textarea id="f_details" placeholder="بيانات السائل الإضافية ونص الاستشارة كاملاً…" style="min-height:170px;">${editing?esc(editing.detailsText):''}</textarea></div>
+      <div class="field"><label>اسم السائل</label><input type="text" id="f_beneficiary" placeholder="اسم السائل" value="${editing?esc(editing.beneficiary):''}"></div>
+      <div class="field"><label>موضوع الاستشارة (العنوان)</label><input type="text" id="f_subject" value="${editing?esc(editing.subject):''}"></div>
+      <div class="field"><label>بيانات السائل وتفاصيل الاستشارة (السؤال) — يظهر للمستشار كنص يمكنه نسخه ولا يمكنه تعديله</label><textarea id="f_details" placeholder="نص الاستشارة كاملاً…" style="min-height:170px;">${editing?esc(editing.detailsText):''}</textarea></div>
       <div class="field"><label>ملاحظات داخلية (لا تظهر للمستشار)</label><textarea id="f_notes" placeholder="ملاحظات خاصة بالإدارة فقط">${editing?esc(editing.internalNotes):''}</textarea></div>
       <div class="field">
         <label>الأولوية</label>
@@ -720,6 +703,25 @@ function renderAddForm(){
       </div>
     </div>
   </div>`;
+}
+function parsePastedConsultation(raw){
+  const text = (raw||'').replace(/\r/g,'');
+  const result = { number:'', asker:'', title:'', question:'' };
+  let m = text.match(/رقم\s*الإ?ستشارة\s*:?\s*(\d+)/);
+  if(m) result.number = m[1];
+  m = text.match(/السائل\s*:\s*([^\n]+)/);
+  if(m) result.asker = m[1].trim();
+  m = text.match(/العنوان\s*:\s*([^\n]+)/);
+  if(m) result.title = m[1].trim();
+  const qIdx = text.search(/السؤال\s*:?/);
+  if(qIdx !== -1){
+    result.question = text.slice(qIdx).replace(/^السؤال\s*:?\s*/,'').trim();
+  }
+  return result;
+}
+function buildGreeting(c){
+  const name = (c.beneficiary||'').trim();
+  return 'بسم الله الرحمن الرحيم<br><br>الأخ الفاضل '+(esc(name)||'')+'<br>السلام عليكم ورحمة الله وبركاته<br><br>';
 }
 
 /* ---------- Detail ---------- */
@@ -755,21 +757,19 @@ function renderDetail(){
             </div>
           </div>
           <div class="panel-body">
-            ${c.askerName ? `<div class="asker-banner">👤 <b>السائل:</b> ${esc(c.askerName)}</div>` : ''}
+            ${(state.role==='admin' || (state.role==='consultant' && isMine)) ? `<button class="btn btn-outline btn-sm no-print" style="margin-bottom:12px;" data-action="download-word">⬇️ تنزيل صفحة Word (رقم الاستشارة، البيانات، ومربع للإجابة)</button>` : ''}
+
+            ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDateTime(c.archivedAt)}</div>` : ''}
 
             <div class="info-bar">
               <div class="info-item"><b>رقم الاستشارة</b><span>${esc(c.number)||'—'}</span></div>
+              <div class="info-item"><b>اسم السائل</b><span>${esc(c.beneficiary)||'—'}</span></div>
               <div class="info-item"><b>تاريخ الاستشارة</b><span>${c.date?esc(c.date):'—'}</span></div>
               <div class="info-item"><b>الأولوية</b><span class="pill ${c.priority==='مستعجل'?'urgent':'normal'}">${c.priority==='مستعجل'?'🔴':'🟢'} ${c.priority}</span></div>
               <div class="info-item"><b>تاريخ الوصول</b><span>${fmtDate(c.assignedAt||c.createdAt)}</span></div>
               <div class="info-item"><b>عدد الأيام</b><span>${daysSince(c.assignedAt||c.createdAt)} يوم</span></div>
               ${c.archivedAt ? `<div class="info-item"><b>تاريخ ووقت الإغلاق</b><span>${fmtDateTime(c.archivedAt)}</span></div>` : ''}
             </div>
-
-            ${(state.role==='admin' || (state.role==='consultant' && isMine)) ? `<button class="btn btn-outline btn-sm no-print" style="margin:2px 0 16px;" data-action="download-word">⬇️ تنزيل صفحة Word (رقم الاستشارة، البيانات، ومربع للإجابة)</button>` : ''}
-
-            ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDate(c.archivedAt)}</div>` : ''}
-
             ${state.role==='admin' ? `<div class="kv" style="margin-bottom:16px;"><b>ملاحظات داخلية</b><span>${esc(c.internalNotes)||'—'}</span></div>` : ''}
 
             ${detailsBlock}
@@ -794,7 +794,7 @@ function renderDetail(){
                   <button type="button" data-cmd="insertOrderedList" title="قائمة رقمية">1≡</button>
                   <button type="button" data-cmd="justifyRight" title="محاذاة يمين">⇥</button>
                 </div>
-                <div class="doc-page" id="answerEditor" contenteditable="true">${c.draftAnswer || answerGreetingHtml(c)}</div>
+                <div class="doc-page" id="answerEditor" contenteditable="true">${c.draftAnswer || buildGreeting(c)}</div>
                 ${c.returnFeedback ? `<div class="notice-banner" style="margin-top:10px;">📝 ملاحظة الإدارة على الإجابة السابقة: ${esc(c.returnFeedback)}</div>` : ''}
                 <div class="icon-actions">
                   <button class="icon-btn" data-action="answer-submit"><span class="ic">✅</span>إجابة السؤال</button>
@@ -831,7 +831,7 @@ function renderDetail(){
 
 /* ---------- Reports ---------- */
 function renderReports(){
-  const list = reportsScope();
+  const list = visibleConsultations();
   const s = computeStats(list);
   return `
     <div class="panel no-print"><div class="panel-head"><h3>تصدير وطباعة</h3></div>
@@ -850,58 +850,63 @@ function renderReports(){
       <div class="stat-card accent-urgent"><div class="num">${s.urgent}</div><div class="lbl">المستعجلة</div></div>
     </div>
     ${renderRangeReport(list)}
-    ${renderMonthlyReport(list, state.role==='admin' ? 'التقرير الشهري لجميع الاستشارات' : 'تقاريري الشهرية')}
-    <div class="panel"><div class="panel-head"><h3>ملخص المستشار المسؤول</h3></div>
+    ${state.role==='admin' ? renderFinancialReport(list) : ''}
+    ${renderMonthlyReport(list, state.role==='admin'?'التقرير الشهري لجميع الاستشارات':'تقريري الشهري')}
+    ${state.role==='admin' ? `<div class="panel"><div class="panel-head"><h3>ملخص المستشار المسؤول</h3></div>
       <div class="panel-body"><table><thead><tr><th>المستشار</th><th>إجمالي المخصص له</th><th>تم الإرسال/النشر</th><th>متأخرة</th><th>اعتذار</th></tr></thead>
       <tbody><tr><td>${esc(state.consultantProfile.name)}</td><td>${list.length}</td><td>${s.approved+s.printing}</td><td>${s.overdue}</td><td>${s.apology}</td></tr></tbody></table></div>
-    </div>
+    </div>` : ''}
   `;
 }
 function renderRangeReport(list){
   const from = state.rangeFrom, to = state.rangeTo;
-  const type = state.reportType || 'incoming';
+  const kind = state.rangeKind || 'incoming';
   let filtered = list;
   if(from) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
   if(to) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
-  if(type==='answered') filtered = filtered.filter(c=>['تمت الإجابة','معتمدة','قيد الطباعة'].includes(c.status));
+  if(kind==='answered') filtered = filtered.filter(c=> ['تمت الإجابة','معتمدة','قيد الطباعة','مؤرشفة'].includes(c.status));
   const s = computeStats(filtered);
-  const amountPerConsultation = 50;
-  const financialTotal = filtered.length * amountPerConsultation;
   return `
   <div class="panel">
-    <div class="panel-head"><h3>تقرير حسب الفترة</h3></div>
+    <div class="panel-head"><h3>تقرير إحصائي حسب الفترة</h3></div>
     <div class="panel-body">
       <div class="searchbar no-print" style="margin-bottom:14px;">
+        <div class="field"><label>نوع التقرير</label><select id="rangeKind">
+          <option value="incoming" ${kind==='incoming'?'selected':''}>الاستشارات الواردة</option>
+          <option value="answered" ${kind==='answered'?'selected':''}>الاستشارات المجاب عنها</option>
+        </select></div>
         <div class="field"><label>من تاريخ</label><input type="date" id="rangeFrom" value="${esc(from)}"></div>
         <div class="field"><label>إلى تاريخ</label><input type="date" id="rangeTo" value="${esc(to)}"></div>
-        <div class="field"><label>نوع التقرير</label>
-          <select id="reportType">
-            <option value="incoming" ${type==='incoming'?'selected':''}>الاستشارات الواردة</option>
-            <option value="answered" ${type==='answered'?'selected':''}>الاستشارات المجاب عنها</option>
-            <option value="financial" ${type==='financial'?'selected':''}>تقرير مالي</option>
-          </select>
-        </div>
         <div class="field"><button class="btn btn-primary" data-action="apply-range">عرض التقرير</button></div>
         <div class="field"><button class="btn btn-outline" data-action="export-range-csv">⬇️ تصدير</button></div>
       </div>
-      ${type==='financial' ? `
-        <div class="stats-grid">
-          <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">عدد الاستشارات</div></div>
-          <div class="stat-card accent-normal"><div class="num">${financialTotal}</div><div class="lbl">إجمالي المبلغ (ريال قطري)</div></div>
-        </div>
-        ${filtered.length ? `<table><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي</th></tr></thead>
-          <tbody>${filtered.map(c=>`<tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td><td>${amountPerConsultation} ريال قطري</td></tr>`).join('')}
-          <tr><td colspan="2" style="text-align:left; color:var(--ink-soft); font-size:13px;">الإجمالي</td><td>${financialTotal} ريال قطري</td></tr>
-          </tbody></table>` : `<div class="empty">لا توجد بيانات ضمن الفترة المحددة</div>`}
-      ` : `
-        <div class="stats-grid">
-          <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">${type==='answered'?'الاستشارات المجاب عنها في الفترة':'إجمالي الاستشارات الواردة في الفترة'}</div></div>
-          <div class="stat-card accent-blue"><div class="num">${s.answered+s.approved+s.printing}</div><div class="lbl">المجاب عنها</div></div>
-          <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
-          <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
-        </div>
-        ${filtered.length ? tableHtml(filtered) : `<div class="empty">لا توجد بيانات ضمن الفترة المحددة</div>`}
-      `}
+      <div class="stats-grid">
+        <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">إجمالي الاستشارات في الفترة</div></div>
+        <div class="stat-card accent-blue"><div class="num">${s.answered+s.approved+s.printing}</div><div class="lbl">المجاب عنها</div></div>
+        <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
+        <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
+      </div>
+      ${filtered.length ? tableHtml(filtered) : `<div class="empty">لا توجد بيانات لهذه الفترة</div>`}
+    </div>
+  </div>`;
+}
+const FINANCIAL_RATE_QAR = 50;
+function renderFinancialReport(list){
+  const from = state.rangeFrom, to = state.rangeTo;
+  let filtered = list;
+  if(from) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
+  if(to) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
+  const total = filtered.length * FINANCIAL_RATE_QAR;
+  return `
+  <div class="panel">
+    <div class="panel-head"><h3>التقرير المالي</h3><span class="muted">${FINANCIAL_RATE_QAR} ريال قطري لكل استشارة</span></div>
+    <div class="panel-body">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">عدد الاستشارات</div></div>
+        <div class="stat-card accent-normal"><div class="num">${total}</div><div class="lbl">الإجمالي (ريال قطري)</div></div>
+      </div>
+      ${filtered.length ? `<table><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي</th></tr></thead>
+      <tbody>${filtered.map(c=>`<tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td><td>${FINANCIAL_RATE_QAR} ر.ق</td></tr>`).join('')}</tbody></table>` : `<div class="empty">لا توجد بيانات لهذه الفترة</div>`}
     </div>
   </div>`;
 }
@@ -1010,20 +1015,11 @@ function renderSettings(){
       </div>
     </div>
   </div></div>
-  <div class="panel"><div class="panel-head"><h3>صندوق المقترحات</h3></div>
+  <div class="panel"><div class="panel-head"><h3>💡 مقترحات</h3></div>
     <div class="panel-body">
-      <div style="display:flex; gap:8px; margin-bottom:14px;">
-        <input type="text" id="newSuggestion" placeholder="اكتب مقترحاً جديداً…">
-        <button class="btn btn-primary btn-sm" data-action="add-suggestion">➕ إضافة</button>
-      </div>
-      ${state.suggestions.length ? `<ul class="sugg-list">${state.suggestions.map(sg=>`
-        <li>
-          <span>${esc(sg.text)}</span>
-          <span style="display:flex; gap:4px;">
-            <button class="icon-link no-print" data-action="edit-suggestion" data-id="${sg.id}" title="تعديل">✏️</button>
-            <button class="icon-link danger no-print" data-action="delete-suggestion" data-id="${sg.id}" title="حذف">🗑️</button>
-          </span>
-        </li>`).join('')}</ul>` : `<div class="muted">لا توجد مقترحات مضافة بعد</div>`}
+      <div class="field"><label>اكتب كل مقترح في سطر مستقل</label><textarea id="suggestionsBox" placeholder="مقترح أول…&#10;مقترح ثانٍ…" style="min-height:110px;">${esc((state.suggestions||[]).join('\n'))}</textarea></div>
+      <button class="btn btn-primary btn-sm" data-action="save-suggestions">حفظ المقترحات</button>
+      ${(state.suggestions||[]).length ? `<ul class="perm-list" style="margin-top:14px;">${state.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>` : ''}
     </div>
   </div>
   <div class="panel"><div class="panel-head"><h3>النسخ الاحتياطي</h3></div>
@@ -1056,10 +1052,11 @@ function bindGlobalEvents(){
 }
 async function checkAndShowEntryModal(){
   const parts = [];
-  let greeting = '';
+  let title = 'إشعارات جديدة';
+  let seal = '📬';
   if(state.role==='consultant'){
-    const displayName = (state.consultantProfile.name||'').replace(/^د\.\s*/,'').trim();
-    greeting = `مرحباً بعودتك، المستشار الدكتور ${esc(displayName||state.consultantProfile.name)}`;
+    title = 'مرحباً بعودتك المستشار '+esc(state.consultantProfile.name);
+    seal = '👋';
     const raw = await storeGet('lastseen_consult', false);
     const last = raw ? new Date(raw) : null;
     const fresh = state.consultations.filter(c=> (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة' && (!last || new Date(c.assignedAt||c.createdAt) > last));
@@ -1067,8 +1064,9 @@ async function checkAndShowEntryModal(){
     if(fresh.length) parts.push(`لديك (${fresh.length}) استشارات جديدة`);
   }
   if(state.unseenMessages>0) parts.push(`لديك (${state.unseenMessages}) رسائل جديدة`);
-  if(greeting || parts.length){
-    el('modalRoot').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-seal">${greeting?'👋':'📬'}</div><h3>${greeting || 'إشعارات جديدة'}</h3><p>${parts.length ? parts.join(' — ') : 'نتمنى لك يوماً موفقاً ومباركاً.'}</p><button class="btn btn-primary" data-action="close-modal">موافق</button></div></div>`;
+  if(state.role==='consultant' || parts.length){
+    const body = parts.length ? parts.join(' — ') : 'نتمنى لك يوماً مباركاً.';
+    el('modalRoot').innerHTML = `<div class="modal-overlay"><div class="modal"><div class="modal-seal">${seal}</div><h3>${title}</h3><p>${body}</p><button class="btn btn-primary" data-action="close-modal">موافق</button></div></div>`;
     document.querySelector('[data-action="close-modal"]').addEventListener('click', ()=>{ el('modalRoot').innerHTML=''; });
   }
 }
@@ -1108,10 +1106,8 @@ function bindContentEvents(){
   document.querySelectorAll('[data-action="export-csv"]').forEach(b=>b.addEventListener('click', ()=> exportCsv(b.getAttribute('data-set'))));
   const monthSelect = el('monthSelect'); if(monthSelect) monthSelect.addEventListener('change', ()=>{ state.selectedMonth = monthSelect.value; renderContent(); });
   const exportMonth = document.querySelector('[data-action="export-month-csv"]'); if(exportMonth) exportMonth.addEventListener('click', exportMonthCsv);
-  const applyRange = document.querySelector('[data-action="apply-range"]'); if(applyRange) applyRange.addEventListener('click', ()=>{ state.rangeFrom = el('rangeFrom').value; state.rangeTo = el('rangeTo').value; state.reportType = el('reportType') ? el('reportType').value : state.reportType; renderContent(); });
+  const applyRange = document.querySelector('[data-action="apply-range"]'); if(applyRange) applyRange.addEventListener('click', ()=>{ state.rangeFrom = el('rangeFrom').value; state.rangeTo = el('rangeTo').value; state.rangeKind = el('rangeKind')?el('rangeKind').value:'incoming'; renderContent(); });
   const exportRange = document.querySelector('[data-action="export-range-csv"]'); if(exportRange) exportRange.addEventListener('click', exportRangeCsv);
-  const reportTypeSel = el('reportType'); if(reportTypeSel) reportTypeSel.addEventListener('change', ()=>{ state.reportType = reportTypeSel.value; renderContent(); });
-  const closedQ = el('closedQ'); if(closedQ) closedQ.addEventListener('input', ()=>{ state.closedQuery = closedQ.value; renderContent(); });
 
   const sendMsgBtn = document.querySelector('[data-action="send-message"]'); if(sendMsgBtn) sendMsgBtn.addEventListener('click', sendMessage);
   document.querySelectorAll('[data-reply-id]').forEach(b=>b.addEventListener('click', ()=>{ replyingTo = b.getAttribute('data-reply-id'); renderContent(); const inp=el('msgInput'); if(inp) inp.focus(); }));
@@ -1123,25 +1119,33 @@ function bindContentEvents(){
   const removeLogoBtn = document.querySelector('[data-action="remove-logo"]'); if(removeLogoBtn) removeLogoBtn.addEventListener('click', removeLogo);
   const exportBackupBtn = document.querySelector('[data-action="export-backup"]'); if(exportBackupBtn) exportBackupBtn.addEventListener('click', exportBackup);
   const restoreInput = el('restoreFile'); if(restoreInput) restoreInput.addEventListener('change', restoreBackup);
+  const saveSuggestionsBtn = document.querySelector('[data-action="save-suggestions"]'); if(saveSuggestionsBtn) saveSuggestionsBtn.addEventListener('click', saveSuggestions);
 
-  const addSugBtn = document.querySelector('[data-action="add-suggestion"]'); if(addSugBtn) addSugBtn.addEventListener('click', addSuggestion);
-  const newSugInput = el('newSuggestion'); if(newSugInput) newSugInput.addEventListener('keydown', e=>{ if(e.key==='Enter') addSuggestion(); });
-  document.querySelectorAll('[data-action="edit-suggestion"]').forEach(b=>b.addEventListener('click', ()=>editSuggestionPrompt(b.getAttribute('data-id'))));
-  document.querySelectorAll('[data-action="delete-suggestion"]').forEach(b=>b.addEventListener('click', ()=>deleteSuggestion(b.getAttribute('data-id'))));
+  const autoparseBtn = document.querySelector('[data-action="autoparse"]');
+  if(autoparseBtn) autoparseBtn.addEventListener('click', ()=>{
+    const raw = el('f_autoparse').value;
+    const parsed = parsePastedConsultation(raw);
+    if(parsed.number && el('f_number')) el('f_number').value = parsed.number;
+    if(parsed.asker && el('f_beneficiary')) el('f_beneficiary').value = parsed.asker;
+    if(parsed.title && el('f_subject')) el('f_subject').value = parsed.title;
+    if(parsed.question && el('f_details')) el('f_details').value = parsed.question;
+    const st = el('autoparseStatus');
+    if(st) st.textContent = (parsed.number||parsed.asker||parsed.title||parsed.question) ? '✔️ تم تعبئة الحقول — يمكنك التعديل عليها' : 'تعذر التعرف على البيانات، يرجى التعبئة يدوياً';
+  });
 }
 
 async function saveConsultation(){
   const priority = (document.querySelector('input[name=priority]:checked')||{}).value || 'عادي';
   const detailsText = el('f_details').value.trim();
-  const askerName = el('f_askerName').value.trim();
   const number = el('f_number').value.trim();
   const subject = el('f_subject').value.trim();
+  const beneficiary = el('f_beneficiary').value.trim();
   const internalNotes = el('f_notes').value.trim();
 
   if(state.editingId){
     const c = state.consultations.find(x=>x.id===state.editingId);
     if(!c){ toast('تعذر العثور على الاستشارة'); return; }
-    c.number = number; c.date = el('f_date').value || c.date; c.subject = subject; c.askerName = askerName; c.detailsText = detailsText; c.internalNotes = internalNotes; c.priority = priority;
+    c.number = number; c.date = el('f_date').value || c.date; c.subject = subject; c.beneficiary = beneficiary; c.detailsText = detailsText; c.internalNotes = internalNotes; c.priority = priority;
     c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم تعديل بيانات الاستشارة'});
     await persistConsultations();
     logAudit('تعديل استشارة رقم '+(c.number||c.id));
@@ -1154,7 +1158,7 @@ async function saveConsultation(){
   const ts = nowIso();
   const c = {
     id: uid('c'), number, date: todayStr(),
-    entity:'', beneficiary:'', subject, askerName,
+    entity:'', beneficiary, subject,
     askerInfoText:'', askerInfoImage:'', detailsText,
     internalNotes,
     images: [],
@@ -1227,7 +1231,7 @@ async function copyAnswer(){
 }
 function downloadConsultationWord(){
   const c = state.consultations.find(x=>x.id===state.detailId);
-  const answerContent = c.answer || c.draftAnswer || answerGreetingHtml(c);
+  const answerContent = c.answer || c.draftAnswer || '';
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
   <head><meta charset="utf-8"><title>استشارة رقم ${esc(c.number)||c.id}</title>
   <style>
@@ -1239,9 +1243,9 @@ function downloadConsultationWord(){
   </style></head>
   <body dir="rtl">
     <h2>نظام الاستشارات — مكتب الدكتور عقيل محمد المقطري</h2>
-    <div class="box"><b>رقم الاستشارة:</b> ${esc(c.number)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>تاريخ الاستشارة:</b> ${c.date?esc(c.date):'—'}${c.askerName?(' &nbsp;&nbsp;&nbsp;&nbsp; <b>السائل:</b> '+esc(c.askerName)):''}</div>
+    <div class="box"><b>رقم الاستشارة:</b> ${esc(c.number)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>تاريخ الاستشارة:</b> ${c.date?esc(c.date):'—'}</div>
     <div class="box"><b>بيانات السائل وتفاصيل الاستشارة:</b><br><br>${esc(c.detailsText||'').replace(/\n/g,'<br>')}</div>
-    <div class="box answer-box"><b>الإجابة:</b><br><br>${answerContent}</div>
+    <div class="box answer-box"><b>الإجابة:</b><br><br>${answerContent || '&nbsp;'}</div>
   </body></html>`;
   const blob = new Blob(['\ufeff', html], {type:'application/msword'});
   const a = document.createElement('a');
@@ -1268,7 +1272,7 @@ async function markPrinting(){
   c.status='مؤرشفة'; c.printedAt=nowIso(); c.archivedAt=nowIso();
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم نشر الاستشارة وإغلاقها'});
   await persistConsultations();
-  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ ووقت '+fmtDateTime(c.archivedAt));
+  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
   logAudit('نشر وإغلاق استشارة: '+(c.number||c.id)); toast('تم النشر وإغلاق الاستشارة'); renderContent();
 }
 async function archiveConsultation(){
@@ -1276,7 +1280,7 @@ async function archiveConsultation(){
   c.status='مؤرشفة'; c.archivedAt=nowIso();
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إغلاق الاستشارة'});
   await persistConsultations();
-  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ ووقت '+fmtDateTime(c.archivedAt));
+  await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
   logAudit('إغلاق استشارة '+(c.number||c.id)); toast('تم إغلاق الاستشارة'); renderContent();
 }
 async function reopenConsultation(){
@@ -1312,7 +1316,7 @@ async function sendSystemMessage(text){
 
 /* ---------- Reports export ---------- */
 function exportCsv(set){
-  let list = reportsScope();
+  let list = visibleConsultations();
   if(set==='answered') list = list.filter(c=>['تمت الإجابة','معتمدة','قيد الطباعة'].includes(c.status));
   if(set==='overdue') list = list.filter(isOverdue);
   if(set==='urgent') list = list.filter(c=>c.priority==='مستعجل');
@@ -1320,38 +1324,24 @@ function exportCsv(set){
   logAudit('تصدير تقرير: '+set);
 }
 function exportMonthCsv(){
-  const list = reportsScope();
+  const list = visibleConsultations();
   const sel = state.selectedMonth || (Array.from(new Set(list.map(c=>monthKey(c.createdAt)))).sort().reverse()[0]||'');
   const filtered = sel ? list.filter(c=>monthKey(c.createdAt)===sel) : list;
   downloadCsv(filtered, 'التقرير_الشهري_'+(sel||'all')+'.csv');
   logAudit('تصدير تقرير شهري: '+sel);
 }
 function exportRangeCsv(){
-  const from = state.rangeFrom, to = state.rangeTo;
-  const type = state.reportType || 'incoming';
-  let list = reportsScope();
+  const from = state.rangeFrom, to = state.rangeTo, kind = state.rangeKind || 'incoming';
+  let list = visibleConsultations();
   if(from) list = list.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
   if(to) list = list.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
-  if(type==='answered') list = list.filter(c=>['تمت الإجابة','معتمدة','قيد الطباعة'].includes(c.status));
-  if(type==='financial'){
-    downloadFinancialCsv(list, 'التقرير_المالي_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv');
-  } else {
-    downloadCsv(list, 'تقرير_الفترة_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv');
-  }
-  logAudit('تصدير تقرير حسب الفترة: '+from+' - '+to+' — النوع: '+type);
+  if(kind==='answered') list = list.filter(c=> ['تمت الإجابة','معتمدة','قيد الطباعة','مؤرشفة'].includes(c.status));
+  downloadCsv(list, 'تقرير_الفترة_'+(from||'بداية')+'_إلى_'+(to||'اليوم')+'.csv');
+  logAudit('تصدير تقرير حسب الفترة: '+from+' - '+to);
 }
 function downloadCsv(list, filename){
   const headers = ['رقم','التاريخ','الموضوع','الأولوية','الحالة','تاريخ الوصول','عدد الأيام'];
   const rows = list.map(c=>{ const k=statusKey(c); return [c.number,c.date,c.subject,c.priority, (STATUS_DISPLAY[k]||k), fmtDate(c.assignedAt||c.createdAt), daysSince(c.assignedAt||c.createdAt)]; });
-  const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
-  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
-  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
-}
-function downloadFinancialCsv(list, filename){
-  const amountPerConsultation = 50;
-  const headers = ['رقم الاستشارة','تاريخ الاستشارة','المبلغ المالي (ريال قطري)'];
-  const rows = list.map(c=>[c.number, c.date, amountPerConsultation]);
-  rows.push(['', 'الإجمالي', list.length*amountPerConsultation]);
   const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
@@ -1385,6 +1375,15 @@ async function removeLogo(){
   logAudit('إزالة شعار البرنامج');
   toast('تمت الإزالة'); render();
 }
+async function saveSuggestions(){
+  const box = el('suggestionsBox');
+  if(!box) return;
+  state.suggestions = box.value.split('\n').map(s=>s.trim()).filter(Boolean);
+  await persistSuggestions();
+  logAudit('تحديث المقترحات');
+  toast('تم حفظ المقترحات');
+  renderContent();
+}
 function resizeImageToDataUrl(file, maxSize){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
@@ -1407,35 +1406,10 @@ function resizeImageToDataUrl(file, maxSize){
   });
 }
 function exportBackup(){
-  const payload = { consultations: state.consultations, messages: state.messages, audit: state.audit, profiles: {admin: state.adminProfile, consultant: state.consultantProfile}, logoUrl: state.logoUrl, suggestions: state.suggestions, exportedAt: nowIso() };
+  const payload = { consultations: state.consultations, messages: state.messages, audit: state.audit, profiles: {admin: state.adminProfile, consultant: state.consultantProfile}, logoUrl: state.logoUrl, exportedAt: nowIso() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'نسخة_احتياطية_'+Date.now()+'.json'; a.click();
   logAudit('تنزيل نسخة احتياطية');
-}
-async function addSuggestion(){
-  const inp = el('newSuggestion'); if(!inp) return;
-  const text = (inp.value||'').trim();
-  if(!text) return;
-  state.suggestions.push({id: uid('sg'), text});
-  await persistSuggestions();
-  logAudit('إضافة مقترح جديد');
-  toast('تمت الإضافة'); renderContent();
-}
-async function editSuggestionPrompt(id){
-  const sg = state.suggestions.find(x=>x.id===id); if(!sg) return;
-  const val = prompt('تعديل المقترح:', sg.text);
-  if(val===null) return;
-  sg.text = val.trim() || sg.text;
-  await persistSuggestions();
-  logAudit('تعديل مقترح');
-  toast('تم الحفظ'); renderContent();
-}
-async function deleteSuggestion(id){
-  if(!confirm('هل تريد حذف هذا المقترح؟')) return;
-  state.suggestions = state.suggestions.filter(x=>x.id!==id);
-  await persistSuggestions();
-  logAudit('حذف مقترح');
-  toast('تم الحذف'); renderContent();
 }
 async function restoreBackup(){
   const input = el('restoreFile'); const file = input.files[0]; if(!file) return;
