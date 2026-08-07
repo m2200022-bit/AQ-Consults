@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 /* ملاحظة: طلب استخدام "خط الوتد" (وزارة الثقافة) و"DG Forsha" (خط فرشة) — كلاهما خطوط تُحمَّل كملفات (TTF) وليست متاحة عبر Google Fonts أو أي CDN عام،
    لذلك تعذّر تضمينهما تلقائياً هنا. تم استخدام خط "Aref Ruqaa" (خط عربي بطابع خط اليد/الفرشاة) للعناوين كبديل مقارب حتى تزوّدني بملفات الخطوط الفعلية (TTF/WOFF) لتضمينها مباشرة عبر @font-face.
@@ -117,10 +119,12 @@ td{padding:11px 10px; border-bottom:1px solid var(--border); vertical-align:midd
 .table-panel-outlined table th{border-bottom:1px solid var(--primary);}
 .table-panel-outlined table td{border-bottom:1px dashed var(--border);}
 .table-panel-outlined table tr:last-child td{border-bottom:none;}
-.stat-badges-row{display:flex; gap:22px; justify-content:center; flex-wrap:wrap; margin-bottom:24px; padding-top:14px;}
-.stat-badge{display:flex; flex-direction:column; align-items:center; width:130px;}
-.stat-badge .badge-circle{width:64px; height:64px; border-radius:50%; background:linear-gradient(135deg,#fff 0%, var(--gold) 100%); border:3px solid #fff; box-shadow:0 4px 12px rgba(0,0,0,.18); display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:800; color:var(--primary); z-index:2; margin-bottom:-20px;}
-.stat-badge .badge-box{width:100%; background:linear-gradient(180deg,var(--primary) 0%, #0a4a42 100%); color:#fff; border-radius:18px; padding:28px 10px 14px; text-align:center; font-weight:700; font-size:13px; box-shadow:0 3px 10px rgba(0,0,0,.12);}
+.stat-badges-row{display:flex; gap:26px; justify-content:center; flex-wrap:wrap; margin-bottom:28px; padding-top:10px;}
+.stat-shape-badge{position:relative; width:160px; height:120px;}
+.stat-shape-main{position:absolute; inset:0; background:linear-gradient(120deg,#f7cd6b 0%, #e0a530 100%); clip-path:polygon(9% 0%, 100% 0%, 91% 100%, 0% 100%); box-shadow:0 6px 14px rgba(0,0,0,.18);}
+.stat-shape-accent{position:absolute; right:4%; bottom:-8%; width:58%; height:42%; background:linear-gradient(120deg,#d6608c 0%, #a83f68 100%); clip-path:polygon(12% 0%, 100% 0%, 88% 100%, 0% 100%); box-shadow:0 4px 10px rgba(0,0,0,.15);}
+.stat-shape-number{position:absolute; top:16px; left:0; right:0; text-align:center; font-size:30px; font-weight:900; color:#111; z-index:3;}
+.stat-shape-label{position:absolute; bottom:16px; left:8%; right:8%; text-align:center; font-size:12.5px; font-weight:800; color:#1a1a1a; z-index:3;}
 .suggestion-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:2px;}
 .suggestion-item{display:flex; align-items:center; gap:8px; padding:10px 8px; border-bottom:1px dashed var(--border);}
 .suggestion-item:last-child{border-bottom:none;}
@@ -128,6 +132,18 @@ td{padding:11px 10px; border-bottom:1px solid var(--border); vertical-align:midd
 .suggestion-text{flex:1; font-size:14px;}
 .suggestion-edit-input{flex:1;}
 .suggestion-actions{display:flex; gap:4px;}
+.number-badge{display:inline-block; background:linear-gradient(135deg,var(--primary) 0%, #0a4a42 100%); color:#fff; font-size:19px; font-weight:800; padding:5px 14px; border-radius:8px; letter-spacing:.5px; box-shadow:0 2px 6px rgba(0,0,0,.15);}
+.number-badge-inline{display:inline-block; background:var(--primary); color:#fff; font-weight:800; font-size:16px; padding:1px 9px; border-radius:6px; margin:0 2px;}
+.closed-meta{font-size:11px; color:var(--urgent); font-weight:700; margin-top:3px;}
+.report-table-wrap{border:1px solid var(--border); border-radius:12px; overflow:hidden; margin-top:14px;}
+.report-table{width:100%; border-collapse:collapse;}
+.report-table th{background:#2f6fed; color:#fff; text-align:center; font-size:13px; font-weight:700; padding:10px 8px; border-left:1px dashed rgba(255,255,255,.4);}
+.report-table th:last-child{border-left:none;}
+.report-table td{text-align:center; padding:10px 8px; font-size:14px; font-weight:600; border-bottom:1px solid var(--border); border-left:1px dashed var(--border);}
+.report-table td:last-child{border-left:none;}
+.report-table tr:last-child td{border-bottom:none;}
+.report-table tr:nth-child(even) td{background:var(--surface-2);}
+.report-total-row{padding:12px 16px; text-align:left; font-size:16px; font-weight:800; background:var(--surface-2); border-top:1px solid var(--border);}
 tr.row-click{cursor:pointer;}
 tr.row-click:hover{background:var(--surface-2);}
 .muted{color:var(--ink-faint); font-size:12px;}
@@ -154,6 +170,7 @@ tr.row-click:hover{background:var(--surface-2);}
 .timeline li .t-action{font-weight:700; font-size:13px;}
 .timeline li .t-meta{color:var(--ink-faint); font-size:11.5px; margin-top:2px;}
 .kv{display:grid; grid-template-columns:120px 1fr; gap:7px 10px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; margin-bottom:4px;}
+.kv-highlight{background:var(--gold-100); border:1px solid var(--gold); border-radius:10px; padding:10px 12px;}
 .info-bar{display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; margin-bottom:16px; padding:12px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;}
 .info-bar .info-item{display:flex; align-items:baseline; gap:6px; font-size:15.5px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif;}
 .info-bar .info-item b{color:var(--ink-soft); font-weight:700; font-size:11.5px; font-family:'Sakkal Majalla','Tajawal',sans-serif;}
@@ -174,9 +191,12 @@ tr.row-click:hover{background:var(--surface-2);}
 .hidden{display:none !important;}
 .notice-banner{background:var(--gold-100); border:1px solid var(--gold); color:#7A5A22; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:flex; align-items:center; gap:8px;}
 .notice-critical{background:var(--urgent-100); border-color:var(--urgent); color:var(--urgent); font-weight:700;}
-tr.row-critical{background:var(--urgent-100);}
-tr.row-critical:hover{background:var(--urgent-100);}
-tr.row-critical td:first-child{border-right:3px solid var(--urgent);}
+tr.row-urgent-full td{background:#fbe4e4 !important;}
+tr.row-urgent-full:hover td{background:#f8d5d5 !important;}
+tr.row-urgent-full td:first-child{border-right:4px solid var(--urgent);}
+tr.row-normal-open td{background:#e7f7ef !important;}
+tr.row-normal-open:hover td{background:#d9f2e5 !important;}
+tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .btn-outline-danger{background:#fff; border:1.5px solid var(--urgent); color:var(--urgent);}
 .mobile-toggle{display:none; border:none; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; width:36px; height:36px; font-size:16px; cursor:pointer;}
 @media(max-width:900px){.mobile-toggle{display:block;}}
@@ -221,6 +241,7 @@ try{
 const firebaseConfig = {
   apiKey: "AIzaSyDUDzOYvFnChyU3QU81RapJ7wG5VtzG0tU",
   authDomain: "aq-consults.firebaseapp.com",
+  databaseURL: "https://aq-consults-default-rtdb.firebaseio.com",
   projectId: "aq-consults",
   storageBucket: "aq-consults.firebasestorage.app",
   messagingSenderId: "1006318779836",
@@ -294,6 +315,14 @@ function isCritical(c){
   if(c.status!=='تحت الإجابة') return false;
   return hoursSince(c.assignedAt||c.createdAt) >= 96;
 }
+function daysElapsedDisplay(c){
+  if(c.archivedAt) return Math.max(0, Math.floor((new Date(c.archivedAt)-new Date(c.assignedAt||c.createdAt))/86400000));
+  return daysSince(c.assignedAt||c.createdAt);
+}
+function rowColorClass(c){
+  if(c.status !== 'تحت الإجابة') return '';
+  return effectivePriority(c)==='مستعجل' ? 'row-urgent-full' : 'row-normal-open';
+}
 function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function monthKey(iso){ const d=new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function monthLabel(key){ if(!key) return ''; const [y,m]=key.split('-'); const names=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']; return names[parseInt(m,10)-1]+' '+y; }
@@ -303,13 +332,31 @@ async function storeGet(key, shared){
     const ref = doc(db, APP_STATE_COLLECTION, key);
     const snap = await getDoc(ref);
     return snap.exists() ? snap.data().value : null;
-  }catch(e){ console.error('firestore get failed', key, e); return null; }
+  }catch(e){ console.error('firestore get failed', key, e); showSyncError(e); return null; }
 }
 async function storeSet(key, value, shared){
   try{
     const ref = doc(db, APP_STATE_COLLECTION, key);
     await setDoc(ref, { value, updatedAt: Date.now() });
-  }catch(e){ console.error('firestore set failed', key, e); }
+    return true;
+  }catch(e){ console.error('firestore set failed', key, e); showSyncError(e); return false; }
+}
+let syncErrorShown = false;
+function showSyncError(e){
+  if(syncErrorShown) return; // avoid spamming the user with repeated banners
+  syncErrorShown = true;
+  const code = (e && e.code) || '';
+  let msg = 'تعذّر حفظ/مزامنة البيانات مع قاعدة البيانات.';
+  if(code === 'permission-denied'){
+    msg = 'تعذّر الحفظ: صلاحيات قاعدة البيانات (Firestore Rules) تمنع الكتابة/القراءة. يجب تعديل قواعد الأمان (Rules) من لوحة تحكم Firebase.';
+  } else if(code === 'unavailable' || code === 'failed-precondition'){
+    msg = 'تعذّر الحفظ: تحقق من اتصال الإنترنت، أو من أن قاعدة بيانات Firestore تم إنشاؤها فعلياً في مشروع Firebase.';
+  }
+  const bar = document.createElement('div');
+  bar.textContent = '⚠️ ' + msg + ' (التفاصيل في console المتصفح)';
+  bar.style.cssText = 'position:fixed; top:0; right:0; left:0; z-index:9999; background:#c0392b; color:#fff; padding:10px 16px; font-size:13px; text-align:center; font-weight:700;';
+  document.body.appendChild(bar);
+  setTimeout(()=>{ syncErrorShown = false; bar.remove(); }, 15000);
 }
 
 async function loadAll(){
@@ -562,14 +609,18 @@ function renderContent(){
 
 function statBadgesHtml(s){
   const items = [
-    {n:1, num:s.new, label:'استشارات جديدة'},
-    {n:2, num:s.archived, label:'استشارات مغلقة'},
-    {n:3, num:s.overdue, label:'استشارات متأخرة'}
+    {num:s.new, label:'استشارات جديدة'},
+    {num:s.urgentPending, label:'استشارات مستعجلة'},
+    {num:s.overdue, label:'استشارات متأخرة'},
+    {num:s.archived, label:'استشارات مغلقة'},
+    {num:s.pendingTotal, label:'إجمالي الاستشارات المفتوحة'}
   ];
   return `<div class="stat-badges-row">${items.map(it=>`
-    <div class="stat-badge">
-      <div class="badge-circle">${it.num}</div>
-      <div class="badge-box">${it.label}</div>
+    <div class="stat-shape-badge">
+      <div class="stat-shape-main"></div>
+      <div class="stat-shape-accent"></div>
+      <div class="stat-shape-number">${it.num}</div>
+      <div class="stat-shape-label">${it.label}</div>
     </div>`).join('')}</div>`;
 }
 /* ---------- Admin dashboard ---------- */
@@ -645,9 +696,9 @@ function renderRecentTable(list, title){
 
 /* ---------- List ---------- */
 function renderList(){
-  const list = visibleConsultations();
+  const list = visibleConsultations().filter(c=>c.status!=='مؤرشفة');
   const f = state.filters;
-  const statusOptions = ['جديدة','مستعجلة','متأخرة','مستعجلة ومتأخرة','تمت الإجابة','معتمدة','قيد الطباعة','مؤرشفة','اعتذار'];
+  const statusOptions = ['جديدة','مستعجلة','متأخرة','مستعجلة ومتأخرة','تمت الإجابة','معتمدة','قيد الطباعة','اعتذار'];
   return `
     <div class="searchbar">
       <div class="field grow"><label>بحث (الموضوع أو رقم الاستشارة)</label><input type="text" id="fq" value="${esc(f.q)}" placeholder="اكتب كلمة للبحث…"></div>
@@ -660,7 +711,7 @@ function renderList(){
 function refreshListResults(){
   const body = el('listResultsBody');
   if(!body) return;
-  const list = visibleConsultations();
+  const list = visibleConsultations().filter(c=>c.status!=='مؤرشفة');
   body.innerHTML = list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`;
   bindRowClicks();
 }
@@ -675,13 +726,13 @@ function tableHtml(list){
     <tbody>${list.map(c=>{
       const st = statusStamp(c);
       const ep = effectivePriority(c);
-      return `<tr class="row-click ${isCritical(c)?'row-critical':''}" data-detail="${c.id}">
-        <td>${esc(c.number)||'—'}</td>
-        <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}</td>
+      return `<tr class="row-click ${rowColorClass(c)}" data-detail="${c.id}">
+        <td><span class="number-badge">${esc(c.number)||'—'}</span></td>
+        <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}${c.archivedAt ? `<div class="closed-meta">🔒 أُغلقت: ${fmtDateTime(c.archivedAt)}</div>` : ''}</td>
         <td>${c.date?esc(c.date):'—'}</td>
         <td><span class="pill ${ep==='مستعجل'?'urgent':'normal'}">${ep==='مستعجل'?'🔴':'🟢'} ${ep}</span></td>
         <td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td>
-        <td class="muted">${daysSince(c.assignedAt||c.createdAt)} يوم</td>
+        <td class="muted">${daysElapsedDisplay(c)} يوم</td>
         ${showActions ? `<td class="no-print"><button class="icon-link" data-edit-row="${c.id}" title="تعديل">✏️</button><button class="icon-link danger" data-delete-row="${c.id}" title="حذف">🗑️</button></td>` : ''}
       </tr>`;
     }).join('')}</tbody></table>`;
@@ -855,10 +906,10 @@ function renderDetail(){
               <div class="info-item"><b>تاريخ الاستشارة</b><span>${c.date?esc(c.date):'—'}</span></div>
               <div class="info-item"><b>الأولوية</b><span class="pill ${effectivePriority(c)==='مستعجل'?'urgent':'normal'}">${effectivePriority(c)==='مستعجل'?'🔴':'🟢'} ${effectivePriority(c)}</span></div>
               <div class="info-item"><b>تاريخ الوصول</b><span>${fmtDate(c.assignedAt||c.createdAt)}</span></div>
-              <div class="info-item"><b>عدد الأيام</b><span>${daysSince(c.assignedAt||c.createdAt)} يوم</span></div>
+              <div class="info-item"><b>عدد الأيام</b><span>${daysElapsedDisplay(c)} يوم</span></div>
               ${c.archivedAt ? `<div class="info-item"><b>تاريخ ووقت الإغلاق</b><span>${fmtDateTime(c.archivedAt)}</span></div>` : ''}
             </div>
-            ${state.role==='admin' ? `<div class="kv" style="margin-bottom:16px;"><b>ملاحظات داخلية</b><span>${esc(c.internalNotes)||'—'}</span></div>` : ''}
+            ${(state.role==='admin' || (state.role==='consultant' && c.showNotesToConsultant && c.internalNotes)) ? `<div class="kv ${state.role==='consultant'?'kv-highlight':''}" style="margin-bottom:16px;"><b>${state.role==='consultant' ? '📌 ملاحظة من الإدارة (يرجى القيام باللازم)' : 'ملاحظات داخلية'}</b><span>${esc(c.internalNotes)||'—'}</span></div>` : ''}
 
             ${c.question ? `<div class="field"><label>السؤال</label><div class="pasted-block">${esc(c.question)}</div></div>` : ''}
 
@@ -901,6 +952,7 @@ function renderDetail(){
                 <button class="btn btn-outline btn-sm" data-action="reopen">↩️ إعادة فتحها للمستشار</button>
                 <button class="btn btn-ghost btn-sm" data-action="archive">🔒 إغلاق الاستشارة</button>
               </div>` : ''}
+            ${state.role==='admin' && c.status==='مؤرشفة' ? `<button class="btn btn-outline btn-sm" style="margin-top:10px;" data-action="reopen-closed">🔓 فتح الاستشارة وإعادتها للمستشار للتعديل</button>` : ''}
 
             <div class="field" style="margin-top:20px;">
               <label>ملاحظات ومراسلات حول هذه الاستشارة</label>
@@ -964,7 +1016,7 @@ function renderRangeReport(list){
         <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
         <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
       </div>
-      <div class="table-panel-outlined" style="margin-top:14px;">${answeredList.length ? tableHtml(answeredList) : `<div class="empty">لا توجد استشارات مجاب عنها في هذه الفترة</div>`}</div>`;
+      ${reportTableHtml(answeredList)}`;
   } else if(type === 'financial'){
     const unit = 50;
     const total = filtered.length * unit;
@@ -974,10 +1026,9 @@ function renderRangeReport(list){
         <div class="stat-card accent-gold"><div class="num">${unit}</div><div class="lbl">قيمة الاستشارة الواحدة (ريال قطري)</div></div>
         <div class="stat-card accent-normal"><div class="num">${total}</div><div class="lbl">الإجمالي (ريال قطري)</div></div>
       </div>
-      <div class="table-panel-outlined" style="margin-top:14px;"><table><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي (ر.ق)</th></tr></thead>
+      <div class="report-table-wrap" style="margin-top:14px;"><table class="report-table"><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي (ر.ق)</th></tr></thead>
         <tbody>${filtered.length ? filtered.map(c=>`<tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td><td>${unit}</td></tr>`).join('') : `<tr><td colspan="3" class="muted">لا توجد استشارات في هذه الفترة</td></tr>`}</tbody>
-        ${filtered.length ? `<tfoot><tr><td colspan="2" style="text-align:left; font-weight:800;">الإجمالي</td><td style="font-weight:800;">${total} ر.ق</td></tr></tfoot>` : ''}
-      </table></div>`;
+      </table>${filtered.length ? `<div class="report-total-row">الإجمالي: <b>${total} ر.ق</b></div>` : ''}</div>`;
   } else {
     const s = computeStats(filtered);
     bodyHtml = `
@@ -987,12 +1038,17 @@ function renderRangeReport(list){
         <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
         <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
       </div>
-      <div class="table-panel-outlined" style="margin-top:14px;">${filtered.length ? tableHtml(filtered) : `<div class="empty">لا توجد استشارات في هذه الفترة</div>`}</div>`;
+      ${reportTableHtml(filtered)}`;
   }
 
   return `
   <div class="panel">
-    <div class="panel-head"><h3>تقرير حسب الفترة</h3></div>
+    <div class="panel-head"><h3>تقرير حسب الفترة</h3>
+      <div style="display:flex; gap:8px;" class="no-print">
+        <button class="btn btn-ghost btn-sm" data-action="print-report" title="طباعة">🖨️</button>
+        <button class="btn btn-ghost btn-sm" data-action="download-report-pdf" title="تنزيل PDF">📄 PDF</button>
+      </div>
+    </div>
     <div class="panel-body">
       <div class="searchbar no-print" style="margin-bottom:14px;">
         <div class="field"><label>من تاريخ</label><input type="date" id="rangeFrom" value="${esc(from)}"></div>
@@ -1004,41 +1060,101 @@ function renderRangeReport(list){
             <option value="financial" ${type==='financial'?'selected':''}>تقرير مالي</option>
           </select>
         </div>
-        <div class="field"><button class="btn btn-primary" data-action="apply-range">عرض التقرير</button></div>
         <div class="field"><button class="btn btn-outline" data-action="export-range-csv">⬇️ تصدير</button></div>
       </div>
-      ${bodyHtml}
+      <div id="rangeReportPrintArea">${bodyHtml}</div>
     </div>
   </div>`;
+}
+function responseDurationLabel(c){
+  if(!c.answeredAt) return '—';
+  const days = Math.max(0, (new Date(c.answeredAt) - new Date(c.assignedAt||c.createdAt)) / 86400000);
+  if(days < 1) return Math.round(days*24) + ' ساعة';
+  return days.toFixed(1) + ' يوم';
+}
+function reportTableHtml(list){
+  return `<div class="report-table-wrap"><table class="report-table"><thead><tr>
+      <th>رقم الاستشارة</th><th>العنوان</th><th>اسم السائل</th><th>تاريخ الاستشارة</th><th>تاريخ الإجابة</th><th>مدة الإجابة</th>
+    </tr></thead>
+    <tbody>${list.length ? list.map(c=>`<tr>
+        <td>${esc(c.number)||'—'}</td>
+        <td>${esc(c.subject)||'—'}</td>
+        <td>${esc(c.askerName)||'—'}</td>
+        <td>${c.date?esc(c.date):'—'}</td>
+        <td>${c.answeredAt?fmtDate(c.answeredAt):'—'}</td>
+        <td>${responseDurationLabel(c)}</td>
+      </tr>`).join('') : `<tr><td colspan="6" class="muted" style="text-align:center;">لا توجد بيانات</td></tr>`}</tbody>
+    </table></div>`;
 }
 function renderMonthlyReport(list, title){
   const months = Array.from(new Set(list.map(c=>monthKey(c.createdAt)))).sort().reverse();
   const sel = (state.selectedMonth && months.includes(state.selectedMonth)) ? state.selectedMonth : (months[0]||'');
   const filtered = sel ? list.filter(c=>monthKey(c.createdAt)===sel) : list;
   const s = computeStats(filtered);
+  const completed = s.answered + s.approved + s.printing + s.archived;
+  const notCompleted = s.pendingTotal + s.apology;
+  const completionRate = s.total ? Math.round((completed/s.total)*100) : 0;
   return `
   <div class="panel">
     <div class="panel-head"><h3>${title}</h3>
       <div style="display:flex; gap:8px; align-items:center;">
         <select id="monthSelect">${months.length? months.map(m=>`<option value="${m}" ${m===sel?'selected':''}>${monthLabel(m)}</option>`).join('') : '<option value="">لا توجد بيانات</option>'}</select>
         <button class="btn btn-outline btn-sm no-print" data-action="export-month-csv">⬇️ تصدير الشهر</button>
-        <button class="btn btn-ghost btn-sm no-print" data-action="print-report">🖨️ طباعة</button>
+        <button class="btn btn-ghost btn-sm no-print" data-action="print-report" title="طباعة">🖨️</button>
+        <button class="btn btn-ghost btn-sm no-print" data-action="download-report-pdf" title="تنزيل PDF">📄 PDF</button>
       </div>
     </div>
-    <div class="panel-body">
+    <div class="panel-body" id="monthlyReportPrintArea">
       <div class="stats-grid">
-        <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الشهر</div></div>
-        <div class="stat-card accent-blue"><div class="num">${s.answered+s.approved+s.printing}</div><div class="lbl">تم الرد عليها</div></div>
-        <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">متأخرة</div></div>
-        <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">اعتذار</div></div>
+        <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">رصيد الشهر</div></div>
+        <div class="stat-card accent-blue"><div class="num">${completed}</div><div class="lbl">الاستشارات المنجزة</div></div>
+        <div class="stat-card accent-urgent"><div class="num">${notCompleted}</div><div class="lbl">الاستشارات غير المنجزة</div></div>
+        <div class="stat-card accent-gold"><div class="num">${completionRate}%</div><div class="lbl">نسبة الإنجاز</div></div>
       </div>
-      ${filtered.length ? tableHtml(filtered) : `<div class="empty">لا توجد بيانات لهذا الشهر</div>`}
+      ${reportTableHtml(filtered)}
     </div>
   </div>`;
 }
 
 /* ---------- Messages ---------- */
 let replyingTo = null;
+async function downloadReportPdf(){
+  const area = el('rangeReportPrintArea') || el('monthlyReportPrintArea');
+  if(!area){ toast('تعذّر إيجاد محتوى التقرير'); return; }
+  if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
+    toast('تعذّر تحميل مكتبة إنشاء PDF — تحقق من الاتصال بالإنترنت'); return;
+  }
+  toast('جارٍ إنشاء ملف PDF…');
+  try{
+    const canvas = await html2canvas(area, { scale:2, backgroundColor:'#ffffff', onclone:(doc)=>{ doc.querySelectorAll('.no-print').forEach(elx=>elx.style.display='none'); } });
+    const imgData = canvas.toDataURL('image/png');
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','pt','a4');
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const imgWidth = pageWidth - 40;
+    const imgHeight = canvas.height * (imgWidth / canvas.width);
+    let heightLeft = imgHeight;
+    let position = 20;
+    pdf.addImage(imgData, 'PNG', 20, position, imgWidth, imgHeight);
+    heightLeft -= (pageHeight - 40);
+    while(heightLeft > 0){
+      position = heightLeft - imgHeight + 20;
+      pdf.addPage();
+      pdf.addImage(imgData, 'PNG', 20, position, imgWidth, imgHeight);
+      heightLeft -= (pageHeight - 40);
+    }
+    pdf.save('تقرير_'+Date.now()+'.pdf');
+    logAudit('تنزيل تقرير PDF');
+  }catch(e){
+    console.error('PDF export failed', e);
+    toast('حدث خطأ أثناء إنشاء PDF');
+  }
+}
+function highlightConsultNumbers(text){
+  const escaped = esc(text);
+  return escaped.replace(/(رقمها|رقم)(\s+)(\d{3,})/g, (m,p1,p2,p3)=> `${p1}${p2}<span class="number-badge-inline">${p3}</span>`);
+}
 function renderMessages(){
   const msgs = state.messages.slice().sort((a,b)=> new Date(a.ts)-new Date(b.ts));
   const byId = {}; msgs.forEach(m=>{ byId[m.id]=m; });
@@ -1050,7 +1166,7 @@ function renderMessages(){
           return `<div class="chat-bubble ${m.from===state.role?'mine':'theirs'}">
           <div class="chat-meta">${m.from==='admin'?esc(state.adminProfile.name||'الإدارة'):esc(state.consultantProfile.name)} — ${fmtDateTime(m.ts)}</div>
           ${quoted ? `<div class="chat-quote">${esc((quoted.text||'').slice(0,80))}</div>` : ''}
-          <div class="chat-text">${esc(m.text)}</div>
+          <div class="chat-text">${highlightConsultNumbers(m.text)}</div>
           <button class="chat-reply-btn no-print" data-reply-id="${m.id}">↩️ رد</button>
         </div>`;
         }).join('') : `<div class="empty">لا توجد رسائل بعد</div>`}
@@ -1208,13 +1324,17 @@ function bindContentEvents(){
   const printingBtn = document.querySelector('[data-action="mark-printing"]'); if(printingBtn) printingBtn.addEventListener('click', markPrinting);
   const archiveBtn = document.querySelector('[data-action="archive"]'); if(archiveBtn) archiveBtn.addEventListener('click', archiveConsultation);
   const reopenBtn = document.querySelector('[data-action="reopen"]'); if(reopenBtn) reopenBtn.addEventListener('click', reopenConsultation);
+  const reopenClosedBtn = document.querySelector('[data-action="reopen-closed"]'); if(reopenClosedBtn) reopenClosedBtn.addEventListener('click', reopenClosedConsultation);
   const sendNoteBtn = document.querySelector('[data-action="send-note"]'); if(sendNoteBtn) sendNoteBtn.addEventListener('click', sendNote);
 
-  const printBtn = document.querySelector('[data-action="print-report"]'); if(printBtn) printBtn.addEventListener('click', ()=> window.print());
+  document.querySelectorAll('[data-action="print-report"]').forEach(b=>b.addEventListener('click', ()=> window.print()));
   document.querySelectorAll('[data-action="export-csv"]').forEach(b=>b.addEventListener('click', ()=> exportCsv(b.getAttribute('data-set'))));
   const monthSelect = el('monthSelect'); if(monthSelect) monthSelect.addEventListener('change', ()=>{ state.selectedMonth = monthSelect.value; renderContent(); });
   const exportMonth = document.querySelector('[data-action="export-month-csv"]'); if(exportMonth) exportMonth.addEventListener('click', exportMonthCsv);
-  const applyRange = document.querySelector('[data-action="apply-range"]'); if(applyRange) applyRange.addEventListener('click', ()=>{ state.rangeFrom = el('rangeFrom').value; state.rangeTo = el('rangeTo').value; const rt = el('reportType'); if(rt) state.reportType = rt.value; renderContent(); });
+  const rangeFromEl = el('rangeFrom'); if(rangeFromEl) rangeFromEl.addEventListener('change', ()=>{ state.rangeFrom = rangeFromEl.value; renderContent(); });
+  const rangeToEl = el('rangeTo'); if(rangeToEl) rangeToEl.addEventListener('change', ()=>{ state.rangeTo = rangeToEl.value; renderContent(); });
+  const reportTypeEl = el('reportType'); if(reportTypeEl) reportTypeEl.addEventListener('change', ()=>{ state.reportType = reportTypeEl.value; renderContent(); });
+  document.querySelectorAll('[data-action="download-report-pdf"]').forEach(b=>b.addEventListener('click', downloadReportPdf));
   const exportRange = document.querySelector('[data-action="export-range-csv"]'); if(exportRange) exportRange.addEventListener('click', exportRangeCsv);
 
   const sendMsgBtn = document.querySelector('[data-action="send-message"]'); if(sendMsgBtn) sendMsgBtn.addEventListener('click', sendMessage);
@@ -1278,7 +1398,7 @@ async function saveConsultation(){
     internalNotes,
     images: [],
     priority, assignedTo:[consultantName], status:'تحت الإجابة',
-    answer:'', draftAnswer:'', apologyReason:'', returnFeedback:'',
+    answer:'', draftAnswer:'', apologyReason:'', returnFeedback:'', showNotesToConsultant:false,
     createdAt: ts, assignedAt: ts, answeredAt:null, approvedAt:null, printedAt:null, archivedAt:null,
     notesThread: [],
     history: [{ts, actor: actorName(), action:'تم إنشاء الاستشارة وإرسالها إلى '+consultantName}]
@@ -1377,7 +1497,7 @@ async function returnAnswer(){
 }
 async function markPrinting(){
   const c = state.consultations.find(x=>x.id===state.detailId);
-  c.status='مؤرشفة'; c.printedAt=nowIso(); c.archivedAt=nowIso();
+  c.status='مؤرشفة'; c.printedAt=nowIso(); c.archivedAt=nowIso(); c.showNotesToConsultant=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم نشر الاستشارة وإغلاقها'});
   await persistConsultations();
   await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
@@ -1385,7 +1505,7 @@ async function markPrinting(){
 }
 async function archiveConsultation(){
   const c = state.consultations.find(x=>x.id===state.detailId);
-  c.status='مؤرشفة'; c.archivedAt=nowIso();
+  c.status='مؤرشفة'; c.archivedAt=nowIso(); c.showNotesToConsultant=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إغلاق الاستشارة'});
   await persistConsultations();
   await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
@@ -1396,6 +1516,19 @@ async function reopenConsultation(){
   c.status='تحت الإجابة'; c.assignedAt=nowIso(); c.apologyReason=''; c.answeredAt=null;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'أعيدت فتح الاستشارة للمستشار'});
   await persistConsultations(); logAudit('إعادة فتح استشارة '+(c.number||c.id)); toast('تمت الإعادة'); renderContent();
+}
+async function reopenClosedConsultation(){
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  if(!c) return;
+  if(!confirm('سيتم فتح هذه الاستشارة المغلقة من جديد وإرسالها للمستشار للتعديل. متابعة؟')) return;
+  c.status='تحت الإجابة'; c.assignedAt=nowIso(); c.archivedAt=null; c.printedAt=null; c.answeredAt=null; c.approvedAt=null;
+  c.showNotesToConsultant = true;
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تمت إعادة فتح الاستشارة المغلقة وإرسالها للمستشار للتعديل'});
+  await persistConsultations();
+  await sendSystemMessage('تمت إعادة فتح الاستشارة رقم '+(c.number||c.id)+' وإرسالها إليك للتعديل — يرجى مراجعة الملاحظة المرفقة والقيام باللازم.');
+  logAudit('إعادة فتح استشارة مغلقة '+(c.number||c.id));
+  toast('تم فتح الاستشارة وإعادتها للمستشار');
+  renderContent();
 }
 async function sendNote(){
   const c = state.consultations.find(x=>x.id===state.detailId);
@@ -1460,7 +1593,7 @@ function exportRangeCsv(){
 }
 function downloadCsv(list, filename){
   const headers = ['رقم','التاريخ','الموضوع','الأولوية','الحالة','تاريخ الوصول','عدد الأيام'];
-  const rows = list.map(c=>{ const k=statusKey(c); return [c.number,c.date,c.subject,effectivePriority(c), (STATUS_DISPLAY[k]||k), fmtDate(c.assignedAt||c.createdAt), daysSince(c.assignedAt||c.createdAt)]; });
+  const rows = list.map(c=>{ const k=statusKey(c); return [c.number,c.date,c.subject,effectivePriority(c), (STATUS_DISPLAY[k]||k), fmtDate(c.assignedAt||c.createdAt), daysElapsedDisplay(c)]; });
   const csv = '\uFEFF' + [headers, ...rows].map(r=>r.map(v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = filename; a.click();
