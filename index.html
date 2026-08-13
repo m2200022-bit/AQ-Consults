@@ -52,7 +52,7 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .nav-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; color:rgba(239,245,241,0.82); text-decoration:none; font-size:17px; cursor:pointer; border:none; background:transparent; text-align:right; width:100%; font-family:inherit; position:relative;}
 .nav-item:hover{background:rgba(255,255,255,0.08);}
 .nav-item.active{background:rgba(255,255,255,0.14); color:#fff; font-weight:700;}
-.nav-badge{margin-right:auto; background:var(--urgent); color:#fff; font-size:10px; font-weight:700; min-width:17px; height:17px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 4px;}
+.nav-badge{margin-right:auto; background:linear-gradient(135deg,#ffd873 0%, #e0a530 100%); color:#000; font-size:10px; font-weight:800; min-width:16px; height:16px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 4px; line-height:1;}
 .nav-sep{height:1px; background:rgba(255,255,255,0.12); margin:12px 4px;}
 .sidebar-foot{margin-top:auto; font-size:11px; color:rgba(239,245,241,0.5); padding:0 8px;}
 .main{flex:1; min-width:0; display:flex; flex-direction:column;}
@@ -680,9 +680,9 @@ function renderConsultantDashboard(){
   const s = computeStats(mine);
   const newOnes = mine.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   return `
-    <div class="notice-banner">👋 مرحباً بعودتك المستشار <b>${esc(state.consultantProfile.name)}</b></div>
+    <div class="notice-banner" style="color:#111;">👋 مرحباً بعودتك المستشار <b>${esc(state.consultantProfile.name)}</b></div>
     ${statBadgesHtml(s)}
-    <div class="notice-banner">📌 لديك حالياً <b>${s.pendingTotal}</b> استشارة لم يتم الرد عليها بعد.</div>
+    <div class="notice-banner" style="color:#111;">📌 لديك حالياً <b>${s.pendingTotal}</b> استشارة لم يتم الرد عليها بعد.</div>
     <div class="panel">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة (${newOnes.length})</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
@@ -902,6 +902,10 @@ function renderDetail(){
 
             ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDateTime(c.archivedAt)}</div>` : ''}
             ${isCritical(c) ? `<div class="notice-banner notice-critical">🔴 تجاوزت هذه الاستشارة 4 أيام دون إجابة — تحتاج اهتماماً عاجلاً</div>` : ''}
+
+            <div class="report-table-wrap" style="margin-bottom:16px;"><table class="report-table"><thead><tr><th>رقم</th><th>عنوان الإستشارة</th><th>الحالة</th></tr></thead>
+              <tbody><tr><td>${esc(c.number)||'—'}</td><td>${esc(c.subject)||'—'}</td><td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td></tr></tbody>
+            </table></div>
 
             <div class="info-bar">
               <div class="info-item"><b>رقم الاستشارة</b><span>${esc(c.number)||'—'}</span></div>
@@ -1466,6 +1470,7 @@ async function copyAnswer(){
 function downloadConsultationWord(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   const answerContent = c.answer || c.draftAnswer || '';
+  const st = statusStamp(c);
   const html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
   <head><meta charset="utf-8"><title>استشارة رقم ${esc(c.number)||c.id}</title>
   <style>
@@ -1474,9 +1479,15 @@ function downloadConsultationWord(){
     .box{ border:1px solid #333; border-radius:4px; padding:14px; margin-bottom:18px; }
     .box b{ color:#7A1F2E; }
     .answer-box{ min-height:260px; }
+    table.sum{ width:100%; border-collapse:collapse; margin-bottom:18px; }
+    table.sum th{ background:#2f6fed; color:#fff; padding:8px; border:1px solid #2f6fed; }
+    table.sum td{ padding:8px; border:1px solid #ccc; text-align:center; }
   </style></head>
   <body dir="rtl">
     <h2>نظام الاستشارات — مكتب الدكتور عقيل محمد المقطري</h2>
+    <table class="sum"><thead><tr><th>رقم</th><th>عنوان الإستشارة</th><th>الحالة</th></tr></thead>
+      <tbody><tr><td>${esc(c.number)||'—'}</td><td>${esc(c.subject)||'—'}</td><td>${esc(st.label)}</td></tr></tbody>
+    </table>
     <div class="box"><b>رقم الاستشارة:</b> ${esc(c.number)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>السائل:</b> ${esc(c.askerName)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>تاريخ الاستشارة:</b> ${c.date?esc(c.date):'—'}</div>
     <div class="box"><b>البلد:</b> ${esc(c.askerCountry)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>الجنس:</b> ${esc(c.askerGender)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>العمر:</b> ${esc(c.askerAge)||'—'} &nbsp;&nbsp;&nbsp;&nbsp; <b>الحالة الإجتماعية:</b> ${esc(c.askerMarital)||'—'}</div>
     ${c.question ? `<div class="box"><b>السؤال:</b><br><br>${esc(c.question).replace(/\n/g,'<br>')}</div>` : ''}
