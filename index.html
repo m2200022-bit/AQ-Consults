@@ -771,6 +771,15 @@ function renderAddForm(){
   <div class="panel">
     <div class="panel-head"><h3>${editing?'تعديل الاستشارة':'بيانات الاستشارة'}</h3><span class="muted">${editing?'سيتم حفظ التعديلات فقط':'ستُرسل تلقائياً إلى: '+esc(state.consultantProfile.name)}</span></div>
     <div class="panel-body">
+      <div class="report-table-wrap" style="margin-bottom:16px;">
+        <table class="report-table"><thead><tr><th>رقم</th><th>عنوان الإستشارة</th><th>الحالة</th></tr></thead>
+          <tbody><tr>
+            <td id="previewNumber">${editing&&editing.number?esc(editing.number):'—'}</td>
+            <td id="previewSubject">${editing&&editing.subject?esc(editing.subject):'—'}</td>
+            <td id="previewStatus">${editing?esc(statusStamp(editing).label):'جديدة'}</td>
+          </tr></tbody>
+        </table>
+      </div>
       <div class="grid-2">
         <div class="field"><label>رقم الاستشارة</label><input type="text" id="f_number" placeholder="رقم الاستشارة" value="${editing?esc(editing.number):''}"></div>
         <div class="field"><label>تاريخ الاستشارة</label><input type="date" id="f_date" value="${editing?esc(editing.date):todayStr()}" ${editing?'':'readonly'}></div>
@@ -855,6 +864,12 @@ function parseConsultationPaste(text){
     result.question = qLines.join('\n').trim();
   }
   return result;
+}
+function updateAddPreview(){
+  const pn = el('previewNumber'), ps = el('previewSubject');
+  const fn = el('f_number'), fs = el('f_subject');
+  if(pn) pn.textContent = (fn && fn.value.trim()) ? fn.value.trim() : '—';
+  if(ps) ps.textContent = (fs && fs.value.trim()) ? fs.value.trim() : '—';
 }
 function applyPastedData(){
   const raw = el('f_rawpaste'); if(!raw) return;
@@ -1313,8 +1328,10 @@ function bindContentEvents(){
 
   const saveBtn = document.querySelector('[data-action="save-consultation"]'); if(saveBtn) saveBtn.addEventListener('click', saveConsultation);
 
-  const parseBtn = document.querySelector('[data-action="parse-paste"]'); if(parseBtn) parseBtn.addEventListener('click', applyPastedData);
-  const rawPaste = el('f_rawpaste'); if(rawPaste) rawPaste.addEventListener('paste', ()=>{ setTimeout(applyPastedData, 30); });
+  const parseBtn = document.querySelector('[data-action="parse-paste"]'); if(parseBtn) parseBtn.addEventListener('click', ()=>{ applyPastedData(); updateAddPreview(); });
+  const rawPaste = el('f_rawpaste'); if(rawPaste) rawPaste.addEventListener('paste', ()=>{ setTimeout(()=>{ applyPastedData(); updateAddPreview(); }, 30); });
+  const fNumberLive = el('f_number'); if(fNumberLive) fNumberLive.addEventListener('input', updateAddPreview);
+  const fSubjectLive = el('f_subject'); if(fSubjectLive) fSubjectLive.addEventListener('input', updateAddPreview);
 
   const editor = el('answerEditor');
   if(editor){
