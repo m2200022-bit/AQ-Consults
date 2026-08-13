@@ -222,6 +222,7 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .editor-toolbar button{border:1px solid var(--border); background:#fff; border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:13px;}
 .editor-toolbar button:hover{background:var(--surface-2);}
 .editor-toolbar button[data-action="load-device-fonts"]{width:auto; padding:0 10px; font-size:12px;}
+#formatPainterBtn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
 .editor-select{border:1px solid var(--border); border-radius:6px; height:24px; padding:0 4px; font-size:11px; background:#fff; cursor:pointer;}
 #editorFontFamily.editor-select{width:100px;}
 #editorFontSize.editor-select{width:48px;}
@@ -1028,7 +1029,7 @@ function renderDetail(){
                   <div class="editor-font-controls">
                     <select id="editorFontFamily" title="نوع الخط" class="editor-select">
                       <option value="Sakkal Majalla">Sakkal Majalla</option>
-                      <option value="Traditional Arabic">Traditional Arabic</option>
+                      <option value="Traditional Arabic" selected>Traditional Arabic</option>
                       <option value="Simplified Arabic">Simplified Arabic</option>
                       <option value="Arabic Typesetting">Arabic Typesetting</option>
                       <option value="Andalus">Andalus</option>
@@ -1058,6 +1059,7 @@ function renderDetail(){
                     </select>
                   </div>
                   <button type="button" data-action="load-device-fonts" title="قراءة خطوط الجهاز">🔤 خطوط جهازي</button>
+                  <button type="button" id="formatPainterBtn" data-action="copy-format" title="نسخ التنسيق: حدد نصاً منسّقاً ثم اضغط هنا، ثم حدد النص الذي تريد تنسيقه">🖌️</button>
                   <span class="editor-toolbar-sep"></span>
                   <button type="button" data-cmd="bold" title="غامق"><b>B</b></button>
                   <button type="button" data-cmd="italic" title="مائل"><i>I</i></button>
@@ -1455,13 +1457,15 @@ function bindContentEvents(){
   const editor = el('answerEditor');
   if(editor){
     document.querySelectorAll('.editor-toolbar [data-cmd]').forEach(btn=>btn.addEventListener('click', ()=>{ editor.focus(); document.execCommand(btn.getAttribute('data-cmd'), false, null); }));
-    editor.style.fontFamily = "'Sakkal Majalla','Amiri',serif";
+    editor.style.fontFamily = "'Traditional Arabic','Sakkal Majalla',serif";
     const fFamily = el('editorFontFamily');
     if(fFamily) fFamily.addEventListener('change', ()=> applyFontFamily(fFamily.value));
     const fSize = el('editorFontSize');
     if(fSize) fSize.addEventListener('change', ()=> applyFontSize(fSize.value));
     const loadFontsBtn = document.querySelector('[data-action="load-device-fonts"]');
     if(loadFontsBtn) loadFontsBtn.addEventListener('click', loadDeviceFonts);
+    const paintBtn = document.querySelector('[data-action="copy-format"]');
+    if(paintBtn) paintBtn.addEventListener('click', copyFormatFromSelection);
   }
   const asA = document.querySelector('[data-action="answer-submit"]'); if(asA) asA.addEventListener('click', ()=>submitAnswer(false));
   const asD = document.querySelector('[data-action="answer-decline"]'); if(asD) asD.addEventListener('click', declineAnswer);
@@ -1584,6 +1588,47 @@ async function deleteConsultation(id){
 }
 
 /* ---------- Detail actions ---------- */
+let copiedFormat = null;
+function copyFormatFromSelection(){
+  const editor = el('answerEditor'); if(!editor) return;
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount===0 || sel.isCollapsed){ toast('حدد نصاً منسّقاً أولاً لنسخ تنسيقه'); return; }
+  let node = sel.anchorNode;
+  if(node && node.nodeType===3) node = node.parentElement;
+  if(!node || !editor.contains(node)){ toast('حدد نصاً داخل مربع الإجابة'); return; }
+  const cs = window.getComputedStyle(node);
+  copiedFormat = {
+    bold: parseInt(cs.fontWeight)>=600,
+    italic: cs.fontStyle==='italic',
+    underline: cs.textDecorationLine.includes('underline'),
+    fontFamily: cs.fontFamily.replace(/["']/g,'').split(',')[0].trim(),
+    fontSize: parseInt(cs.fontSize)
+  };
+  const btn = el('formatPainterBtn'); if(btn) btn.classList.add('active');
+  toast('تم نسخ التنسيق 🖌️ — الآن حدد النص الذي تريد تطبيقه عليه');
+  const applyOnce = ()=>{
+    applyCopiedFormat();
+    editor.removeEventListener('mouseup', applyOnce);
+    editor.removeEventListener('keyup', applyOnce);
+  };
+  editor.addEventListener('mouseup', applyOnce);
+  editor.addEventListener('keyup', applyOnce);
+}
+function applyCopiedFormat(){
+  if(!copiedFormat) return;
+  const editor = el('answerEditor'); if(!editor) return;
+  const sel = window.getSelection();
+  if(!sel || sel.rangeCount===0 || sel.isCollapsed){ copiedFormat=null; const btn=el('formatPainterBtn'); if(btn) btn.classList.remove('active'); return; }
+  editor.focus();
+  if(document.queryCommandState('bold') !== copiedFormat.bold) document.execCommand('bold', false, null);
+  if(document.queryCommandState('italic') !== copiedFormat.italic) document.execCommand('italic', false, null);
+  if(document.queryCommandState('underline') !== copiedFormat.underline) document.execCommand('underline', false, null);
+  if(copiedFormat.fontFamily) document.execCommand('fontName', false, copiedFormat.fontFamily);
+  if(copiedFormat.fontSize) applyFontSize(copiedFormat.fontSize);
+  toast('تم تطبيق التنسيق');
+  copiedFormat = null;
+  const btn = el('formatPainterBtn'); if(btn) btn.classList.remove('active');
+}
 function applyFontFamily(fontName){
   const editor = el('answerEditor'); if(!editor) return;
   editor.focus();
