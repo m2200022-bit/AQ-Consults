@@ -200,6 +200,7 @@ tr.row-click:hover{background:var(--surface-2);}
 .hidden{display:none !important;}
 .notice-banner{background:var(--gold-100); border:1px solid var(--gold); color:#7A5A22; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:16px; display:flex; align-items:center; gap:8px;}
 .notice-critical{background:var(--urgent-100); border-color:var(--urgent); color:var(--urgent); font-weight:700;}
+.notice-answered{background:#e7f7ef; border-color:#2f9e6f; color:#0a5c3f; font-weight:700;}
 tr.row-urgent-full td{background:#fbe4e4 !important;}
 tr.row-urgent-full:hover td{background:#f8d5d5 !important;}
 tr.row-urgent-full td:first-child{border-right:4px solid var(--urgent);}
@@ -220,6 +221,14 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .editor-toolbar{display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap;}
 .editor-toolbar button{border:1px solid var(--border); background:#fff; border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:13px;}
 .editor-toolbar button:hover{background:var(--surface-2);}
+.editor-toolbar button[data-action="load-device-fonts"]{width:auto; padding:0 10px; font-size:12px;}
+.editor-select{border:1px solid var(--border); border-radius:6px; height:24px; padding:0 4px; font-size:11px; background:#fff; cursor:pointer;}
+#editorFontFamily.editor-select{width:100px;}
+#editorFontSize.editor-select{width:48px;}
+.editor-font-controls{display:flex; gap:4px; flex-wrap:nowrap; align-items:center;}
+.editor-toolbar-sep{width:1px; align-self:stretch; background:var(--border); margin:0 4px;}
+.page-canvas{background:#dde3e8; padding:26px 16px; border-radius:12px; display:flex; justify-content:center; overflow-x:auto;}
+.doc-page.word-like{width:100%; max-width:780px; min-height:520px; padding:60px 65px; box-shadow:0 6px 22px rgba(0,0,0,.18); border:1px solid #c9c9c9;}
 .doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:20px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; line-height:1.5; text-align:justify; letter-spacing:0.2px;}
 .doc-page:focus{outline:2px solid var(--primary-100); border-color:var(--primary);}
 .chat-thread{display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; padding:4px;}
@@ -264,6 +273,10 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
   .stat-card-v3{padding:10px;}
   .scv3-icon{width:24px; height:24px; font-size:11px;}
   .scv3-number{font-size:18px;}
+  .page-canvas{padding:12px 8px;}
+  .doc-page.word-like{padding:24px 18px; min-height:340px;}
+  .editor-toolbar{gap:5px;}
+  .editor-select{font-size:11px; padding:0 5px;}
 }
 @media (max-width:400px){
   .grid-5{grid-template-columns:1fr;}
@@ -676,8 +689,13 @@ function renderAdminDashboard(){
   const months = monthlyCounts(list);
   const maxMonth = Math.max(1, ...months.map(m=>m[1]));
   const newOnes = list.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const answeredOnes = list.filter(c=>c.status==='تمت الإجابة').sort((a,b)=>new Date(b.answeredAt||b.createdAt)-new Date(a.answeredAt||a.createdAt));
   return `
     ${statBadgesHtml(s)}
+    <div class="panel">
+      <div class="panel-head"><h3>✅ استشارات تمت الإجابة عنها (${answeredOnes.length})</h3></div>
+      <div class="panel-body" style="padding:0;">${answeredOnes.length ? tableHtml(answeredOnes) : `<div class="empty"><div class="e-icon">📭</div>لا توجد استشارات بانتظار الاعتماد حالياً</div>`}</div>
+    </div>
     <div class="panel">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة (${newOnes.length})</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
@@ -994,6 +1012,8 @@ function renderDetail(){
 
             ${c.status==='اعتذار' && c.apologyReason ? `<div class="notice-banner">🚫 اعتذر المستشار عن الإجابة — السبب: ${esc(c.apologyReason)}</div>` : ''}
 
+            ${c.status==='تمت الإجابة' ? `<div class="notice-banner notice-answered">✅ تمت الإجابة من المستشار — بانتظار اعتماد الإدارة</div>` : ''}
+
             ${c.answer ? `
               <div class="field" style="margin-top:16px;">
                 <label>نص الإجابة</label>
@@ -1005,14 +1025,52 @@ function renderDetail(){
               <div class="field" style="margin-top:16px;">
                 <label>كتابة الإجابة</label>
                 <div class="editor-toolbar no-print">
+                  <div class="editor-font-controls">
+                    <select id="editorFontFamily" title="نوع الخط" class="editor-select">
+                      <option value="Sakkal Majalla">Sakkal Majalla</option>
+                      <option value="Traditional Arabic">Traditional Arabic</option>
+                      <option value="Simplified Arabic">Simplified Arabic</option>
+                      <option value="Arabic Typesetting">Arabic Typesetting</option>
+                      <option value="Andalus">Andalus</option>
+                      <option value="Amiri">Amiri</option>
+                      <option value="Cairo">Cairo</option>
+                      <option value="Tajawal">Tajawal</option>
+                      <option value="Beiruti">Beiruti</option>
+                      <option value="Aref Ruqaa">Aref Ruqaa</option>
+                      <option value="Calibri">Calibri</option>
+                      <option value="Segoe UI">Segoe UI</option>
+                      <option value="Arial">Arial</option>
+                      <option value="Tahoma">Tahoma</option>
+                      <option value="Times New Roman">Times New Roman</option>
+                      <option value="Courier New">Courier New</option>
+                      <option value="Georgia">Georgia</option>
+                      <option value="Verdana">Verdana</option>
+                    </select>
+                    <select id="editorFontSize" title="حجم الخط" class="editor-select">
+                      <option value="14">14</option>
+                      <option value="16">16</option>
+                      <option value="18" selected>18</option>
+                      <option value="20">20</option>
+                      <option value="22">22</option>
+                      <option value="24">24</option>
+                      <option value="28">28</option>
+                      <option value="32">32</option>
+                    </select>
+                  </div>
+                  <button type="button" data-action="load-device-fonts" title="قراءة خطوط الجهاز">🔤 خطوط جهازي</button>
+                  <span class="editor-toolbar-sep"></span>
                   <button type="button" data-cmd="bold" title="غامق"><b>B</b></button>
                   <button type="button" data-cmd="italic" title="مائل"><i>I</i></button>
                   <button type="button" data-cmd="underline" title="تسطير"><u>U</u></button>
                   <button type="button" data-cmd="insertUnorderedList" title="قائمة نقطية">•≡</button>
                   <button type="button" data-cmd="insertOrderedList" title="قائمة رقمية">1≡</button>
                   <button type="button" data-cmd="justifyRight" title="محاذاة يمين">⇥</button>
+                  <button type="button" data-cmd="justifyCenter" title="توسيط">≡</button>
+                  <button type="button" data-cmd="justifyFull" title="ضبط">☰</button>
                 </div>
-                <div class="doc-page" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerGreeting(c)}</div>
+                <div class="page-canvas">
+                  <div class="doc-page word-like" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerGreeting(c)}</div>
+                </div>
                 ${c.returnFeedback ? `<div class="notice-banner" style="margin-top:10px;">📝 ملاحظة الإدارة على الإجابة السابقة: ${esc(c.returnFeedback)}</div>` : ''}
                 <div class="icon-actions">
                   <button class="icon-btn" data-action="answer-submit"><span class="ic">✅</span>إجابة السؤال</button>
@@ -1397,6 +1455,13 @@ function bindContentEvents(){
   const editor = el('answerEditor');
   if(editor){
     document.querySelectorAll('.editor-toolbar [data-cmd]').forEach(btn=>btn.addEventListener('click', ()=>{ editor.focus(); document.execCommand(btn.getAttribute('data-cmd'), false, null); }));
+    editor.style.fontFamily = "'Sakkal Majalla','Amiri',serif";
+    const fFamily = el('editorFontFamily');
+    if(fFamily) fFamily.addEventListener('change', ()=> applyFontFamily(fFamily.value));
+    const fSize = el('editorFontSize');
+    if(fSize) fSize.addEventListener('change', ()=> applyFontSize(fSize.value));
+    const loadFontsBtn = document.querySelector('[data-action="load-device-fonts"]');
+    if(loadFontsBtn) loadFontsBtn.addEventListener('click', loadDeviceFonts);
   }
   const asA = document.querySelector('[data-action="answer-submit"]'); if(asA) asA.addEventListener('click', ()=>submitAnswer(false));
   const asD = document.querySelector('[data-action="answer-decline"]'); if(asD) asD.addEventListener('click', declineAnswer);
@@ -1519,6 +1584,41 @@ async function deleteConsultation(id){
 }
 
 /* ---------- Detail actions ---------- */
+function applyFontFamily(fontName){
+  const editor = el('answerEditor'); if(!editor) return;
+  editor.focus();
+  document.execCommand('fontName', false, fontName);
+}
+function applyFontSize(px){
+  const editor = el('answerEditor'); if(!editor) return;
+  editor.focus();
+  document.execCommand('fontSize', false, '7');
+  editor.querySelectorAll('font[size="7"]').forEach(f=>{
+    f.removeAttribute('size');
+    f.style.fontSize = px+'px';
+  });
+}
+async function loadDeviceFonts(){
+  const select = el('editorFontFamily'); if(!select) return;
+  if(!('queryLocalFonts' in window)){
+    toast('متصفحك لا يدعم قراءة خطوط الجهاز مباشرة (هذه الميزة تجريبية وتعمل حالياً على Chrome/Edge على الحاسوب فقط) — استخدم القائمة الحالية بدلاً من ذلك');
+    return;
+  }
+  try{
+    const fonts = await window.queryLocalFonts();
+    const families = Array.from(new Set(fonts.map(f=>f.family))).sort((a,b)=>a.localeCompare(b));
+    let added = 0;
+    families.forEach(fam=>{
+      if(![...select.options].some(o=>o.value===fam)){
+        const opt = document.createElement('option'); opt.value = fam; opt.textContent = fam; select.appendChild(opt); added++;
+      }
+    });
+    toast('تم تحميل '+added+' خطاً إضافياً من جهازك — اختره من القائمة');
+  }catch(e){
+    console.error('queryLocalFonts failed', e);
+    toast('تعذّرت قراءة خطوط الجهاز — قد تكون رفضت إذن الوصول، أو المتصفح لا يدعم هذه الميزة');
+  }
+}
 async function submitAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   const html = el('answerEditor').innerHTML.trim();
