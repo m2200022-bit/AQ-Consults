@@ -148,6 +148,9 @@ td{padding:11px 10px; border-bottom:1px solid var(--border); vertical-align:midd
 .report-table td:last-child{border-left:none;}
 .report-table tr:last-child td{border-bottom:none;}
 .report-table tr:nth-child(even) td{background:var(--surface-2);}
+.table-cell-input{width:100%; border:none; background:transparent; font-size:14px; font-weight:600; text-align:center; padding:4px; font-family:inherit; color:inherit;}
+.table-cell-input:focus{outline:2px solid var(--primary); border-radius:6px; background:#fff;}
+.table-cell-textarea{min-height:90px; text-align:right; resize:vertical; font-size:18px !important;}
 .report-total-row{padding:12px 16px; text-align:left; font-size:16px; font-weight:800; background:var(--surface-2); border-top:1px solid var(--border);}
 tr.row-click{cursor:pointer;}
 tr.row-click:hover{background:var(--surface-2);}
@@ -771,28 +774,40 @@ function renderAddForm(){
   <div class="panel">
     <div class="panel-head"><h3>${editing?'تعديل الاستشارة':'بيانات الاستشارة'}</h3><span class="muted">${editing?'سيتم حفظ التعديلات فقط':'ستُرسل تلقائياً إلى: '+esc(state.consultantProfile.name)}</span></div>
     <div class="panel-body">
-      <div class="report-table-wrap" style="margin-bottom:16px;">
-        <table class="report-table"><thead><tr><th>رقم</th><th>عنوان الإستشارة</th><th>الحالة</th></tr></thead>
+      <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
+        <table class="report-table"><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th></tr></thead>
           <tbody><tr>
-            <td id="previewNumber">${editing&&editing.number?esc(editing.number):'—'}</td>
-            <td id="previewSubject">${editing&&editing.subject?esc(editing.subject):'—'}</td>
+            <td><input type="text" id="f_number" placeholder="رقم الاستشارة" value="${editing?esc(editing.number):''}" class="table-cell-input"></td>
+            <td><input type="date" id="f_date" value="${editing?esc(editing.date):todayStr()}" ${editing?'':'readonly'} class="table-cell-input"></td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
+        <table class="report-table"><thead><tr><th>السائل</th><th>البلد</th><th>الجنس</th><th>العمر</th><th>الحالة الإجتماعية</th></tr></thead>
+          <tbody><tr>
+            <td><input type="text" id="f_asker" placeholder="اسم السائل" value="${editing?esc(editing.askerName):''}" class="table-cell-input"></td>
+            <td><input type="text" id="f_country" placeholder="البلد" value="${editing?esc(editing.askerCountry):''}" class="table-cell-input"></td>
+            <td><input type="text" id="f_gender" placeholder="الجنس" value="${editing?esc(editing.askerGender):''}" class="table-cell-input"></td>
+            <td><input type="text" id="f_age" placeholder="العمر" value="${editing?esc(editing.askerAge):''}" class="table-cell-input"></td>
+            <td><input type="text" id="f_marital" placeholder="الحالة الإجتماعية" value="${editing?esc(editing.askerMarital):''}" class="table-cell-input"></td>
+          </tr></tbody>
+        </table>
+      </div>
+      <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
+        <table class="report-table"><thead><tr><th>العنوان (موضوع الاستشارة)</th><th>الحالة</th></tr></thead>
+          <tbody><tr>
+            <td><input type="text" id="f_subject" placeholder="عنوان الاستشارة" value="${editing?esc(editing.subject):''}" class="table-cell-input"></td>
             <td id="previewStatus">${editing?esc(statusStamp(editing).label):'جديدة'}</td>
           </tr></tbody>
         </table>
       </div>
-      <div class="grid-2">
-        <div class="field"><label>رقم الاستشارة</label><input type="text" id="f_number" placeholder="رقم الاستشارة" value="${editing?esc(editing.number):''}"></div>
-        <div class="field"><label>تاريخ الاستشارة</label><input type="date" id="f_date" value="${editing?esc(editing.date):todayStr()}" ${editing?'':'readonly'}></div>
+      <div class="report-table-wrap" style="margin-bottom:16px; overflow-x:auto;">
+        <table class="report-table"><thead><tr><th>السؤال</th></tr></thead>
+          <tbody><tr>
+            <td style="padding:6px;"><textarea id="f_question" placeholder="الصق نص السؤال هنا…" class="table-cell-input table-cell-textarea">${editing?esc(editing.question):''}</textarea></td>
+          </tr></tbody>
+        </table>
       </div>
-      <div class="grid-5">
-        <div class="field"><label>السائل</label><input type="text" id="f_asker" placeholder="اسم السائل" value="${editing?esc(editing.askerName):''}"></div>
-        <div class="field"><label>البلد</label><input type="text" id="f_country" placeholder="البلد" value="${editing?esc(editing.askerCountry):''}"></div>
-        <div class="field"><label>الجنس</label><input type="text" id="f_gender" placeholder="الجنس" value="${editing?esc(editing.askerGender):''}"></div>
-        <div class="field"><label>العمر</label><input type="text" id="f_age" placeholder="العمر" value="${editing?esc(editing.askerAge):''}"></div>
-        <div class="field"><label>الحالة الإجتماعية</label><input type="text" id="f_marital" placeholder="الحالة الإجتماعية" value="${editing?esc(editing.askerMarital):''}"></div>
-      </div>
-      <div class="field"><label>العنوان (موضوع الاستشارة)</label><input type="text" id="f_subject" placeholder="عنوان الاستشارة" value="${editing?esc(editing.subject):''}"></div>
-      <div class="field"><label>السؤال</label><textarea id="f_question" placeholder="الصق نص السؤال هنا…" style="min-height:130px;">${editing?esc(editing.question):''}</textarea></div>
       <div class="field"><label>ملاحظات داخلية (لا تظهر للمستشار)</label><textarea id="f_notes" placeholder="ملاحظات خاصة بالإدارة فقط">${editing?esc(editing.internalNotes):''}</textarea></div>
       <div class="field">
         <label>الأولوية</label>
@@ -865,12 +880,6 @@ function parseConsultationPaste(text){
   }
   return result;
 }
-function updateAddPreview(){
-  const pn = el('previewNumber'), ps = el('previewSubject');
-  const fn = el('f_number'), fs = el('f_subject');
-  if(pn) pn.textContent = (fn && fn.value.trim()) ? fn.value.trim() : '—';
-  if(ps) ps.textContent = (fs && fs.value.trim()) ? fs.value.trim() : '—';
-}
 function applyPastedData(){
   const raw = el('f_rawpaste'); if(!raw) return;
   const text = raw.value;
@@ -918,26 +927,34 @@ function renderDetail(){
             ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDateTime(c.archivedAt)}</div>` : ''}
             ${isCritical(c) ? `<div class="notice-banner notice-critical">🔴 تجاوزت هذه الاستشارة 4 أيام دون إجابة — تحتاج اهتماماً عاجلاً</div>` : ''}
 
-            <div class="report-table-wrap" style="margin-bottom:16px;"><table class="report-table"><thead><tr><th>رقم</th><th>عنوان الإستشارة</th><th>الحالة</th></tr></thead>
-              <tbody><tr><td>${esc(c.number)||'—'}</td><td>${esc(c.subject)||'—'}</td><td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td></tr></tbody>
-            </table></div>
+            <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
+              <table class="report-table"><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th></tr></thead>
+                <tbody><tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td></tr></tbody>
+              </table>
+            </div>
+            <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
+              <table class="report-table"><thead><tr><th>السائل</th><th>البلد</th><th>الجنس</th><th>العمر</th><th>الحالة الإجتماعية</th></tr></thead>
+                <tbody><tr><td>${esc(c.askerName)||'—'}</td><td>${esc(c.askerCountry)||'—'}</td><td>${esc(c.askerGender)||'—'}</td><td>${esc(c.askerAge)||'—'}</td><td>${esc(c.askerMarital)||'—'}</td></tr></tbody>
+              </table>
+            </div>
+            <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
+              <table class="report-table"><thead><tr><th>العنوان (موضوع الاستشارة)</th><th>الحالة</th></tr></thead>
+                <tbody><tr><td>${esc(c.subject)||'—'}</td><td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td></tr></tbody>
+              </table>
+            </div>
+            ${c.question ? `<div class="report-table-wrap" style="margin-bottom:16px; overflow-x:auto;">
+              <table class="report-table"><thead><tr><th>السؤال</th></tr></thead>
+                <tbody><tr><td style="text-align:right; padding:12px; font-size:18px;">${esc(c.question)}</td></tr></tbody>
+              </table>
+            </div>` : ''}
 
             <div class="info-bar">
-              <div class="info-item"><b>رقم الاستشارة</b><span>${esc(c.number)||'—'}</span></div>
-              <div class="info-item"><b>السائل</b><span>${esc(c.askerName)||'—'}</span></div>
-              <div class="info-item"><b>البلد</b><span>${esc(c.askerCountry)||'—'}</span></div>
-              <div class="info-item"><b>الجنس</b><span>${esc(c.askerGender)||'—'}</span></div>
-              <div class="info-item"><b>العمر</b><span>${esc(c.askerAge)||'—'}</span></div>
-              <div class="info-item"><b>الحالة الإجتماعية</b><span>${esc(c.askerMarital)||'—'}</span></div>
-              <div class="info-item"><b>تاريخ الاستشارة</b><span>${c.date?esc(c.date):'—'}</span></div>
               <div class="info-item"><b>الأولوية</b><span class="pill ${effectivePriority(c)==='مستعجل'?'urgent':'normal'}">${effectivePriority(c)==='مستعجل'?'🔴':'🟢'} ${effectivePriority(c)}</span></div>
               <div class="info-item"><b>تاريخ الوصول</b><span>${fmtDate(c.assignedAt||c.createdAt)}</span></div>
               <div class="info-item"><b>عدد الأيام</b><span>${daysElapsedDisplay(c)} يوم</span></div>
               ${c.archivedAt ? `<div class="info-item"><b>تاريخ ووقت الإغلاق</b><span>${fmtDateTime(c.archivedAt)}</span></div>` : ''}
             </div>
             ${(state.role==='admin' || (state.role==='consultant' && c.showNotesToConsultant && c.internalNotes)) ? `<div class="kv ${state.role==='consultant'?'kv-highlight':''}" style="margin-bottom:16px;"><b>${state.role==='consultant' ? '📌 ملاحظة من الإدارة (يرجى القيام باللازم)' : 'ملاحظات داخلية'}</b><span>${esc(c.internalNotes)||'—'}</span></div>` : ''}
-
-            ${c.question ? `<div class="field"><label>السؤال</label><div class="pasted-block">${esc(c.question)}</div></div>` : ''}
 
             ${c.status==='اعتذار' && c.apologyReason ? `<div class="notice-banner">🚫 اعتذر المستشار عن الإجابة — السبب: ${esc(c.apologyReason)}</div>` : ''}
 
@@ -1328,10 +1345,8 @@ function bindContentEvents(){
 
   const saveBtn = document.querySelector('[data-action="save-consultation"]'); if(saveBtn) saveBtn.addEventListener('click', saveConsultation);
 
-  const parseBtn = document.querySelector('[data-action="parse-paste"]'); if(parseBtn) parseBtn.addEventListener('click', ()=>{ applyPastedData(); updateAddPreview(); });
-  const rawPaste = el('f_rawpaste'); if(rawPaste) rawPaste.addEventListener('paste', ()=>{ setTimeout(()=>{ applyPastedData(); updateAddPreview(); }, 30); });
-  const fNumberLive = el('f_number'); if(fNumberLive) fNumberLive.addEventListener('input', updateAddPreview);
-  const fSubjectLive = el('f_subject'); if(fSubjectLive) fSubjectLive.addEventListener('input', updateAddPreview);
+  const parseBtn = document.querySelector('[data-action="parse-paste"]'); if(parseBtn) parseBtn.addEventListener('click', applyPastedData);
+  const rawPaste = el('f_rawpaste'); if(rawPaste) rawPaste.addEventListener('paste', ()=>{ setTimeout(applyPastedData, 30); });
 
   const editor = el('answerEditor');
   if(editor){
