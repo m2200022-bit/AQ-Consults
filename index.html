@@ -356,9 +356,23 @@ let imgViewerIndex = 0, imgZoom = 1, imgRot = 0;
 function uid(p){ return p + '_' + Date.now().toString(36) + Math.random().toString(36).slice(2,7); }
 function nowIso(){ return new Date().toISOString(); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-function buildAnswerGreeting(c){
+function isFemaleAsker(c){
+  const g = (c && c.askerGender ? c.askerGender : '').trim();
+  return /(أنث|انث|female|f\b)/i.test(g);
+}
+function askerAddressPhrase(c){
   const name = (c && c.askerName ? c.askerName : '').trim();
-  return `بسم الله الرحمن الرحيم<br>الأخ الفاضل ${name?esc(name):''}<br>السلام عليكم ورحمة الله وبركاته.<br><br>`;
+  const phrase = isFemaleAsker(c) ? 'الأخت الفاضلة' : 'الأخ الفاضل';
+  return name ? `${phrase} / ${name}` : phrase;
+}
+function buildAnswerGreeting(c){
+  return `بسم الله الرحمن الرحيم<br>${esc(askerAddressPhrase(c))}<br>السلام عليكم ورحمة الله وبركاته.<br><br>`;
+}
+function buildAnswerClosing(){
+  return `<br><br>وتقبلوا خالص التحية والتقدير.`;
+}
+function buildAnswerTemplate(c){
+  return buildAnswerGreeting(c) + 'مرحباً بكم،<br><br><br>' + buildAnswerClosing();
 }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
@@ -1071,7 +1085,7 @@ function renderDetail(){
                   <button type="button" data-cmd="justifyFull" title="ضبط">☰</button>
                 </div>
                 <div class="page-canvas">
-                  <div class="doc-page word-like" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerGreeting(c)}</div>
+                  <div class="doc-page word-like" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerTemplate(c)}</div>
                 </div>
                 ${c.returnFeedback ? `<div class="notice-banner" style="margin-top:10px;">📝 ملاحظة الإدارة على الإجابة السابقة: ${esc(c.returnFeedback)}</div>` : ''}
                 <div class="icon-actions">
@@ -1693,10 +1707,37 @@ async function saveDraftAnswer(){
   logAudit('حفظ مسودة إجابة لاستشارة '+(c.number||c.id));
   toast('تم حفظ المسودة');
 }
+function htmlToPlainText(html){
+  if(!html) return '';
+  let out = html
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p|li|tr|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '');
+  const txt = document.createElement('textarea');
+  txt.innerHTML = out;
+  out = txt.value;
+  out = out.replace(/\n{3,}/g, '\n\n').replace(/^\s+|\s+$/g, '');
+  return out;
+}
 async function copyAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
-  try{ await navigator.clipboard.writeText((c.answer||'').replace(/<[^>]+>/g,'')); toast('تم نسخ الإجابة'); }
-  catch(e){ toast('تعذر النسخ التلقائي — يرجى التحديد اليدوي'); }
+  const htmlContent = c.answer || c.draftAnswer || '';
+  const plainText = htmlToPlainText(htmlContent);
+  try{
+    if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
+      const htmlBlob = new Blob([htmlContent], {type:'text/html'});
+      const textBlob = new Blob([plainText], {type:'text/plain'});
+      await navigator.clipboard.write([ new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob }) ]);
+    } else {
+      await navigator.clipboard.writeText(plainText);
+    }
+    toast('تم نسخ الإجابة مع الحفاظ على التنسيق وفواصل الأسطر');
+  }catch(e){
+    console.error('copy failed', e);
+    try{ await navigator.clipboard.writeText(plainText); toast('تم نسخ الإجابة (نص فقط)'); }
+    catch(e2){ toast('تعذر النسخ التلقائي — يرجى التحديد اليدوي'); }
+  }
 }
 function downloadConsultationWord(){
   const c = state.consultations.find(x=>x.id===state.detailId);
