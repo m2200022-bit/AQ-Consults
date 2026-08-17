@@ -73,7 +73,10 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .stat-card.accent-gold .num{color:var(--gold);}
 .stat-card.accent-blue .num{color:var(--blue);}
 .stat-card.accent-apology .num{color:var(--apology);}
-.panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:20px;}
+.panel{background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:20px; transition:background .3s, border-color .3s;}
+.panel.panel-gold-alert{background:linear-gradient(180deg,#fff8e8 0%, #fff 60px); border:2px solid var(--gold);}
+.panel.panel-gold-alert .panel-head{background:linear-gradient(135deg,#ffe9b8 0%, #f7cd6b 100%); border-bottom:1px solid var(--gold);}
+.panel-count-badge{display:inline-flex; align-items:center; justify-content:center; min-width:24px; height:24px; padding:0 7px; border-radius:999px; background:var(--urgent); color:#fff; font-size:13px; font-weight:800; margin-right:6px;}
 .panel-head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:8px;}
 .panel-head h3{margin:0; font-size:20px; font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; color:var(--blue);}
 .panel-body{padding:16px 18px;}
@@ -222,6 +225,7 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .editor-toolbar button{border:1px solid var(--border); background:#fff; border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:13px;}
 .editor-toolbar button:hover{background:var(--surface-2);}
 .editor-toolbar button[data-action="load-device-fonts"]{width:auto; padding:0 10px; font-size:12px;}
+.editor-toolbar button[data-action="refresh-greeting"]{width:auto; padding:0 10px; font-size:12px;}
 #formatPainterBtn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
 .editor-select{border:1px solid var(--border); border-radius:6px; height:24px; padding:0 4px; font-size:11px; background:#fff; cursor:pointer;}
 #editorFontFamily.editor-select{width:100px;}
@@ -290,7 +294,7 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 <script type="module">
 /* ===================== FIREBASE ===================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 let getAnalytics = null;
 try{
   ({ getAnalytics } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js"));
@@ -357,8 +361,9 @@ function uid(p){ return p + '_' + Date.now().toString(36) + Math.random().toStri
 function nowIso(){ return new Date().toISOString(); }
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function isFemaleAsker(c){
-  const g = (c && c.askerGender ? c.askerGender : '').trim();
-  return /(أنث|انث|female|f\b)/i.test(g);
+  let g = (c && c.askerGender ? c.askerGender : '').trim();
+  g = g.replace(/[\u064B-\u065F\u0640]/g, ''); // strip Arabic diacritics/tatweel
+  return /(أنث|انث|انثي|بنت|امرأ|امراة|female|^f$)/i.test(g);
 }
 function askerAddressPhrase(c){
   const name = (c && c.askerName ? c.askerName : '').trim();
@@ -373,6 +378,19 @@ function buildAnswerClosing(){
 }
 function buildAnswerTemplate(c){
   return buildAnswerGreeting(c) + 'مرحباً بكم،<br><br><br>' + buildAnswerClosing();
+}
+function refreshAnswerGreeting(){
+  const editor = el('answerEditor'); if(!editor) return;
+  const c = state.consultations.find(x=>x.id===state.detailId); if(!c) return;
+  const current = editor.innerHTML;
+  const oldGreetingPattern = /^بسم الله الرحمن الرحيم<br>.*?<br>السلام عليكم ورحمة الله وبركاته\.<br>\s*(<br>)*/;
+  const newGreeting = buildAnswerGreeting(c);
+  if(oldGreetingPattern.test(current)){
+    editor.innerHTML = current.replace(oldGreetingPattern, newGreeting);
+  } else {
+    editor.innerHTML = newGreeting + current;
+  }
+  toast('تم تحديث المقدمة حسب بيانات السائل الحالية');
 }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
@@ -479,9 +497,9 @@ function statusKey(c){
 const STATUS_DISPLAY = {
   'جديدة':'جديدة', 'مستعجلة':'مستعجلة', 'متأخرة':'متأخرة', 'مستعجلة ومتأخرة':'مستعجلة ومتأخرة',
   'تمت الإجابة':'تمت الإجابة',
-  'معتمدة':'تم إرسالها للموقع الرسمي للتدقيق والنشر',
-  'قيد الطباعة':'تم النشر',
-  'مؤرشفة':'تم إغلاق الاستشارة',
+  'معتمدة':'للنشر',
+  'قيد الطباعة':'منشورة',
+  'مؤرشفة':'منشورة',
   'اعتذار':'اعتذار عن الإجابة'
 };
 const STAMP_MAP = {
@@ -490,9 +508,9 @@ const STAMP_MAP = {
   'متأخرة':{cls:'st-overdue', label:'متأخرة ⏰'},
   'مستعجلة ومتأخرة':{cls:'st-overdue', label:'مستعجلة ومتأخرة ⏰🔴'},
   'تمت الإجابة':{cls:'st-answered', label:'تمت الإجابة ✅'},
-  'معتمدة':{cls:'st-approved', label: STATUS_DISPLAY['معتمدة']+' ✔️'},
-  'قيد الطباعة':{cls:'st-printing', label: STATUS_DISPLAY['قيد الطباعة']+' 🌐'},
-  'مؤرشفة':{cls:'st-archived', label: STATUS_DISPLAY['مؤرشفة']+' 🔒'},
+  'معتمدة':{cls:'st-approved', label: 'للنشر 🌐'},
+  'قيد الطباعة':{cls:'st-printing', label: 'منشورة ✅'},
+  'مؤرشفة':{cls:'st-archived', label: 'منشورة ✅'},
   'اعتذار':{cls:'st-apology', label:'اعتذار عن الإجابة 🚫'}
 };
 function statusStamp(c){ return STAMP_MAP[statusKey(c)] || {cls:'st-new', label:c.status}; }
@@ -705,24 +723,29 @@ function renderAdminDashboard(){
   const maxMonth = Math.max(1, ...months.map(m=>m[1]));
   const newOnes = list.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const answeredOnes = list.filter(c=>c.status==='تمت الإجابة').sort((a,b)=>new Date(b.answeredAt||b.createdAt)-new Date(a.answeredAt||a.createdAt));
+  const forPublishOnes = list.filter(c=>c.status==='معتمدة').sort((a,b)=>new Date(b.approvedAt||b.createdAt)-new Date(a.approvedAt||a.createdAt));
   return `
     ${statBadgesHtml(s)}
-    <div class="panel">
-      <div class="panel-head"><h3>✅ استشارات تمت الإجابة عنها (${answeredOnes.length})</h3></div>
+    <div class="panel ${newOnes.length ? 'panel-gold-alert' : ''}">
+      <div class="panel-head"><h3>📥 الاستشارات الجديدة ${newOnes.length ? `<span class="panel-count-badge">${newOnes.length}</span>` : ''}</h3></div>
+      <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
+    </div>
+    <div class="panel ${answeredOnes.length ? 'panel-gold-alert' : ''}">
+      <div class="panel-head"><h3>✅ استشارات تمت الإجابة عنها ${answeredOnes.length ? `<span class="panel-count-badge">${answeredOnes.length}</span>` : ''}</h3></div>
       <div class="panel-body" style="padding:0;">${answeredOnes.length ? tableHtml(answeredOnes) : `<div class="empty"><div class="e-icon">📭</div>لا توجد استشارات بانتظار الاعتماد حالياً</div>`}</div>
     </div>
-    <div class="panel">
-      <div class="panel-head"><h3>📥 الاستشارات الجديدة (${newOnes.length})</h3></div>
-      <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
+    <div class="panel ${forPublishOnes.length ? 'panel-gold-alert' : ''}">
+      <div class="panel-head"><h3>🌐 استشارات للنشر ${forPublishOnes.length ? `<span class="panel-count-badge">${forPublishOnes.length}</span>` : ''}</h3></div>
+      <div class="panel-body" style="padding:0;">${forPublishOnes.length ? tableHtml(forPublishOnes) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد استشارات بانتظار النشر حالياً</div>`}</div>
     </div>
     <div class="stats-grid">
       <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الاستشارات</div></div>
       <div class="stat-card accent-blue"><div class="num">${s.new}</div><div class="lbl">📥 جديدة</div></div>
       <div class="stat-card accent-urgent"><div class="num">${s.urgentPending}</div><div class="lbl">🔴 مستعجلة</div></div>
       <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">⏰ متأخرة</div></div>
-      <div class="stat-card accent-blue"><div class="num">${s.answered}</div><div class="lbl">✅ بانتظار الاعتماد</div></div>
-      <div class="stat-card accent-normal"><div class="num">${s.approved}</div><div class="lbl">✔️ تم الإرسال للتدقيق والنشر</div></div>
-      <div class="stat-card accent-gold"><div class="num">${s.printing}</div><div class="lbl">🌐 تم النشر</div></div>
+      <div class="stat-card accent-blue"><div class="num">${s.answered}</div><div class="lbl">✅ تمت الإجابة</div></div>
+      <div class="stat-card accent-normal"><div class="num">${s.approved}</div><div class="lbl">🌐 للنشر</div></div>
+      <div class="stat-card accent-gold"><div class="num">${s.archived}</div><div class="lbl">✅ منشورة</div></div>
       <div class="stat-card accent-apology"><div class="num">${s.apology}</div><div class="lbl">🚫 اعتذار</div></div>
     </div>
     <div class="grid-2">
@@ -755,8 +778,8 @@ function renderConsultantDashboard(){
     <div class="notice-banner" style="color:#111;">👋 مرحباً بعودتك المستشار <b>${esc(state.consultantProfile.name)}</b></div>
     ${statBadgesHtml(s)}
     <div class="notice-banner" style="color:#111;">📌 لديك حالياً <b>${s.pendingTotal}</b> استشارة لم يتم الرد عليها بعد.</div>
-    <div class="panel">
-      <div class="panel-head"><h3>📥 الاستشارات الجديدة (${newOnes.length})</h3></div>
+    <div class="panel ${newOnes.length ? 'panel-gold-alert' : ''}">
+      <div class="panel-head"><h3>📥 الاستشارات الجديدة ${newOnes.length ? `<span class="panel-count-badge">${newOnes.length}</span>` : ''}</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
     </div>
     <div class="stats-grid">
@@ -1074,6 +1097,7 @@ function renderDetail(){
                   </div>
                   <button type="button" data-action="load-device-fonts" title="قراءة خطوط الجهاز">🔤 خطوط جهازي</button>
                   <button type="button" id="formatPainterBtn" data-action="copy-format" title="نسخ التنسيق: حدد نصاً منسّقاً ثم اضغط هنا، ثم حدد النص الذي تريد تنسيقه">🖌️</button>
+                  <button type="button" data-action="refresh-greeting" title="إعادة إدراج المقدمة الصحيحة (حسب جنس السائل المحدَّث) في بداية النص">🔄 المقدمة</button>
                   <span class="editor-toolbar-sep"></span>
                   <button type="button" data-cmd="bold" title="غامق"><b>B</b></button>
                   <button type="button" data-cmd="italic" title="مائل"><i>I</i></button>
@@ -1480,6 +1504,8 @@ function bindContentEvents(){
     if(loadFontsBtn) loadFontsBtn.addEventListener('click', loadDeviceFonts);
     const paintBtn = document.querySelector('[data-action="copy-format"]');
     if(paintBtn) paintBtn.addEventListener('click', copyFormatFromSelection);
+    const refreshGreetBtn = document.querySelector('[data-action="refresh-greeting"]');
+    if(refreshGreetBtn) refreshGreetBtn.addEventListener('click', refreshAnswerGreeting);
   }
   const asA = document.querySelector('[data-action="answer-submit"]'); if(asA) asA.addEventListener('click', ()=>submitAnswer(false));
   const asD = document.querySelector('[data-action="answer-decline"]'); if(asD) asD.addEventListener('click', declineAnswer);
@@ -1987,10 +2013,29 @@ async function restoreBackup(){
 }
 
 /* ===================== INIT ===================== */
+let suppressNextSnapshot = false;
+function watchConsultationsLive(){
+  try{
+    const ref = doc(db, APP_STATE_COLLECTION, 'consultations_v2');
+    onSnapshot(ref, (snap)=>{
+      if(!snap.exists()) return;
+      if(snap.metadata.hasPendingWrites) return; // ignore our own optimistic local writes echo
+      let incoming;
+      try{ incoming = JSON.parse(snap.data().value || '[]'); }catch(e){ return; }
+      state.consultations = incoming;
+      const editorFocused = document.activeElement && document.activeElement.id === 'answerEditor';
+      const onAddForm = state.view === 'add';
+      if(!editorFocused && !onAddForm){
+        renderContent();
+      }
+    }, (err)=>{ console.error('live consultations listener failed', err); });
+  }catch(e){ console.error('failed to attach live listener', e); }
+}
 async function init(){
   el('app').innerHTML = `<div style="padding:40px; font-family:'Sakkal Majalla',Tajawal,sans-serif; color:#5B6660;">جاري التحميل…</div>`;
   await loadAll();
   render();
+  watchConsultationsLive();
 }
 init();
 </script>
