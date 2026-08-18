@@ -46,6 +46,12 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .login-card input{text-align:right; font-size:16px; padding:12px 14px;}
 .login-card label{font-size:14.5px;}
 .login-card .btn{font-size:16.5px; padding:13px 20px;}
+.login-stats-box{display:flex; gap:10px; margin:10px 0 16px;}
+.login-stat-item{flex:1; background:#eafaf1; border:1px solid #2f9e6f; border-radius:10px; padding:10px 8px; text-align:center;}
+.login-stat-item.overdue{background:#fffbe0; border-color:#eab308;}
+.login-stat-item .lsi-num{display:block; font-size:22px; font-weight:900; color:#0a5c3f; font-family:'Beiruti','Tajawal',sans-serif;}
+.login-stat-item.overdue .lsi-num{color:#a16207;}
+.login-stat-item .lsi-lbl{display:block; font-size:11px; font-weight:700; color:var(--ink-soft); margin-top:2px;}
 .brand-text{font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; font-size:17.5px; line-height:1.4;}
 .brand-text small{display:block; font-family:'Sakkal Majalla','Tajawal',sans-serif; font-weight:400; font-size:11px; color:rgba(239,245,241,0.68);}
 .nav{display:flex; flex-direction:column; gap:2px; margin-top:6px;}
@@ -77,6 +83,9 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .panel.panel-gold-alert{background:linear-gradient(180deg,#fff8e8 0%, #fff 60px); border:2px solid var(--gold);}
 .panel.panel-gold-alert .panel-head{background:linear-gradient(135deg,#ffe9b8 0%, #f7cd6b 100%); border-bottom:1px solid var(--gold);}
 .panel-count-badge{display:inline-flex; align-items:center; justify-content:center; min-width:24px; height:24px; padding:0 7px; border-radius:999px; background:var(--urgent); color:#fff; font-size:13px; font-weight:800; margin-right:6px;}
+.panel.panel-yellow-alert{background:linear-gradient(180deg,#fffbe0 0%, #fff 60px); border:2px solid #eab308;}
+.panel.panel-yellow-alert .panel-head{background:linear-gradient(135deg,#fef9c3 0%, #fde68a 100%); border-bottom:1px solid #eab308;}
+.panel-count-badge.badge-yellow{background:#ca8a04;}
 .panel-head{display:flex; align-items:center; justify-content:space-between; padding:16px 18px; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:8px;}
 .panel-head h3{margin:0; font-size:20px; font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; color:var(--blue);}
 .panel-body{padding:16px 18px;}
@@ -643,6 +652,7 @@ function render(){
   renderContent();
 }
 function renderLogin(){
+  const s = computeStats(state.consultations||[]);
   return `
   <div class="login-screen">
     <div class="login-card">
@@ -650,6 +660,10 @@ function renderLogin(){
       <h1>نظام الاستشارات</h1>
       <p class="muted">مكتب الدكتور عقيل محمد المقطري</p>
       <div class="field" style="text-align:right; margin-top:18px;"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="اسم المستخدم"></div>
+      <div class="login-stats-box">
+        <div class="login-stat-item"><span class="lsi-num">${s.new}</span><span class="lsi-lbl">📥 استشارات جديدة</span></div>
+        <div class="login-stat-item overdue"><span class="lsi-num">${s.overdue}</span><span class="lsi-lbl">⏰ استشارات متأخرة</span></div>
+      </div>
       <div class="field" style="text-align:right;"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="كلمة المرور"></div>
       <div id="loginError" class="login-error hidden"></div>
       <button class="btn btn-primary" id="loginBtn" style="width:100%; justify-content:center; margin-top:6px;">دخول</button>
@@ -722,6 +736,7 @@ function renderAdminDashboard(){
   const months = monthlyCounts(list);
   const maxMonth = Math.max(1, ...months.map(m=>m[1]));
   const newOnes = list.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const overdueOnes = list.filter(isOverdue).sort((a,b)=>new Date(a.assignedAt||a.createdAt)-new Date(b.assignedAt||b.createdAt));
   const answeredOnes = list.filter(c=>c.status==='تمت الإجابة').sort((a,b)=>new Date(b.answeredAt||b.createdAt)-new Date(a.answeredAt||a.createdAt));
   const forPublishOnes = list.filter(c=>c.status==='معتمدة').sort((a,b)=>new Date(b.approvedAt||b.createdAt)-new Date(a.approvedAt||a.createdAt));
   return `
@@ -729,6 +744,10 @@ function renderAdminDashboard(){
     <div class="panel ${newOnes.length ? 'panel-gold-alert' : ''}">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة ${newOnes.length ? `<span class="panel-count-badge">${newOnes.length}</span>` : ''}</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
+    </div>
+    <div class="panel ${overdueOnes.length ? 'panel-yellow-alert' : ''}">
+      <div class="panel-head"><h3>⏰ استشارات متأخرة ${overdueOnes.length ? `<span class="panel-count-badge badge-yellow">${overdueOnes.length}</span>` : ''}</h3></div>
+      <div class="panel-body" style="padding:0;">${overdueOnes.length ? tableHtml(overdueOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات متأخرة حالياً</div>`}</div>
     </div>
     <div class="panel ${answeredOnes.length ? 'panel-gold-alert' : ''}">
       <div class="panel-head"><h3>✅ استشارات تمت الإجابة عنها ${answeredOnes.length ? `<span class="panel-count-badge">${answeredOnes.length}</span>` : ''}</h3></div>
@@ -774,6 +793,7 @@ function renderConsultantDashboard(){
   const mine = state.consultations.filter(c=>(c.assignedTo||[]).includes(state.consultantProfile.name));
   const s = computeStats(mine);
   const newOnes = mine.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const overdueOnes = mine.filter(isOverdue).sort((a,b)=>new Date(a.assignedAt||a.createdAt)-new Date(b.assignedAt||b.createdAt));
   return `
     <div class="notice-banner" style="color:#111;">👋 مرحباً بعودتك المستشار <b>${esc(state.consultantProfile.name)}</b></div>
     ${statBadgesHtml(s)}
@@ -781,6 +801,10 @@ function renderConsultantDashboard(){
     <div class="panel ${newOnes.length ? 'panel-gold-alert' : ''}">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة ${newOnes.length ? `<span class="panel-count-badge">${newOnes.length}</span>` : ''}</h3></div>
       <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
+    </div>
+    <div class="panel ${overdueOnes.length ? 'panel-yellow-alert' : ''}">
+      <div class="panel-head"><h3>⏰ استشارات متأخرة ${overdueOnes.length ? `<span class="panel-count-badge badge-yellow">${overdueOnes.length}</span>` : ''}</h3></div>
+      <div class="panel-body" style="padding:0;">${overdueOnes.length ? tableHtml(overdueOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات متأخرة حالياً</div>`}</div>
     </div>
     <div class="stats-grid">
       <div class="stat-card accent-blue"><div class="num">${s.new}</div><div class="lbl">📥 جديدة</div></div>
