@@ -659,11 +659,11 @@ function renderLogin(){
       ${state.logoUrl ? `<img src="${state.logoUrl}" class="login-logo">` : `<div class="brand-seal login-seal">است</div>`}
       <h1>نظام الاستشارات</h1>
       <p class="muted">مكتب الدكتور عقيل محمد المقطري</p>
-      <div class="field" style="text-align:right; margin-top:18px;"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="اسم المستخدم"></div>
-      <div class="login-stats-box">
+      <div class="login-stats-box" style="margin-top:18px;">
         <div class="login-stat-item"><span class="lsi-num">${s.new}</span><span class="lsi-lbl">📥 استشارات جديدة</span></div>
         <div class="login-stat-item overdue"><span class="lsi-num">${s.overdue}</span><span class="lsi-lbl">⏰ استشارات متأخرة</span></div>
       </div>
+      <div class="field" style="text-align:right;"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="اسم المستخدم"></div>
       <div class="field" style="text-align:right;"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="كلمة المرور"></div>
       <div id="loginError" class="login-error hidden"></div>
       <button class="btn btn-primary" id="loginBtn" style="width:100%; justify-content:center; margin-top:6px;">دخول</button>
