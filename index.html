@@ -29,10 +29,22 @@
   --shadow: 0 1px 2px rgba(30,36,31,0.04), 0 4px 16px rgba(30,36,31,0.06);
 }
 *{box-sizing:border-box;}
+html{overflow-x:hidden; max-width:100%;}
+img,table,.panel,.doc-page,.pasted-block{max-width:100%;}
 html,body{margin:0;padding:0;}
 body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajawal',sans-serif; min-height:100vh; overflow-x:hidden;}
 .app{display:flex; min-height:100vh;}
-.sidebar{width:250px; flex:0 0 250px; background:var(--primary); color:#EFF5F1; display:flex; flex-direction:column; padding:22px 16px; position:sticky; top:0; height:100vh;}
+.sidebar{width:250px; flex:0 0 250px; background:var(--primary); color:#EFF5F1; display:flex; flex-direction:column; padding:22px 16px; position:sticky; top:0; height:100vh; transition:width .22s ease, flex-basis .22s ease, padding .22s ease; overflow-x:hidden;}
+.sidebar.collapsed{width:72px; flex:0 0 72px; padding:22px 10px;}
+.sidebar.collapsed .brand-text,
+.sidebar.collapsed .nav-item span:nth-child(2),
+.sidebar.collapsed .sidebar-foot,
+.sidebar.collapsed .nav-badge{display:none;}
+.sidebar.collapsed .brand{justify-content:center; margin-bottom:18px;}
+.sidebar.collapsed .nav-item{justify-content:center; padding:10px 0;}
+.sidebar-collapse-btn{border:1px solid rgba(239,245,241,0.25); background:rgba(255,255,255,0.06); color:#EFF5F1; border-radius:8px; width:30px; height:30px; cursor:pointer; font-size:14px; flex:0 0 30px; display:flex; align-items:center; justify-content:center; transition:background .15s;}
+.sidebar-collapse-btn:hover{background:rgba(255,255,255,0.16);}
+.sidebar.collapsed .sidebar-collapse-btn{transform:rotate(180deg);}
 .brand{display:flex; align-items:center; gap:10px; margin-bottom:26px; padding:0 6px;}
 .brand-seal{width:40px; height:40px; border-radius:50%; border:2px dashed rgba(239,245,241,0.55); display:flex; align-items:center; justify-content:center; font-family:'Sakkal Majalla','Amiri',serif; font-weight:700; font-size:15px; flex:0 0 40px;}
 .brand-logo{width:40px; height:40px; border-radius:50%; object-fit:cover; flex:0 0 40px; background:#fff;}
@@ -52,7 +64,7 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .login-stat-item .lsi-num{display:block; font-size:15px; font-weight:900; color:#0a5c3f; font-family:'Beiruti','Tajawal',sans-serif; line-height:1.3;}
 .login-stat-item.overdue .lsi-num{color:#a16207;}
 .login-stat-item .lsi-lbl{display:block; font-size:9.5px; font-weight:700; color:var(--ink-soft); margin-top:1px;}
-.brand-text{font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; font-size:17.5px; line-height:1.4;}
+.brand-text{font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-weight:700; font-size:17.5px; line-height:1.4; flex:1;}
 .brand-text small{display:block; font-family:'Sakkal Majalla','Tajawal',sans-serif; font-weight:400; font-size:11px; color:rgba(239,245,241,0.68);}
 .nav{display:flex; flex-direction:column; gap:2px; margin-top:6px;}
 .nav-item{display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; color:rgba(239,245,241,0.82); text-decoration:none; font-size:17px; cursor:pointer; border:none; background:transparent; text-align:right; width:100%; font-family:inherit; position:relative;}
@@ -61,7 +73,7 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .nav-badge{margin-right:auto; background:linear-gradient(135deg,#ffd873 0%, #e0a530 100%); color:#000; font-size:10px; font-weight:800; min-width:16px; height:16px; border-radius:999px; display:flex; align-items:center; justify-content:center; padding:0 4px; line-height:1;}
 .nav-sep{height:1px; background:rgba(255,255,255,0.12); margin:12px 4px;}
 .sidebar-foot{margin-top:auto; font-size:11px; color:rgba(239,245,241,0.5); padding:0 8px;}
-.main{flex:1; min-width:0; display:flex; flex-direction:column;}
+.main{flex:1; min-width:0; display:flex; flex-direction:column; overflow-x:hidden;}
 .topbar{display:flex; align-items:center; justify-content:space-between; padding:14px 26px; background:var(--surface); border-bottom:1px solid var(--border); position:sticky; top:0; z-index:5;}
 .topbar-title{font-size:19px; font-weight:900; font-family:'Sakkal Majalla','Aref Ruqaa',serif; color:var(--blue);}
 .topbar-right{display:flex; align-items:center; gap:14px;}
@@ -70,6 +82,8 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .role-btn.active{background:var(--primary); color:#fff; font-weight:700;}
 .who-tag{font-size:12.5px; color:var(--ink-soft);}
 .content{padding:24px 26px; flex:1; min-width:0;}
+.content.fade-in{animation:contentFadeIn .18s ease;}
+@keyframes contentFadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
 .stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-bottom:18px;}
 .stat-card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow);}
 .stat-card .num{font-size:19px; font-weight:900; font-family:'Sakkal Majalla','Amiri',serif;}
@@ -177,7 +191,7 @@ tr.row-click:hover{background:var(--surface-2);}
 .modal h3{margin:0 0 8px; font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-size:20px; color:var(--blue);}
 .modal p{color:var(--ink-soft); font-size:13.5px; margin:0 0 18px;}
 .detail-grid{display:block;}
-@media (max-width:900px){.detail-grid{grid-template-columns:1fr;} .grid-2{grid-template-columns:1fr;} .grid-5{grid-template-columns:1fr 1fr;} .sidebar{position:fixed; z-index:20; height:100vh; transform:translateX(100%); transition:.2s;} .sidebar.open{transform:translateX(0);} .app{display:block;}}
+@media (max-width:900px){.detail-grid{grid-template-columns:1fr;} .grid-2{grid-template-columns:1fr;} .grid-5{grid-template-columns:1fr 1fr;} .sidebar{position:fixed; z-index:20; height:100vh; transform:translateX(100%); transition:transform .22s ease; width:270px !important; flex:0 0 270px !important; padding:22px 16px !important;} .sidebar.open{transform:translateX(0);} .app{display:block;} .sidebar.collapsed .brand-text,.sidebar.collapsed .nav-item span:nth-child(2),.sidebar.collapsed .sidebar-foot,.sidebar.collapsed .nav-badge{display:block !important;} .sidebar.collapsed .nav-item{justify-content:flex-start !important; padding:10px 12px !important;} .sidebar.collapsed .brand{justify-content:flex-start !important;} .sidebar-collapse-btn{display:none;}}
 .img-viewer{background:var(--ink); border-radius:12px; overflow:hidden; position:relative; min-height:320px; display:flex; align-items:center; justify-content:center;}
 .img-viewer img{max-width:100%; max-height:560px; transition:transform .15s;}
 .img-toolbar{position:absolute; bottom:10px; right:10px; display:flex; gap:6px;}
@@ -291,6 +305,20 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
   .doc-page.word-like{padding:24px 18px; min-height:340px;}
   .editor-toolbar{gap:5px;}
   .editor-select{font-size:11px; padding:0 5px;}
+  .btn{min-height:40px;}
+  .btn-sm{min-height:36px;}
+  .icon-link{min-width:36px; min-height:36px;}
+  input[type="text"]:not(.table-cell-input),input[type="password"],input[type="date"],input[type="email"],input[type="tel"],select:not(.editor-select),textarea:not(.table-cell-textarea){min-height:40px; font-size:16px;}
+  .nav-item{min-height:44px;}
+  .stamp,.pill{font-size:11px;}
+  table{font-size:12px;}
+  .number-badge{font-size:13px; padding:4px 9px;}
+  .icon-btn{min-width:76px; padding:9px 12px;}
+}
+@media (max-width:900px) and (min-width:641px){
+  .content{padding:18px 16px;}
+  .grid-5{grid-template-columns:repeat(3,1fr);}
+  .stat-cards-grid{grid-template-columns:repeat(3,1fr);}
 }
 @media (max-width:400px){
   .grid-5{grid-template-columns:1fr;}
@@ -355,6 +383,7 @@ let state = {
   consultantProfile: { name:'د. عقيل محمد المقطري', email:'', phone:'', username:'aqeel', password:'aqeel123' },
   logoUrl: '',
   sidebarOpen: false,
+  sidebarCollapsed: false,
   filters: { q:'', status:'', priority:'' },
   closedFilters: { q:'' },
   selectedMonth: '',
@@ -654,11 +683,13 @@ function layoutShell(){
     if(v==='messages') badgeCount = state.unseenMessages;
     if(v==='list') badgeCount = pendingBadgeCount();
     const badge = badgeCount>0 ? `<span class="nav-badge">${badgeCount}</span>` : '';
-    return `<button class="nav-item ${state.view===v?'active':''}" data-nav="${v}"><span>${iconFor(v)}</span><span>${label}</span>${badge}</button>`;
+    return `<button class="nav-item ${state.view===v?'active':''}" data-nav="${v}" title="${esc(label)}"><span>${iconFor(v)}</span><span>${label}</span>${badge}</button>`;
   }).join('');
   return `
-    <div class="sidebar ${state.sidebarOpen?'open':''}" id="sidebar">
-      <div class="brand">${state.logoUrl?`<img src="${state.logoUrl}" class="brand-logo">`:`<div class="brand-seal">است</div>`}<div class="brand-text">نظام الاستشارات<small>مكتب الدكتور عقيل محمد المقطري</small></div></div>
+    <div class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
+      <div class="brand">${state.logoUrl?`<img src="${state.logoUrl}" class="brand-logo">`:`<div class="brand-seal">است</div>`}<div class="brand-text">نظام الاستشارات<small>مكتب الدكتور عقيل محمد المقطري</small></div>
+        <button class="sidebar-collapse-btn no-print" data-action="toggle-collapse" title="${state.sidebarCollapsed?'توسيع القائمة':'طي القائمة'}">${state.sidebarCollapsed?'»':'«'}</button>
+      </div>
       <div class="nav">${items}</div>
       <div class="nav-sep"></div>
       <div class="sidebar-foot">متصل بقاعدة بيانات Firebase — البيانات محفوظة ومتزامنة بين جميع الأجهزة</div>
@@ -715,18 +746,26 @@ function renderLogin(){
     </div>
   </div>`;
 }
+async function loadSidebarPref(role){
+  try{
+    const v = await storeGet('sidebar_collapsed_'+role, false);
+    state.sidebarCollapsed = v === '1';
+  }catch(e){ state.sidebarCollapsed = false; }
+}
 function bindLoginEvents(){
-  const doLogin = ()=>{
+  const doLogin = async ()=>{
     const u = (el('loginUser').value||'').trim();
     const p = (el('loginPass').value||'').trim();
     const err = el('loginError');
     if(u && p && u===state.adminProfile.username && p===state.adminProfile.password){
       state.authenticated = true; state.role = 'admin'; state.view = 'dashboard';
+      await loadSidebarPref('admin');
       render(); refreshUnseenMessages().then(()=>{ render(); checkAndShowEntryModal(); });
       return;
     }
     if(u && p && u===state.consultantProfile.username && p===state.consultantProfile.password){
       state.authenticated = true; state.role = 'consultant'; state.view = 'dashboard';
+      await loadSidebarPref('consultant');
       render(); refreshUnseenMessages().then(()=>{ render(); checkAndShowEntryModal(); });
       return;
     }
@@ -754,6 +793,9 @@ function renderContent(){
   else if(state.view==='audit') c.innerHTML = renderAudit();
   else if(state.view==='settings') c.innerHTML = renderSettings();
   bindContentEvents();
+  c.classList.remove('fade-in');
+  void c.offsetWidth;
+  c.classList.add('fade-in');
   if(state.view==='messages'){ storeSet('lastseen_msgs_'+state.role, nowIso(), false).then(()=>{ state.unseenMessages=0; }); }
 }
 
@@ -1561,6 +1603,12 @@ function bindGlobalEvents(){
   }));
   const toggleBtn = document.querySelector('[data-action="toggle-sidebar"]');
   if(toggleBtn) toggleBtn.addEventListener('click', ()=>{ state.sidebarOpen = !state.sidebarOpen; render(); });
+  const collapseBtn = document.querySelector('[data-action="toggle-collapse"]');
+  if(collapseBtn) collapseBtn.addEventListener('click', ()=>{
+    state.sidebarCollapsed = !state.sidebarCollapsed;
+    storeSet('sidebar_collapsed_'+state.role, state.sidebarCollapsed ? '1' : '0', false);
+    render();
+  });
   const logoutBtn = document.querySelector('[data-action="logout"]');
   if(logoutBtn) logoutBtn.addEventListener('click', logout);
   const resyncBtn = document.querySelector('[data-action="force-resync"]');
