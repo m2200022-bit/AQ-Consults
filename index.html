@@ -477,6 +477,25 @@ async function loadAll(){
   } else { await persistProfiles(); }
   if(b){ const parsedB = JSON.parse(b); state.logoUrl = parsedB.logoUrl || ''; }
 }
+async function autoEscalatePriorities(){
+  let changed = false;
+  state.consultations.forEach(c=>{
+    if(c.deleted) return;
+    if(c.status !== 'تحت الإجابة') return;
+    if(c.priority !== 'عادي') return;
+    const k = statusKey(c);
+    if(k==='متأخرة' || k==='مستعجلة' || k==='مستعجلة ومتأخرة'){
+      c.priority = 'مستعجل';
+      c.history = c.history||[];
+      c.history.push({ts: nowIso(), actor: 'النظام', action: 'تم تحويل الأولوية تلقائياً إلى مستعجل بعد أن أصبحت الاستشارة متأخرة'});
+      changed = true;
+    }
+  });
+  if(changed){
+    await persistConsultations();
+    if(state.authenticated) renderContent();
+  }
+}
 async function persistConsultations(removedIds, replaceMode){
   if(replaceMode){
     await storeSet('consultations_v2', JSON.stringify(state.consultations), true);
@@ -2167,8 +2186,10 @@ function watchConsultationsLive(){
 async function init(){
   el('app').innerHTML = `<div style="padding:40px; font-family:'Sakkal Majalla',Tajawal,sans-serif; color:#5B6660;">جاري التحميل…</div>`;
   await loadAll();
+  await autoEscalatePriorities();
   render();
   watchConsultationsLive();
+  setInterval(autoEscalatePriorities, 5*60*1000);
 }
 init();
 </script>
