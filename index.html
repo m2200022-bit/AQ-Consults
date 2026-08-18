@@ -356,6 +356,7 @@ let state = {
   logoUrl: '',
   sidebarOpen: false,
   filters: { q:'', status:'', priority:'' },
+  closedFilters: { q:'' },
   selectedMonth: '',
   rangeFrom: '',
   rangeTo: '',
@@ -476,7 +477,31 @@ async function loadAll(){
   } else { await persistProfiles(); }
   if(b){ const parsedB = JSON.parse(b); state.logoUrl = parsedB.logoUrl || ''; }
 }
-async function persistConsultations(){ await storeSet('consultations_v2', JSON.stringify(state.consultations), true); }
+async function persistConsultations(removedIds, replaceMode){
+  if(replaceMode){
+    await storeSet('consultations_v2', JSON.stringify(state.consultations), true);
+    return;
+  }
+  try{
+    const ref = doc(db, APP_STATE_COLLECTION, 'consultations_v2');
+    const remoteSnap = await getDoc(ref);
+    let remoteList = [];
+    if(remoteSnap.exists()){
+      try{ remoteList = JSON.parse(remoteSnap.data().value || '[]'); }catch(e){ remoteList = []; }
+    }
+    // Merge by id: start from remote (may include records this client never loaded), overlay with local (assumed newer/intentional for shared ids)
+    const map = {};
+    remoteList.forEach(r=>{ if(r && r.id) map[r.id] = r; });
+    state.consultations.forEach(l=>{ if(l && l.id) map[l.id] = l; });
+    if(removedIds && removedIds.length){ removedIds.forEach(id=> delete map[id]); }
+    const merged = Object.values(map);
+    state.consultations = merged;
+    await storeSet('consultations_v2', JSON.stringify(merged), true);
+  }catch(e){
+    console.error('persistConsultations merge failed, falling back to direct write', e);
+    await storeSet('consultations_v2', JSON.stringify(state.consultations), true);
+  }
+}
 async function persistMessages(){ await storeSet('messages_v2', JSON.stringify(state.messages), true); }
 async function persistAudit(){ await storeSet('audit_v2', JSON.stringify(state.audit), true); }
 async function persistProfiles(){ await storeSet('profiles_v2', JSON.stringify({admin:state.adminProfile, consultant:state.consultantProfile}), true); }
@@ -526,7 +551,7 @@ function statusStamp(c){ return STAMP_MAP[statusKey(c)] || {cls:'st-new', label:
 function isOverdue(c){ const k = statusKey(c); return k==='متأخرة' || k==='مستعجلة ومتأخرة'; }
 
 function visibleConsultations(){
-  let list = state.consultations.slice();
+  let list = state.consultations.filter(c=>!c.deleted);
   if(state.role==='consultant'){
     list = list.filter(c => (c.assignedTo||[]).includes(state.consultantProfile.name));
   }
@@ -591,18 +616,18 @@ function setView(view, extra){
   state.sidebarOpen = false;
   render();
 }
-function iconFor(view){ return {dashboard:'🏠', list:'📋', add:'➕', closed:'🔒', reports:'🖨️', monthly:'📅', messages:'✉️', audit:'🕵️', settings:'⚙️'}[view] || '•'; }
+function iconFor(view){ return {dashboard:'🏠', list:'📋', add:'➕', closed:'🔒', reports:'🖨️', monthly:'📅', trash:'🗑️', messages:'✉️', audit:'🕵️', settings:'⚙️'}[view] || '•'; }
 function navItems(){
   if(state.role==='admin'){
-    return [ ['dashboard','لوحة التحكم'], ['list','الاستشارات'], ['add','إضافة استشارة'], ['closed','الاستشارات المغلقة'], ['reports','التقارير'], ['messages','الرسائل'], ['audit','سجل العمليات'], ['settings','إدارة المستخدمين والصلاحيات'] ];
+    return [ ['dashboard','لوحة التحكم'], ['list','الاستشارات'], ['add','إضافة استشارة'], ['closed','الاستشارات المغلقة'], ['reports','التقارير'], ['trash','سلة المهملات'], ['messages','الرسائل'], ['audit','سجل العمليات'], ['settings','إدارة المستخدمين والصلاحيات'] ];
   }
   return [ ['dashboard','لوحة التحكم'], ['list','استشاراتي'], ['closed','استشاراتي المغلقة'], ['reports','التقارير'], ['messages','الرسائل'] ];
 }
 function pendingBadgeCount(){
   if(state.role==='consultant'){
-    return state.consultations.filter(c=>(c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة').length;
+    return state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة').length;
   }
-  return state.consultations.filter(c=>c.status==='تحت الإجابة').length;
+  return state.consultations.filter(c=>!c.deleted && c.status==='تحت الإجابة').length;
 }
 function layoutShell(){
   const items = navItems().map(([v,label])=>{
@@ -626,6 +651,7 @@ function layoutShell(){
           <div class="topbar-title">${pageTitle()}</div>
         </div>
         <div class="topbar-right">
+          <button class="btn btn-ghost btn-sm" data-action="force-resync" title="جلب أحدث بيانات من قاعدة البيانات مباشرة">🔄</button>
           <span class="who-tag">${state.role==='admin' ? esc(state.adminProfile.name||'الإدارة') : esc(state.consultantProfile.name)}</span>
           <button class="btn btn-ghost btn-sm" data-action="logout">🚪 تسجيل الخروج</button>
         </div>
@@ -700,6 +726,7 @@ function renderContent(){
   if(state.view==='dashboard') c.innerHTML = state.role==='admin' ? renderAdminDashboard() : renderConsultantDashboard();
   else if(state.view==='list') c.innerHTML = renderList();
   else if(state.view==='closed') c.innerHTML = renderClosedList();
+  else if(state.view==='trash') c.innerHTML = renderTrash();
   else if(state.view==='add') c.innerHTML = renderAddForm();
   else if(state.view==='detail') c.innerHTML = renderDetail();
   else if(state.view==='reports') c.innerHTML = renderReports();
@@ -731,7 +758,7 @@ function statBadgesHtml(s){
 }
 /* ---------- Admin dashboard ---------- */
 function renderAdminDashboard(){
-  const list = state.consultations;
+  const list = state.consultations.filter(c=>!c.deleted);
   const s = computeStats(list);
   const months = monthlyCounts(list);
   const maxMonth = Math.max(1, ...months.map(m=>m[1]));
@@ -786,11 +813,11 @@ function renderAdminDashboard(){
         </div>
       </div>
     </div>
-    ${renderRecentTable(state.consultations.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6), 'أحدث الاستشارات')}
+    ${renderRecentTable(list.slice().sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt)).slice(0,6), 'أحدث الاستشارات')}
   `;
 }
 function renderConsultantDashboard(){
-  const mine = state.consultations.filter(c=>(c.assignedTo||[]).includes(state.consultantProfile.name));
+  const mine = state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name));
   const s = computeStats(mine);
   const newOnes = mine.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const overdueOnes = mine.filter(isOverdue).sort((a,b)=>new Date(a.assignedAt||a.createdAt)-new Date(b.assignedAt||b.createdAt));
@@ -845,6 +872,8 @@ function bindRowClicks(){
   document.querySelectorAll('[data-detail]').forEach(tr=>tr.addEventListener('click', ()=>{ setView('detail', {detailId: tr.getAttribute('data-detail')}); }));
   document.querySelectorAll('[data-edit-row]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); setView('add', {editingId: b.getAttribute('data-edit-row')}); }));
   document.querySelectorAll('[data-delete-row]').forEach(b=>b.addEventListener('click', (e)=>{ e.stopPropagation(); deleteConsultation(b.getAttribute('data-delete-row')); }));
+  document.querySelectorAll('[data-action="restore-consultation"]').forEach(b=>b.addEventListener('click', ()=> restoreConsultation(b.getAttribute('data-id'))));
+  document.querySelectorAll('[data-action="permadelete-consultation"]').forEach(b=>b.addEventListener('click', ()=> permanentlyDeleteConsultation(b.getAttribute('data-id'))));
 }
 function tableHtml(list){
   const showActions = state.role==='admin';
@@ -863,12 +892,45 @@ function tableHtml(list){
       </tr>`;
     }).join('')}</tbody></table>`;
 }
-function renderClosedList(){
-  const list = visibleConsultations().filter(c=>c.status==='مؤرشفة');
+function renderTrash(){
+  const list = state.consultations.filter(c=>c.deleted).sort((a,b)=>new Date(b.deletedAt||0)-new Date(a.deletedAt||0));
   return `
-    <div class="panel table-panel-outlined"><div class="panel-head"><h3>الاستشارات المغلقة (${list.length})</h3></div>
-      <div class="panel-body" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>لا توجد استشارات مغلقة بعد</div>`}</div>
+    <div class="panel"><div class="panel-head"><h3>🗑️ سلة المهملات (${list.length})</h3><span class="muted">الاستشارات المحذوفة يمكن استرجاعها من هنا</span></div>
+      <div class="panel-body" style="padding:0;">
+        ${list.length ? `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>تاريخ الحذف</th><th>حذفها</th><th>إجراءات</th></tr></thead>
+          <tbody>${list.map(c=>`<tr>
+            <td><span class="number-badge">${esc(c.number)||'—'}</span></td>
+            <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}</td>
+            <td>${fmtDateTime(c.deletedAt)}</td>
+            <td>${esc(c.deletedBy)||'—'}</td>
+            <td class="no-print"><button class="btn btn-primary btn-sm" data-action="restore-consultation" data-id="${c.id}">↩️ استرجاع</button> <button class="icon-link danger" data-action="permadelete-consultation" data-id="${c.id}" title="حذف نهائي">🗑️</button></td>
+          </tr>`).join('')}</tbody>
+        </table>` : `<div class="empty"><div class="e-icon">🗑️</div>سلة المهملات فارغة</div>`}
+      </div>
     </div>`;
+}
+function renderClosedList(){
+  const all = visibleConsultations().filter(c=>c.status==='مؤرشفة');
+  const q = (state.closedFilters.q||'').trim();
+  const list = q ? all.filter(c => [c.number,c.subject,c.askerName,c.question].some(v=>(v||'').includes(q))) : all;
+  return `
+    <div class="searchbar">
+      <div class="field grow"><label>بحث في الاستشارات المغلقة (الموضوع، رقم الاستشارة، اسم السائل، أو نص السؤال)</label><input type="text" id="closedFq" value="${esc(q)}" placeholder="اكتب كلمة للبحث…"></div>
+    </div>
+    <div class="panel table-panel-outlined"><div class="panel-head"><h3>الاستشارات المغلقة (${list.length}${q?(' من '+all.length):''})</h3></div>
+      <div class="panel-body" id="closedResultsBody" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>${q?'لا توجد نتائج مطابقة للبحث':'لا توجد استشارات مغلقة بعد'}</div>`}</div>
+    </div>`;
+}
+function refreshClosedListResults(){
+  const body = el('closedResultsBody');
+  if(!body) return;
+  const all = visibleConsultations().filter(c=>c.status==='مؤرشفة');
+  const q = (state.closedFilters.q||'').trim();
+  const list = q ? all.filter(c => [c.number,c.subject,c.askerName,c.question].some(v=>(v||'').includes(q))) : all;
+  body.innerHTML = list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🔒</div>${q?'لا توجد نتائج مطابقة للبحث':'لا توجد استشارات مغلقة بعد'}</div>`;
+  const headEl = document.querySelector('.panel.table-panel-outlined .panel-head h3');
+  if(headEl) headEl.textContent = 'الاستشارات المغلقة ('+list.length+(q?(' من '+all.length):'')+')';
+  bindRowClicks();
 }
 
 /* ---------- Add form ---------- */
@@ -1437,6 +1499,10 @@ function renderSettings(){
     <div class="panel-body" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
       <button class="btn btn-outline btn-sm" data-action="export-backup">⬇️ تنزيل نسخة احتياطية</button>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer; margin:0;">⬆️ استعادة من نسخة<input type="file" id="restoreFile" accept="application/json" style="display:none;"></label>
+      <button class="btn btn-gold btn-sm" data-action="force-resync-settings">🔄 استرجاع جميع الاستشارات من الفايربيز الآن</button>
+    </div>
+    <div class="panel-body" style="padding-top:0;">
+      <span class="muted" style="font-size:12px;">يقوم هذا الزر بجلب أحدث نسخة فعلية من قاعدة البيانات مباشرة وعرضها، متجاوزاً أي بيانات قديمة محفوظة محلياً في هذا المتصفح — مفيد إذا كانت استشارات تبدو مفقودة في هذا الجهاز فقط.</span>
     </div>
   </div>
   <div class="panel"><div class="panel-head"><h3>📝 المقترحات والملاحظات</h3></div>
@@ -1478,13 +1544,15 @@ function bindGlobalEvents(){
   if(toggleBtn) toggleBtn.addEventListener('click', ()=>{ state.sidebarOpen = !state.sidebarOpen; render(); });
   const logoutBtn = document.querySelector('[data-action="logout"]');
   if(logoutBtn) logoutBtn.addEventListener('click', logout);
+  const resyncBtn = document.querySelector('[data-action="force-resync"]');
+  if(resyncBtn) resyncBtn.addEventListener('click', forceResyncFromFirebase);
 }
 async function checkAndShowEntryModal(){
   const parts = [];
   if(state.role==='consultant'){
     const raw = await storeGet('lastseen_consult', false);
     const last = raw ? new Date(raw) : null;
-    const fresh = state.consultations.filter(c=> (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة' && (!last || new Date(c.assignedAt||c.createdAt) > last));
+    const fresh = state.consultations.filter(c=> !c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة' && (!last || new Date(c.assignedAt||c.createdAt) > last));
     await storeSet('lastseen_consult', nowIso(), false);
     if(fresh.length) parts.push(`لديك (${fresh.length}) استشارات جديدة`);
   }
@@ -1500,6 +1568,7 @@ function bindContentEvents(){
   const fq = el('fq'); if(fq) fq.addEventListener('input', ()=>{ state.filters.q = fq.value; refreshListResults(); });
   const fstatus = el('fstatus'); if(fstatus) fstatus.addEventListener('change', ()=>{ state.filters.status = fstatus.value; refreshListResults(); });
   const fpriority = el('fpriority'); if(fpriority) fpriority.addEventListener('change', ()=>{ state.filters.priority = fpriority.value; refreshListResults(); });
+  const closedFq = el('closedFq'); if(closedFq) closedFq.addEventListener('input', ()=>{ state.closedFilters.q = closedFq.value; refreshClosedListResults(); });
 
   const saveBtn = document.querySelector('[data-action="save-consultation"]'); if(saveBtn) saveBtn.addEventListener('click', saveConsultation);
 
@@ -1568,6 +1637,7 @@ function bindContentEvents(){
   const logoInput = el('logoFile'); if(logoInput) logoInput.addEventListener('change', ()=>{ if(logoInput.files[0]) handleLogoUpload(logoInput.files[0]); });
   const removeLogoBtn = document.querySelector('[data-action="remove-logo"]'); if(removeLogoBtn) removeLogoBtn.addEventListener('click', removeLogo);
   const exportBackupBtn = document.querySelector('[data-action="export-backup"]'); if(exportBackupBtn) exportBackupBtn.addEventListener('click', exportBackup);
+  const resyncSettingsBtn = document.querySelector('[data-action="force-resync-settings"]'); if(resyncSettingsBtn) resyncSettingsBtn.addEventListener('click', forceResyncFromFirebase);
   const restoreInput = el('restoreFile'); if(restoreInput) restoreInput.addEventListener('change', restoreBackup);
 
   const addSugBtn = document.querySelector('[data-action="add-suggestion"]'); if(addSugBtn) addSugBtn.addEventListener('click', addSuggestion);
@@ -1643,12 +1713,33 @@ async function saveConsultation(){
 async function deleteConsultation(id){
   const c = state.consultations.find(x=>x.id===id);
   if(!c) return;
-  if(!confirm('هل أنت متأكد من حذف الاستشارة رقم '+(c.number||id)+'؟ لا يمكن التراجع عن هذا الإجراء.')) return;
-  state.consultations = state.consultations.filter(x=>x.id!==id);
+  if(!confirm('سيتم نقل الاستشارة رقم '+(c.number||id)+' إلى سلة المهملات. يمكنك استرجاعها لاحقاً من هناك خلال 30 يوماً. متابعة؟')) return;
+  c.deleted = true; c.deletedAt = nowIso(); c.deletedBy = actorName();
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم نقل الاستشارة إلى سلة المهملات'});
   await persistConsultations();
-  logAudit('حذف استشارة رقم '+(c.number||id));
-  toast('تم حذف الاستشارة');
+  logAudit('نقل استشارة إلى سلة المهملات: '+(c.number||id));
+  toast('تم نقل الاستشارة إلى سلة المهملات — يمكن استرجاعها');
   setView('list');
+}
+async function restoreConsultation(id){
+  const c = state.consultations.find(x=>x.id===id);
+  if(!c) return;
+  c.deleted = false; c.deletedAt = null;
+  c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم استرجاع الاستشارة من سلة المهملات'});
+  await persistConsultations();
+  logAudit('استرجاع استشارة من سلة المهملات: '+(c.number||id));
+  toast('✅ تم استرجاع الاستشارة بنجاح');
+  renderContent();
+}
+async function permanentlyDeleteConsultation(id){
+  const c = state.consultations.find(x=>x.id===id);
+  if(!c) return;
+  if(!confirm('سيتم حذف الاستشارة رقم '+(c.number||id)+' نهائياً ولا يمكن التراجع عن هذا الإجراء إطلاقاً. متابعة؟')) return;
+  state.consultations = state.consultations.filter(x=>x.id!==id);
+  await persistConsultations([id]);
+  logAudit('حذف نهائي لاستشارة: '+(c.number||id));
+  toast('تم الحذف النهائي');
+  renderContent();
 }
 
 /* ---------- Detail actions ---------- */
@@ -2013,6 +2104,24 @@ function resizeImageToDataUrl(file, maxSize){
     reader.readAsDataURL(file);
   });
 }
+async function forceResyncFromFirebase(){
+  toast('جارٍ جلب أحدث البيانات من قاعدة البيانات…');
+  try{
+    const ref = doc(db, APP_STATE_COLLECTION, 'consultations_v2');
+    const snap = await getDoc(ref);
+    if(!snap.exists()){
+      toast('لا توجد بيانات محفوظة في قاعدة البيانات حالياً');
+      return;
+    }
+    const fresh = JSON.parse(snap.data().value || '[]');
+    state.consultations = fresh;
+    toast('✅ تم جلب '+fresh.length+' استشارة من قاعدة البيانات مباشرة');
+    render();
+  }catch(e){
+    console.error('force resync failed', e);
+    toast('تعذّر الاتصال بقاعدة البيانات — تحقق من الإنترنت أو صلاحيات الوصول');
+  }
+}
 function exportBackup(){
   const payload = { consultations: state.consultations, messages: state.messages, audit: state.audit, profiles: {admin: state.adminProfile, consultant: state.consultantProfile}, logoUrl: state.logoUrl, suggestions: state.suggestions, exportedAt: nowIso() };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
@@ -2031,7 +2140,7 @@ async function restoreBackup(){
     state.suggestions = payload.suggestions || [];
     if(payload.profiles){ state.adminProfile = Object.assign({}, state.adminProfile, payload.profiles.admin||{}); state.consultantProfile = Object.assign({}, state.consultantProfile, payload.profiles.consultant||{}); }
     if(payload.logoUrl!==undefined) state.logoUrl = payload.logoUrl;
-    await persistConsultations(); await persistMessages(); await persistAudit(); await persistProfiles(); await persistBranding(); await persistSuggestions();
+    await persistConsultations(null, true); await persistMessages(); await persistAudit(); await persistProfiles(); await persistBranding(); await persistSuggestions();
     toast('تمت الاستعادة بنجاح'); render();
   }catch(e){ toast('ملف غير صالح'); }
 }
