@@ -268,8 +268,19 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .chat-reply-btn{border:none; background:transparent; color:var(--ink-faint); font-size:11px; cursor:pointer; padding:3px 0 0; font-family:inherit;}
 .chat-reply-btn:hover{color:var(--primary); text-decoration:underline;}
 .reply-preview{display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--surface-2); border-right:3px solid var(--gold); border-radius:8px; padding:7px 10px; font-size:12.5px; margin-top:10px;}
-.note-item{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:8px 12px; margin-bottom:8px; font-size:13px;}
-.note-item .n-meta{font-size:11px; color:var(--ink-faint); margin-bottom:3px;}
+.note-item{background:var(--surface-2); border:1px solid var(--border); border-radius:10px; padding:10px 14px; margin-bottom:8px; font-size:16px; line-height:1.6;}
+.note-item .n-meta{font-size:12px; color:var(--ink-faint); margin-bottom:4px; font-weight:700;}
+.notes-thread-box{background:#fbfbfa; border:1px solid var(--border); border-radius:12px; padding:14px;}
+.new-consult-list{display:flex; flex-direction:column; gap:14px; padding:16px;}
+.new-consult-row{display:flex; flex-wrap:wrap; gap:14px 26px; align-items:center; background:#fff; border-radius:12px; padding:14px 20px; cursor:pointer; transition:transform .15s, box-shadow .15s;}
+.new-consult-row:hover{transform:translateY(-2px);}
+.new-consult-row.shadow-urgent{box-shadow:0 5px 18px rgba(217,45,45,.4), 0 0 0 1px rgba(217,45,45,.3);}
+.new-consult-row.shadow-urgent:hover{box-shadow:0 8px 22px rgba(217,45,45,.5), 0 0 0 1px rgba(217,45,45,.35);}
+.new-consult-row.shadow-new{box-shadow:0 5px 18px rgba(47,158,111,.35), 0 0 0 1px rgba(47,158,111,.25);}
+.new-consult-row.shadow-new:hover{box-shadow:0 8px 22px rgba(47,158,111,.45), 0 0 0 1px rgba(47,158,111,.3);}
+.ncr-cell{display:flex; flex-direction:column; font-size:16px; font-weight:700; color:#1a1a1a; min-width:88px;}
+.ncr-cell.ncr-grow{flex:1 1 220px;}
+.ncr-label{font-size:11px; color:var(--ink-soft); font-weight:700; margin-bottom:3px;}
 .perm-list{margin:0; padding-right:18px; font-size:13px; color:var(--ink-soft); line-height:2;}
 
 /* ---------- Mobile responsiveness ---------- */
@@ -409,6 +420,9 @@ function askerAddressPhrase(c){
   const phrase = isFemaleAsker(c) ? 'الأخت الفاضلة' : 'الأخ الفاضل';
   return name ? `${phrase} / ${name}` : phrase;
 }
+function askerKinshipTerm(c){
+  return isFemaleAsker(c) ? 'أختنا الكريمة' : 'أخي الكريم';
+}
 function buildAnswerGreeting(c){
   return `بسم الله الرحمن الرحيم<br>${esc(askerAddressPhrase(c))}<br>السلام عليكم ورحمة الله وبركاته.<br><br>`;
 }
@@ -416,7 +430,7 @@ function buildAnswerClosing(){
   return `<br><br>وتقبلوا خالص التحية والتقدير.`;
 }
 function buildAnswerTemplate(c){
-  return buildAnswerGreeting(c) + 'مرحباً بكم،<br><br><br>' + buildAnswerClosing();
+  return buildAnswerGreeting(c) + `مرحبًا بك (${esc(askerKinshipTerm(c))}) في شبكة إسلام ويب، وردًّا على استشارتك أقول، مستعينًا بالله:<br><br><br>` + buildAnswerClosing();
 }
 function refreshAnswerGreeting(){
   const editor = el('answerEditor'); if(!editor) return;
@@ -736,7 +750,7 @@ function renderLogin(){
       <h1>نظام الاستشارات</h1>
       <p class="muted">مكتب الدكتور عقيل محمد المقطري</p>
       <div class="login-stats-box" style="margin-top:18px;">
-        <div class="login-stat-item"><span class="lsi-num">${s.new}</span><span class="lsi-lbl">📥 استشارات جديدة</span></div>
+        <div class="login-stat-item"><span class="lsi-num">${s.new + s.urgentPending}</span><span class="lsi-lbl">📥 استشارات جديدة</span></div>
         <div class="login-stat-item overdue"><span class="lsi-num">${s.overdue}</span><span class="lsi-lbl">⏰ استشارات متأخرة</span></div>
       </div>
       <div class="field" style="text-align:right;"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="اسم المستخدم"></div>
@@ -799,6 +813,24 @@ function renderContent(){
   if(state.view==='messages'){ storeSet('lastseen_msgs_'+state.role, nowIso(), false).then(()=>{ state.unseenMessages=0; }); }
 }
 
+function newConsultRowsHtml(list){
+  if(!list.length) return `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة أو مستعجلة حالياً</div>`;
+  return `<div class="new-consult-list">${list.map(c=>{
+    const urgent = effectivePriority(c)==='مستعجل';
+    const st = statusStamp(c);
+    return `<div class="new-consult-row ${urgent?'shadow-urgent':'shadow-new'}" data-detail="${c.id}">
+      <div class="ncr-cell"><span class="ncr-label">رقم الاستشارة</span><span class="number-badge">${esc(c.number)||'—'}</span></div>
+      <div class="ncr-cell"><span class="ncr-label">تاريخ الاستشارة</span>${c.date?esc(c.date):'—'}</div>
+      <div class="ncr-cell"><span class="ncr-label">السائل</span>${esc(c.askerName)||'—'}</div>
+      <div class="ncr-cell"><span class="ncr-label">البلد</span>${esc(c.askerCountry)||'—'}</div>
+      <div class="ncr-cell"><span class="ncr-label">الجنس</span>${esc(c.askerGender)||'—'}</div>
+      <div class="ncr-cell"><span class="ncr-label">العمر</span>${esc(c.askerAge)||'—'}</div>
+      <div class="ncr-cell"><span class="ncr-label">الحالة الإجتماعية</span>${esc(c.askerMarital)||'—'}</div>
+      <div class="ncr-cell ncr-grow"><span class="ncr-label">العنوان</span>${esc(c.subject)||'—'}</div>
+      <div class="ncr-cell"><span class="ncr-label">الحالة</span><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></div>
+    </div>`;
+  }).join('')}</div>`;
+}
 function statBadgesHtml(s){
   const items = [
     {icon:'🆕', num:s.new, label:'استشارات جديدة', sub:'بانتظار الإجابة الأولى'},
@@ -823,7 +855,7 @@ function renderAdminDashboard(){
   const s = computeStats(list);
   const months = monthlyCounts(list);
   const maxMonth = Math.max(1, ...months.map(m=>m[1]));
-  const newOnes = list.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const newOnes = list.filter(c=>['جديدة','مستعجلة'].includes(statusKey(c))).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const overdueOnes = list.filter(isOverdue).sort((a,b)=>new Date(a.assignedAt||a.createdAt)-new Date(b.assignedAt||b.createdAt));
   const answeredOnes = list.filter(c=>c.status==='تمت الإجابة').sort((a,b)=>new Date(b.answeredAt||b.createdAt)-new Date(a.answeredAt||a.createdAt));
   const forPublishOnes = list.filter(c=>c.status==='معتمدة').sort((a,b)=>new Date(b.approvedAt||b.createdAt)-new Date(a.approvedAt||a.createdAt));
@@ -831,7 +863,7 @@ function renderAdminDashboard(){
     ${statBadgesHtml(s)}
     <div class="panel ${newOnes.length ? 'panel-gold-alert' : ''}">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة ${newOnes.length ? `<span class="panel-count-badge">${newOnes.length}</span>` : ''}</h3></div>
-      <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
+      <div class="panel-body">${newConsultRowsHtml(newOnes)}</div>
     </div>
     <div class="panel ${overdueOnes.length ? 'panel-yellow-alert' : ''}">
       <div class="panel-head"><h3>⏰ استشارات متأخرة ${overdueOnes.length ? `<span class="panel-count-badge badge-yellow">${overdueOnes.length}</span>` : ''}</h3></div>
@@ -880,7 +912,7 @@ function renderAdminDashboard(){
 function renderConsultantDashboard(){
   const mine = state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name));
   const s = computeStats(mine);
-  const newOnes = mine.filter(c=>statusKey(c)==='جديدة').sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
+  const newOnes = mine.filter(c=>['جديدة','مستعجلة'].includes(statusKey(c))).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const overdueOnes = mine.filter(isOverdue).sort((a,b)=>new Date(a.assignedAt||a.createdAt)-new Date(b.assignedAt||b.createdAt));
   return `
     <div class="notice-banner" style="color:#111;">👋 مرحباً بعودتك المستشار <b>${esc(state.consultantProfile.name)}</b></div>
@@ -888,7 +920,7 @@ function renderConsultantDashboard(){
     <div class="notice-banner" style="color:#111;">📌 لديك حالياً <b>${s.pendingTotal}</b> استشارة لم يتم الرد عليها بعد.</div>
     <div class="panel ${newOnes.length ? 'panel-gold-alert' : ''}">
       <div class="panel-head"><h3>📥 الاستشارات الجديدة ${newOnes.length ? `<span class="panel-count-badge">${newOnes.length}</span>` : ''}</h3></div>
-      <div class="panel-body" style="padding:0;">${newOnes.length ? tableHtml(newOnes) : `<div class="empty"><div class="e-icon">✅</div>لا توجد استشارات جديدة حالياً</div>`}</div>
+      <div class="panel-body">${newConsultRowsHtml(newOnes)}</div>
     </div>
     <div class="panel ${overdueOnes.length ? 'panel-yellow-alert' : ''}">
       <div class="panel-head"><h3>⏰ استشارات متأخرة ${overdueOnes.length ? `<span class="panel-count-badge badge-yellow">${overdueOnes.length}</span>` : ''}</h3></div>
@@ -1199,6 +1231,15 @@ function renderDetail(){
 
             ${c.status==='تمت الإجابة' ? `<div class="notice-banner notice-answered">✅ تمت الإجابة من المستشار — بانتظار اعتماد الإدارة</div>` : ''}
 
+            <div class="field notes-thread-box" style="margin-top:16px;">
+              <label>ملاحظات ومراسلات حول هذه الاستشارة</label>
+              ${(c.notesThread||[]).map(n=>`<div class="note-item"><div class="n-meta">${n.from==='admin'?esc(state.adminProfile.name||'الإدارة'):esc(state.consultantProfile.name)} — ${fmtDateTime(n.ts)}</div>${esc(n.text)}</div>`).join('') || `<div class="muted" style="margin-bottom:8px;">لا توجد ملاحظات بعد</div>`}
+              <div style="display:flex; gap:8px; margin-top:6px;">
+                <input type="text" id="noteInput" placeholder="اكتب ملاحظة…">
+                <button class="btn btn-outline btn-sm" data-action="send-note">إرسال</button>
+              </div>
+            </div>
+
             ${c.answer ? `
               <div class="field" style="margin-top:16px;">
                 <label>نص الإجابة</label>
@@ -1277,15 +1318,6 @@ function renderDetail(){
                 <button class="btn btn-ghost btn-sm" data-action="archive">🔒 إغلاق الاستشارة</button>
               </div>` : ''}
             ${state.role==='admin' && c.status==='مؤرشفة' ? `<button class="btn btn-outline btn-sm" style="margin-top:10px;" data-action="reopen-closed">🔓 فتح الاستشارة وإعادتها للمستشار للتعديل</button>` : ''}
-
-            <div class="field" style="margin-top:20px;">
-              <label>ملاحظات ومراسلات حول هذه الاستشارة</label>
-              ${(c.notesThread||[]).map(n=>`<div class="note-item"><div class="n-meta">${n.from==='admin'?esc(state.adminProfile.name||'الإدارة'):esc(state.consultantProfile.name)} — ${fmtDateTime(n.ts)}</div>${esc(n.text)}</div>`).join('') || `<div class="muted" style="margin-bottom:8px;">لا توجد ملاحظات بعد</div>`}
-              <div style="display:flex; gap:8px; margin-top:6px;">
-                <input type="text" id="noteInput" placeholder="اكتب ملاحظة…">
-                <button class="btn btn-outline btn-sm" data-action="send-note">إرسال</button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
