@@ -1244,7 +1244,7 @@ function renderDetail(){
               <div class="field" style="margin-top:16px;">
                 <label>نص الإجابة</label>
                 <div class="doc-page">${c.answer}</div>
-                <button class="btn btn-ghost btn-sm no-print" style="margin-top:8px;" data-action="copy-answer">📋 نسخ الإجابة</button>
+                <button class="btn btn-ghost btn-sm no-print" style="margin-top:8px;" data-action="copy-answer">📋 ${canReview ? 'نسخ الإجابة وإرسالها للتدقيق والنشر وإغلاق الاستشارة' : 'نسخ الإجابة'}</button>
               </div>` : ''}
 
             ${canAct ? `
@@ -1963,20 +1963,35 @@ function htmlToPlainText(html){
 async function copyAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   const htmlContent = c.answer || c.draftAnswer || '';
-  const plainText = htmlToPlainText(htmlContent);
+  const numberLabel = 'رقم الاستشارة: ' + (c.number || c.id);
+  const plainText = numberLabel + '\n\n' + htmlToPlainText(htmlContent);
+  const htmlWithNumber = `<div style="font-weight:bold; margin-bottom:10px;">${esc(numberLabel)}</div>` + htmlContent;
   try{
     if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
-      const htmlBlob = new Blob([htmlContent], {type:'text/html'});
+      const htmlBlob = new Blob([htmlWithNumber], {type:'text/html'});
       const textBlob = new Blob([plainText], {type:'text/plain'});
       await navigator.clipboard.write([ new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob }) ]);
     } else {
       await navigator.clipboard.writeText(plainText);
     }
-    toast('تم نسخ الإجابة مع الحفاظ على التنسيق وفواصل الأسطر');
   }catch(e){
     console.error('copy failed', e);
-    try{ await navigator.clipboard.writeText(plainText); toast('تم نسخ الإجابة (نص فقط)'); }
-    catch(e2){ toast('تعذر النسخ التلقائي — يرجى التحديد اليدوي'); }
+    try{ await navigator.clipboard.writeText(plainText); }
+    catch(e2){ toast('تعذر النسخ التلقائي — يرجى التحديد اليدوي'); return; }
+  }
+
+  const canReviewNow = state.role==='admin' && c.status==='تمت الإجابة';
+  if(canReviewNow){
+    c.status='مؤرشفة'; c.approvedAt=nowIso(); c.printedAt=nowIso(); c.archivedAt=nowIso(); c.showNotesToConsultant=false;
+    c.history = c.history||[];
+    c.history.push({ts:nowIso(), actor: actorName(), action:'تم نسخ الإجابة، وإرسالها للموقع الرسمي للتدقيق والنشر، ونشرها وإغلاقها مباشرة'});
+    await persistConsultations();
+    await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
+    logAudit('نسخ الإجابة + نشر وإغلاق مباشر لاستشارة: '+(c.number||c.id));
+    toast('✅ تم نسخ الإجابة (مع رقم الاستشارة)، وإرسالها للتدقيق والنشر، وإغلاق الاستشارة');
+    renderContent();
+  } else {
+    toast('تم نسخ الإجابة مع رقم الاستشارة والحفاظ على التنسيق');
   }
 }
 function downloadConsultationWord(){
