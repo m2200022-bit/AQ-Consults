@@ -187,6 +187,10 @@ tr.row-click:hover{background:var(--surface-2);}
 .searchbar .field.grow{flex:1; min-width:220px;}
 .modal-overlay{position:fixed; inset:0; background:rgba(20,24,20,0.5); display:flex; align-items:center; justify-content:center; z-index:50; padding:20px;}
 .modal{background:#fff; border-radius:16px; width:100%; max-width:420px; padding:24px; text-align:center; box-shadow:0 20px 60px rgba(0,0,0,0.3);}
+.modal.modal-wide{max-width:640px; text-align:right; max-height:85vh; overflow-y:auto;}
+.audit-result-item{display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:8px; margin-bottom:6px; font-size:14px; font-weight:700;}
+.audit-result-item.missing{background:var(--urgent-100); color:var(--urgent);}
+.audit-result-item.found{background:#eafaf1; color:#0a5c3f;}
 .modal .modal-seal{width:56px; height:56px; margin:0 auto 14px; border-radius:50%; border:2px dashed var(--gold); display:flex; align-items:center; justify-content:center; font-size:24px;}
 .modal h3{margin:0 0 8px; font-family:'Sakkal Majalla','Aref Ruqaa',serif; font-size:20px; color:var(--blue);}
 .modal p{color:var(--ink-soft); font-size:13.5px; margin:0 0 18px;}
@@ -950,6 +954,7 @@ function renderList(){
       <div class="field grow"><label>بحث (الموضوع أو رقم الاستشارة)</label><input type="text" id="fq" value="${esc(f.q)}" placeholder="اكتب كلمة للبحث…"></div>
       <div class="field"><label>الحالة</label><select id="fstatus"><option value="">الكل</option>${statusOptions.map(s=>`<option value="${s}" ${f.status===s?'selected':''}>${STATUS_DISPLAY[s]||s}</option>`).join('')}</select></div>
       <div class="field"><label>الأولوية</label><select id="fpriority"><option value="">الكل</option><option ${f.priority==='مستعجل'?'selected':''}>مستعجل</option><option ${f.priority==='عادي'?'selected':''}>عادي</option></select></div>
+      ${state.role==='admin' ? `<div class="field"><label>&nbsp;</label><button class="btn btn-outline" data-action="open-audit">🔍 تدقيق الاستشارات</button></div>` : ''}
     </div>
     <div class="panel table-panel-outlined"><div class="panel-body" id="listResultsBody" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`}</div></div>
   `;
@@ -1244,7 +1249,10 @@ function renderDetail(){
               <div class="field" style="margin-top:16px;">
                 <label>نص الإجابة</label>
                 <div class="doc-page">${c.answer}</div>
-                <button class="btn btn-ghost btn-sm no-print" style="margin-top:8px;" data-action="copy-answer">📋 ${canReview ? 'نسخ الإجابة وإرسالها للتدقيق والنشر وإغلاق الاستشارة' : 'نسخ الإجابة'}</button>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:8px; flex-wrap:wrap;">
+                  <button class="btn btn-ghost btn-sm no-print" data-action="copy-answer">📋 ${canReview ? 'نسخ الإجابة وإرسالها للتدقيق والنشر وإغلاق الاستشارة' : 'نسخ الإجابة'}</button>
+                  <span class="number-badge" title="رقم الاستشارة — للمعرفة فقط، غير مشمول في النسخ">${esc(c.number)||'—'}</span>
+                </div>
               </div>` : ''}
 
             ${canAct ? `
@@ -1661,6 +1669,50 @@ async function checkAndShowEntryModal(){
     document.querySelector('[data-action="close-modal"]').addEventListener('click', ()=>{ el('modalRoot').innerHTML=''; });
   }
 }
+function openAuditModal(){
+  el('modalRoot').innerHTML = `<div class="modal-overlay" id="auditOverlay"><div class="modal modal-wide">
+    <h3 style="text-align:center;">🔍 تدقيق الاستشارات</h3>
+    <p class="muted" style="text-align:center; margin-bottom:14px;">الصق أرقام الاستشارات (وعناوينها إن أردت) — سطر واحد لكل استشارة. سيتحقق النظام من وجود كل رقم في قاعدة البيانات.</p>
+    <textarea id="auditInput" placeholder="مثال:&#10;2578293 - استشارة في الزواج&#10;2578294 - استشارة في الطلاق" style="min-height:180px; width:100%;"></textarea>
+    <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;">
+      <button class="btn btn-ghost btn-sm" data-action="close-audit">إغلاق</button>
+      <button class="btn btn-primary" data-action="run-audit">بدء التدقيق</button>
+    </div>
+    <div id="auditResults" style="margin-top:16px;"></div>
+  </div></div>`;
+  document.querySelector('[data-action="close-audit"]').addEventListener('click', closeAuditModal);
+  document.querySelector('[data-action="run-audit"]').addEventListener('click', runAudit);
+  document.getElementById('auditOverlay').addEventListener('click', (e)=>{ if(e.target.id==='auditOverlay') closeAuditModal(); });
+}
+function closeAuditModal(){ el('modalRoot').innerHTML = ''; }
+function runAudit(){
+  const raw = el('auditInput').value;
+  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  if(!lines.length){ toast('الرجاء لصق أرقام الاستشارات أولاً'); return; }
+  const knownNumbers = new Set(state.consultations.filter(c=>!c.deleted).map(c=> (c.number||'').trim()).filter(Boolean));
+  const results = lines.map(line=>{
+    const m = line.match(/\d{3,}/);
+    const num = m ? m[0] : null;
+    return { line, num, found: num ? knownNumbers.has(num) : false };
+  });
+  const missing = results.filter(r=> !r.num || !r.found);
+  const found = results.filter(r=> r.num && r.found);
+  let html = `<div class="report-table-wrap" style="margin-bottom:12px; overflow:hidden;"><div style="display:flex; justify-content:space-around; padding:10px; font-weight:800;">
+      <span style="color:#0a5c3f;">✅ موجودة: ${found.length}</span>
+      <span style="color:var(--urgent);">⚠️ غير موجودة: ${missing.length}</span>
+      <span>الإجمالي: ${results.length}</span>
+    </div></div>`;
+  if(missing.length){
+    html += `<div style="font-weight:800; margin-bottom:6px;">الاستشارات غير الموجودة في النظام:</div>`;
+    html += missing.map(r=> `<div class="audit-result-item missing">⚠️ ${r.num ? ('رقم الاستشارة '+esc(r.num)+' غير موجود في النظام') : ('لم يُعثر على رقم استشارة في السطر: '+esc(r.line))}</div>`).join('');
+  }
+  if(!missing.length && found.length){
+    html += `<div class="audit-result-item found">✅ جميع الاستشارات المدخلة (${found.length}) موجودة في النظام ومُرسلة للمستشار للإجابة عليها.</div>`;
+  } else if(found.length){
+    html += `<div class="audit-result-item found" style="margin-top:8px;">✅ ${found.length} من أصل ${results.length} استشارة موجودة ومُرسلة للمستشار.</div>`;
+  }
+  el('auditResults').innerHTML = html;
+}
 function bindContentEvents(){
   bindRowClicks();
 
@@ -1668,6 +1720,7 @@ function bindContentEvents(){
   const fstatus = el('fstatus'); if(fstatus) fstatus.addEventListener('change', ()=>{ state.filters.status = fstatus.value; refreshListResults(); });
   const fpriority = el('fpriority'); if(fpriority) fpriority.addEventListener('change', ()=>{ state.filters.priority = fpriority.value; refreshListResults(); });
   const closedFq = el('closedFq'); if(closedFq) closedFq.addEventListener('input', ()=>{ state.closedFilters.q = closedFq.value; refreshClosedListResults(); });
+  const auditBtn = document.querySelector('[data-action="open-audit"]'); if(auditBtn) auditBtn.addEventListener('click', openAuditModal);
 
   const saveBtn = document.querySelector('[data-action="save-consultation"]'); if(saveBtn) saveBtn.addEventListener('click', saveConsultation);
 
@@ -1963,12 +2016,10 @@ function htmlToPlainText(html){
 async function copyAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   const htmlContent = c.answer || c.draftAnswer || '';
-  const numberLabel = 'رقم الاستشارة: ' + (c.number || c.id);
-  const plainText = numberLabel + '\n\n' + htmlToPlainText(htmlContent);
-  const htmlWithNumber = `<div style="font-weight:bold; margin-bottom:10px;">${esc(numberLabel)}</div>` + htmlContent;
+  const plainText = htmlToPlainText(htmlContent);
   try{
     if(window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
-      const htmlBlob = new Blob([htmlWithNumber], {type:'text/html'});
+      const htmlBlob = new Blob([htmlContent], {type:'text/html'});
       const textBlob = new Blob([plainText], {type:'text/plain'});
       await navigator.clipboard.write([ new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob }) ]);
     } else {
@@ -1988,7 +2039,7 @@ async function copyAnswer(){
     await persistConsultations();
     await sendSystemMessage('تم إغلاق الاستشارة رقم '+(c.number||c.id)+' بتاريخ '+fmtDateTime(c.archivedAt));
     logAudit('نسخ الإجابة + نشر وإغلاق مباشر لاستشارة: '+(c.number||c.id));
-    toast('✅ تم نسخ الإجابة (مع رقم الاستشارة)، وإرسالها للتدقيق والنشر، وإغلاق الاستشارة');
+    toast('✅ تم نسخ الإجابة، وإرسالها للتدقيق والنشر، وإغلاق الاستشارة');
     renderContent();
   } else {
     toast('تم نسخ الإجابة مع رقم الاستشارة والحفاظ على التنسيق');
