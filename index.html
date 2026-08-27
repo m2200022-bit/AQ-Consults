@@ -257,6 +257,8 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .editor-toolbar button:hover{background:var(--surface-2);}
 .editor-toolbar button[data-action="load-device-fonts"]{width:auto; padding:0 10px; font-size:12px;}
 .editor-toolbar button[data-action="refresh-greeting"]{width:auto; padding:0 10px; font-size:12px;}
+#voiceInputBtn.recording{background:var(--urgent); color:#fff; border-color:var(--urgent); animation:micPulse 1s infinite;}
+@keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(217,45,45,.5);} 50%{box-shadow:0 0 0 6px rgba(217,45,45,0);}}
 #formatPainterBtn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
 .editor-select{border:1px solid var(--border); border-radius:6px; height:24px; padding:0 4px; font-size:11px; background:#fff; cursor:pointer;}
 #editorFontFamily.editor-select{width:100px;}
@@ -453,6 +455,46 @@ function refreshAnswerGreeting(){
     editor.innerHTML = newGreeting + current;
   }
   toast('تم تحديث المقدمة حسب بيانات السائل الحالية');
+}
+let voiceRecognition = null;
+let voiceRecording = false;
+function toggleVoiceInput(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SR){
+    toast('ميزة الإملاء الصوتي غير مدعومة في هذا المتصفح — تعمل حالياً على متصفح Chrome أو Edge (على الحاسوب أو أندرويد)');
+    return;
+  }
+  const editor = el('answerEditor'); if(!editor) return;
+  const micBtn = el('voiceInputBtn');
+  if(voiceRecording){
+    if(voiceRecognition) voiceRecognition.stop();
+    return;
+  }
+  editor.focus();
+  voiceRecognition = new SR();
+  voiceRecognition.lang = 'ar-SA';
+  voiceRecognition.continuous = true;
+  voiceRecognition.interimResults = false;
+  voiceRecognition.onstart = ()=>{ voiceRecording = true; if(micBtn) micBtn.classList.add('recording'); toast('🎙️ جارٍ الاستماع… تحدث الآن'); };
+  voiceRecognition.onerror = (e)=>{
+    console.error('speech recognition error', e);
+    if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){ toast('تم رفض إذن استخدام الميكروفون — يرجى السماح بالوصول للميكروفون من إعدادات المتصفح'); }
+    else if(e.error === 'no-speech'){ /* silent timeout, ignore */ }
+    else { toast('حدث خطأ في التعرف الصوتي: '+e.error); }
+  };
+  voiceRecognition.onend = ()=>{ voiceRecording = false; if(micBtn) micBtn.classList.remove('recording'); };
+  voiceRecognition.onresult = (event)=>{
+    let finalText = '';
+    for(let i=event.resultIndex;i<event.results.length;i++){
+      if(event.results[i].isFinal){ finalText += event.results[i][0].transcript; }
+    }
+    if(finalText.trim()){
+      editor.focus();
+      document.execCommand('insertText', false, finalText + ' ');
+    }
+  };
+  try{ voiceRecognition.start(); }
+  catch(e){ console.error('failed to start recognition', e); toast('تعذّر بدء الإملاء الصوتي'); }
 }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
@@ -1337,6 +1379,7 @@ function renderDetail(){
                   </div>
                   <button type="button" data-action="load-device-fonts" title="قراءة خطوط الجهاز">🔤 خطوط جهازي</button>
                   <button type="button" id="formatPainterBtn" data-action="copy-format" title="نسخ التنسيق: حدد نصاً منسّقاً ثم اضغط هنا، ثم حدد النص الذي تريد تنسيقه">🖌️</button>
+                  <button type="button" id="voiceInputBtn" data-action="toggle-voice" title="إملاء صوتي: اضغط وتحدث، سيتحول كلامك إلى نص تلقائياً">🎤</button>
                   <button type="button" data-action="refresh-greeting" title="إعادة إدراج المقدمة الصحيحة (حسب جنس السائل المحدَّث) في بداية النص">🔄 المقدمة</button>
                   <span class="editor-toolbar-sep"></span>
                   <button type="button" data-cmd="bold" title="غامق"><b>B</b></button>
@@ -1795,6 +1838,8 @@ function bindContentEvents(){
     if(paintBtn) paintBtn.addEventListener('click', copyFormatFromSelection);
     const refreshGreetBtn = document.querySelector('[data-action="refresh-greeting"]');
     if(refreshGreetBtn) refreshGreetBtn.addEventListener('click', refreshAnswerGreeting);
+    const voiceBtn = document.querySelector('[data-action="toggle-voice"]');
+    if(voiceBtn) voiceBtn.addEventListener('click', toggleVoiceInput);
   }
   const asA = document.querySelector('[data-action="answer-submit"]'); if(asA) asA.addEventListener('click', ()=>submitAnswer(false));
   const asD = document.querySelector('[data-action="answer-decline"]'); if(asD) asD.addEventListener('click', declineAnswer);
