@@ -5,10 +5,30 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>نظام الاستشارات — مكتب الدكتور عقيل محمد المقطري</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;900&family=Amiri:ital,wght@0,400;0,700;1,400&family=Aref+Ruqaa:wght@400;700&family=Beiruti:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<!-- emailjs, html2canvas, and jsPDF are now loaded on-demand only when their features are used (see loadScriptOnce) -->
+<script>
+function loadScriptOnce(src){
+  return new Promise((resolve, reject)=>{
+    if(document.querySelector('script[data-lazy-src="'+src+'"]')){
+      const check = ()=>{ resolve(); };
+      // if already loaded/loading, just resolve once ready via a tiny poll
+      const existing = document.querySelector('script[data-lazy-src="'+src+'"]');
+      if(existing.dataset.loaded==='1'){ resolve(); return; }
+      existing.addEventListener('load', check);
+      existing.addEventListener('error', ()=>reject(new Error('failed to load '+src)));
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = src;
+    s.setAttribute('data-lazy-src', src);
+    s.onload = ()=>{ s.dataset.loaded = '1'; resolve(); };
+    s.onerror = ()=> reject(new Error('failed to load '+src));
+    document.head.appendChild(s);
+  });
+}
+</script>
 <style>
 /* ملاحظة: طلب استخدام "خط الوتد" (وزارة الثقافة) و"DG Forsha" (خط فرشة) — كلاهما خطوط تُحمَّل كملفات (TTF) وليست متاحة عبر Google Fonts أو أي CDN عام،
    لذلك تعذّر تضمينهما تلقائياً هنا. تم استخدام خط "Aref Ruqaa" (خط عربي بطابع خط اليد/الفرشاة) للعناوين كبديل مقارب حتى تزوّدني بملفات الخطوط الفعلية (TTF/WOFF) لتضمينها مباشرة عبر @font-face.
@@ -384,8 +404,10 @@ const APP_STATE_COLLECTION = 'app_state';
 const EMAILJS_CONFIG = { serviceId: 'YOUR_SERVICE_ID', templateId: 'YOUR_TEMPLATE_ID', publicKey: 'YOUR_PUBLIC_KEY' };
 const NOTIFY_EMAIL = 'm2200022@gmail.com';
 async function sendNewConsultationEmail(c){
-  if(!window.emailjs || EMAILJS_CONFIG.serviceId==='YOUR_SERVICE_ID'){ console.warn('EmailJS غير مُعدّ بعد — تم تخطي إرسال البريد'); return; }
+  if(EMAILJS_CONFIG.serviceId==='YOUR_SERVICE_ID'){ return; } // not configured — skip without loading anything
   try{
+    if(!window.emailjs){ await loadScriptOnce('https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js'); }
+    if(!window.emailjs) return;
     await window.emailjs.send(EMAILJS_CONFIG.serviceId, EMAILJS_CONFIG.templateId, {
       to_email: NOTIFY_EMAIL,
       message: 'لديك استشارة جديدة رقمها ' + (c.number || c.id)
@@ -596,12 +618,14 @@ function showSyncError(e){
 }
 
 async function loadAll(){
-  const c = await storeGet('consultations_v2', true);
-  const m = await storeGet('messages_v2', true);
-  const a = await storeGet('audit_v2', true);
-  const p = await storeGet('profiles_v2', true);
-  const b = await storeGet('branding_v1', true);
-  const sg = await storeGet('suggestions_v1', true);
+  const [c, m, a, p, b, sg] = await Promise.all([
+    storeGet('consultations_v2', true),
+    storeGet('messages_v2', true),
+    storeGet('audit_v2', true),
+    storeGet('profiles_v2', true),
+    storeGet('branding_v1', true),
+    storeGet('suggestions_v1', true)
+  ]);
   state.consultations = c ? JSON.parse(c) : [];
   state.messages = m ? JSON.parse(m) : [];
   state.audit = a ? JSON.parse(a) : [];
@@ -610,7 +634,7 @@ async function loadAll(){
     const parsed = JSON.parse(p);
     state.adminProfile = Object.assign({}, state.adminProfile, parsed.admin||{});
     state.consultantProfile = Object.assign({}, state.consultantProfile, parsed.consultant||{});
-  } else { await persistProfiles(); }
+  } else { persistProfiles(); }
   if(b){ const parsedB = JSON.parse(b); state.logoUrl = parsedB.logoUrl || ''; }
 }
 async function autoEscalatePriorities(){
@@ -848,8 +872,8 @@ function renderLogin(){
         <div class="login-stat-item"><span class="lsi-num">${s.new + s.urgentPending}</span><span class="lsi-lbl">📥 استشارات جديدة</span></div>
         <div class="login-stat-item overdue"><span class="lsi-num">${s.overdue}</span><span class="lsi-lbl">⏰ استشارات متأخرة</span></div>
       </div>
-      <div class="field" style="text-align:right;"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="اسم المستخدم"></div>
-      <div class="field" style="text-align:right;"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="كلمة المرور"></div>
+      <div class="field" style="text-align:right;"><label>اسم المستخدم</label><input type="text" id="loginUser" placeholder="اسم المستخدم" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="username"></div>
+      <div class="field" style="text-align:right;"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="كلمة المرور" autocapitalize="off" autocorrect="off" spellcheck="false" autocomplete="current-password"></div>
       <div id="loginError" class="login-error hidden"></div>
       <button class="btn btn-primary" id="loginBtn" style="width:100%; justify-content:center; margin-top:6px;">دخول</button>
     </div>
@@ -864,15 +888,16 @@ async function loadSidebarPref(role){
 function bindLoginEvents(){
   const doLogin = async ()=>{
     const u = (el('loginUser').value||'').trim();
+    const uLower = u.toLowerCase();
     const p = (el('loginPass').value||'').trim();
     const err = el('loginError');
-    if(u && p && u===state.adminProfile.username && p===state.adminProfile.password){
+    if(u && p && uLower===String(state.adminProfile.username||'').trim().toLowerCase() && p===String(state.adminProfile.password||'').trim()){
       state.authenticated = true; state.role = 'admin'; state.view = 'dashboard';
       await loadSidebarPref('admin');
       render(); refreshUnseenMessages().then(()=>{ render(); checkAndShowEntryModal(); });
       return;
     }
-    if(u && p && u===state.consultantProfile.username && p===state.consultantProfile.password){
+    if(u && p && uLower===String(state.consultantProfile.username||'').trim().toLowerCase() && p===String(state.consultantProfile.password||'').trim()){
       state.authenticated = true; state.role = 'consultant'; state.view = 'dashboard';
       await loadSidebarPref('consultant');
       render(); refreshUnseenMessages().then(()=>{ render(); checkAndShowEntryModal(); });
@@ -1579,7 +1604,16 @@ async function downloadReportPdf(){
   const area = el('rangeReportPrintArea') || el('monthlyReportPrintArea');
   if(!area){ toast('تعذّر إيجاد محتوى التقرير'); return; }
   if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
-    toast('تعذّر تحميل مكتبة إنشاء PDF — تحقق من الاتصال بالإنترنت'); return;
+    toast('جارٍ تحميل أدوات إنشاء PDF…');
+    try{
+      await Promise.all([
+        typeof html2canvas === 'undefined' ? loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js') : Promise.resolve(),
+        typeof window.jspdf === 'undefined' ? loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js') : Promise.resolve()
+      ]);
+    }catch(e){
+      console.error('failed to load PDF libraries', e);
+      toast('تعذّر تحميل مكتبة إنشاء PDF — تحقق من الاتصال بالإنترنت'); return;
+    }
   }
   toast('جارٍ إنشاء ملف PDF…');
   try{
@@ -2480,9 +2514,9 @@ async function init(){
   window.addEventListener('offline', ()=>{ state.syncStatus='error'; updateSyncIndicator(); showSyncError({code:'offline'}); });
   window.addEventListener('online', ()=>{ markSyncOk(); });
   await loadAll();
-  await autoEscalatePriorities();
   render();
   watchConsultationsLive();
+  autoEscalatePriorities();
   setInterval(autoEscalatePriorities, 5*60*1000);
 }
 init();
