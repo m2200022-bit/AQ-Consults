@@ -259,6 +259,9 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .editor-toolbar button[data-action="refresh-greeting"]{width:auto; padding:0 10px; font-size:12px;}
 #voiceInputBtn.recording{background:var(--urgent); color:#fff; border-color:var(--urgent); animation:micPulse 1s infinite;}
 @keyframes micPulse{0%,100%{box-shadow:0 0 0 0 rgba(217,45,45,.5);} 50%{box-shadow:0 0 0 6px rgba(217,45,45,0);}}
+.autosave-status{font-size:11.5px; color:var(--ink-faint); margin-top:6px; min-height:16px; text-align:left;}
+.autosave-status.saving{color:var(--gold);}
+.autosave-status.saved{color:#0a5c3f;}
 #formatPainterBtn.active{background:var(--primary); color:#fff; border-color:var(--primary);}
 .editor-select{border:1px solid var(--border); border-radius:6px; height:24px; padding:0 4px; font-size:11px; background:#fff; cursor:pointer;}
 #editorFontFamily.editor-select{width:100px;}
@@ -428,17 +431,19 @@ function isFemaleAsker(c){
 }
 function askerAddressPhrase(c){
   const name = (c && c.askerName ? c.askerName : '').trim();
-  const phrase = isFemaleAsker(c) ? 'الأخت الفاضلة' : 'الأخ الفاضل';
-  return name ? `${phrase} / ${name}` : phrase;
+  const female = isFemaleAsker(c);
+  const phrase = female ? 'الأخت الفاضلة' : 'الأخ الفاضل';
+  const dua = female ? 'حفظها الله' : 'حفظه الله';
+  return name ? `${phrase} / ${name} ${dua}` : phrase;
 }
 function askerKinshipTerm(c){
   return isFemaleAsker(c) ? 'أختنا الكريمة' : 'أخي الكريم';
 }
 function buildAnswerGreeting(c){
-  return `بسم الله الرحمن الرحيم<br>${esc(askerAddressPhrase(c))}<br>السلام عليكم ورحمة الله وبركاته.<br><br>`;
+  return `بسم الله الرحمن الرحيم<br>${esc(askerAddressPhrase(c))}<br>السلام عليكم ورحمة الله وبركاته، وبعد:<br><br>`;
 }
 function buildAnswerClosing(){
-  return `<br><br>وتقبلوا خالص التحية والتقدير.`;
+  return ``;
 }
 function buildAnswerTemplate(c){
   return buildAnswerGreeting(c) + `مرحبًا بك (${esc(askerKinshipTerm(c))}) في شبكة إسلام ويب، وردًّا على استشارتك أقول، مستعينًا بالله:<br><br><br>` + buildAnswerClosing();
@@ -447,7 +452,7 @@ function refreshAnswerGreeting(){
   const editor = el('answerEditor'); if(!editor) return;
   const c = state.consultations.find(x=>x.id===state.detailId); if(!c) return;
   const current = editor.innerHTML;
-  const oldGreetingPattern = /^بسم الله الرحمن الرحيم<br>.*?<br>السلام عليكم ورحمة الله وبركاته\.<br>\s*(<br>)*/;
+  const oldGreetingPattern = /^بسم الله الرحمن الرحيم<br>.*?<br>السلام عليكم ورحمة الله وبركاته[.،].*?<br>\s*(<br>)*/;
   const newGreeting = buildAnswerGreeting(c);
   if(oldGreetingPattern.test(current)){
     editor.innerHTML = current.replace(oldGreetingPattern, newGreeting);
@@ -1394,6 +1399,7 @@ function renderDetail(){
                 <div class="page-canvas">
                   <div class="doc-page word-like" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerTemplate(c)}</div>
                 </div>
+                <div id="autoSaveStatus" class="autosave-status no-print"></div>
                 ${c.returnFeedback ? `<div class="notice-banner" style="margin-top:10px;">📝 ملاحظة الإدارة على الإجابة السابقة: ${esc(c.returnFeedback)}</div>` : ''}
                 <div class="icon-actions">
                   <button class="icon-btn" data-action="answer-submit"><span class="ic">✅</span>إجابة السؤال</button>
@@ -1825,6 +1831,7 @@ function bindContentEvents(){
   }
 
   const editor = el('answerEditor');
+  if(autoSaveIntervalId){ clearInterval(autoSaveIntervalId); autoSaveIntervalId = null; }
   if(editor){
     document.querySelectorAll('.editor-toolbar [data-cmd]').forEach(btn=>btn.addEventListener('click', ()=>{ editor.focus(); document.execCommand(btn.getAttribute('data-cmd'), false, null); }));
     editor.style.fontFamily = "'Traditional Arabic','Sakkal Majalla',serif";
@@ -1840,6 +1847,9 @@ function bindContentEvents(){
     if(refreshGreetBtn) refreshGreetBtn.addEventListener('click', refreshAnswerGreeting);
     const voiceBtn = document.querySelector('[data-action="toggle-voice"]');
     if(voiceBtn) voiceBtn.addEventListener('click', toggleVoiceInput);
+    lastSavedAnswerContent = editor.innerHTML;
+    editor.addEventListener('input', scheduleAutoSaveDraft);
+    autoSaveIntervalId = setInterval(autoSaveDraftIfChanged, 20000);
   }
   const asA = document.querySelector('[data-action="answer-submit"]'); if(asA) asA.addEventListener('click', ()=>submitAnswer(false));
   const asD = document.querySelector('[data-action="answer-decline"]'); if(asD) asD.addEventListener('click', declineAnswer);
@@ -2082,12 +2092,58 @@ async function declineAnswer(){
   toast('تم إرسال الاعتذار إلى الإدارة');
   setView('list');
 }
+let lastSavedAnswerContent = null;
+let autoSaveIntervalId = null;
+let autoSaveDebounceId = null;
+let autoSaveInFlight = false;
+function scheduleAutoSaveDraft(){
+  const statusEl = el('autoSaveStatus');
+  if(statusEl){ statusEl.textContent = '✏️ تعديلات غير محفوظة…'; statusEl.className = 'autosave-status'; }
+  clearTimeout(autoSaveDebounceId);
+  autoSaveDebounceId = setTimeout(autoSaveDraftIfChanged, 2500);
+}
+async function autoSaveDraftIfChanged(){
+  const editor = el('answerEditor'); if(!editor) return;
+  const current = editor.innerHTML;
+  if(current === lastSavedAnswerContent) return;
+  if(autoSaveInFlight) return;
+  autoSaveInFlight = true;
+  const statusEl = el('autoSaveStatus');
+  if(statusEl){ statusEl.textContent = '⏳ جارٍ الحفظ التلقائي…'; statusEl.className = 'autosave-status saving'; }
+  try{
+    const c = state.consultations.find(x=>x.id===state.detailId);
+    if(c){
+      c.draftAnswer = current;
+      await persistConsultations();
+      lastSavedAnswerContent = current;
+      const statusEl2 = el('autoSaveStatus');
+      if(statusEl2){ statusEl2.textContent = '✅ تم الحفظ التلقائي — '+ new Date().toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'}); statusEl2.className = 'autosave-status saved'; }
+    }
+  }catch(e){
+    console.error('auto-save failed', e);
+    const statusEl3 = el('autoSaveStatus');
+    if(statusEl3){ statusEl3.textContent = '⚠️ تعذّر الحفظ التلقائي — سيُعاد المحاولة'; statusEl3.className = 'autosave-status'; }
+  }finally{
+    autoSaveInFlight = false;
+  }
+}
+window.addEventListener('beforeunload', function(e){
+  const editor = document.getElementById('answerEditor');
+  if(editor && editor.innerHTML !== lastSavedAnswerContent){
+    autoSaveDraftIfChanged();
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 async function saveDraftAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   c.draftAnswer = el('answerEditor').innerHTML;
+  lastSavedAnswerContent = c.draftAnswer;
   await persistConsultations();
   logAudit('حفظ مسودة إجابة لاستشارة '+(c.number||c.id));
   toast('تم حفظ المسودة');
+  const statusEl = el('autoSaveStatus');
+  if(statusEl){ statusEl.textContent = '✅ تم الحفظ — '+ new Date().toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'}); statusEl.className = 'autosave-status saved'; }
 }
 function htmlToPlainText(html){
   if(!html) return '';
