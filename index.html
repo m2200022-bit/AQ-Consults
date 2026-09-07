@@ -109,6 +109,21 @@ body{background:var(--bg); color:var(--ink); font-family:'Sakkal Majalla','Tajaw
 .content.fade-in{animation:contentFadeIn .18s ease;}
 @keyframes contentFadeIn{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
 .stats-grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(110px,1fr)); gap:8px; margin-bottom:18px;}
+.chart-bars{display:flex; flex-direction:column; gap:14px;}
+.chart-row{display:grid; grid-template-columns:40px 1fr 130px; align-items:center; gap:12px;}
+.chart-count{font-weight:800; font-size:14px; text-align:center;}
+.chart-track{background:var(--surface-2); border-radius:999px; height:10px; overflow:hidden;}
+.chart-fill{height:100%; border-radius:999px; transition:width .4s ease;}
+.chart-label{font-size:13px; font-weight:700; color:var(--ink-soft);}
+.progress-wrap{display:flex; align-items:center; gap:8px; min-width:120px;}
+.progress-track{flex:1; background:var(--surface-2); border-radius:999px; height:8px; overflow:hidden;}
+.progress-fill{height:100%; border-radius:999px; transition:width .3s ease;}
+.progress-pct{font-size:11.5px; font-weight:800; min-width:32px; text-align:left;}
+.days-scale-wrap{display:flex; align-items:center; gap:8px;}
+.days-scale{display:flex; gap:3px;}
+.days-seg{width:12px; height:7px; border-radius:3px; background:var(--surface-2); border:1px solid var(--border);}
+.days-seg.active{background:var(--seg-color); border-color:var(--seg-color);}
+.days-scale-label{font-size:11.5px; font-weight:700; color:var(--ink-soft); white-space:nowrap;}
 .stat-card{background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:10px 12px; box-shadow:var(--shadow);}
 .stat-card .num{font-size:19px; font-weight:900; font-family:'Sakkal Majalla','Amiri',serif;}
 .stat-card .lbl{font-size:10.5px; color:var(--ink-soft); margin-top:1px;}
@@ -290,7 +305,8 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 .editor-toolbar-sep{width:1px; align-self:stretch; background:var(--border); margin:0 4px;}
 .page-canvas{background:#dde3e8; padding:26px 16px; border-radius:12px; display:flex; justify-content:center; overflow-x:auto;}
 .doc-page.word-like{width:100%; max-width:780px; min-height:520px; padding:60px 65px; box-shadow:0 6px 22px rgba(0,0,0,.18); border:1px solid #c9c9c9;}
-.doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:20px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; line-height:1.5; text-align:justify; letter-spacing:0.2px;}
+.doc-page{background:#fff; border:1px solid var(--border); border-radius:10px; min-height:260px; padding:20px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; line-height:1.5; text-align:justify; letter-spacing:0.2px; unicode-bidi:plaintext; overflow-wrap:break-word; word-break:break-word; max-width:100%; overflow-x:hidden;}
+.doc-page * {max-width:100% !important; overflow:visible !important; position:static !important; float:none !important;}
 .doc-page:focus{outline:2px solid var(--primary-100); border-color:var(--primary);}
 .chat-thread{display:flex; flex-direction:column; gap:10px; max-height:420px; overflow-y:auto; padding:4px;}
 .chat-bubble{max-width:75%; padding:9px 13px; border-radius:12px; font-size:13.5px; position:relative;}
@@ -318,6 +334,8 @@ tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
 
 /* ---------- Mobile responsiveness ---------- */
 @media (max-width:640px){
+  .progress-wrap{min-width:80px;}
+  .days-seg{width:9px; height:6px;}
   .content{padding:14px 12px;}
   .topbar{padding:10px 14px; flex-wrap:wrap; gap:8px;}
   .searchbar{flex-direction:column; align-items:stretch;}
@@ -437,6 +455,7 @@ let state = {
   rangeFrom: '',
   rangeTo: '',
   reportType: 'received',
+  reportStatusFilter: '',
   suggestions: [],
   unseenMessages: 0
 };
@@ -1089,19 +1108,45 @@ function bindRowClicks(){
   document.querySelectorAll('[data-action="restore-consultation"]').forEach(b=>b.addEventListener('click', ()=> restoreConsultation(b.getAttribute('data-id'))));
   document.querySelectorAll('[data-action="permadelete-consultation"]').forEach(b=>b.addEventListener('click', ()=> permanentlyDeleteConsultation(b.getAttribute('data-id'))));
 }
+function progressPercent(c){
+  let pct = 30; // إرسال الاستشارة
+  if(['تمت الإجابة','معتمدة','قيد الطباعة','مؤرشفة'].includes(c.status)) pct += 30; // الإجابة
+  if(['معتمدة','قيد الطباعة','مؤرشفة'].includes(c.status)) pct += 30; // النسخ وإرسالها للموقع الرسمي
+  if(c.status === 'مؤرشفة') pct += 10; // الإغلاق
+  return Math.min(100, pct);
+}
+function progressColor(pct){
+  if(pct>=100) return '#2f9e6f';
+  if(pct>=90) return '#2f6fed';
+  if(pct>=60) return '#e0a530';
+  return '#9a9a9a';
+}
+function progressPathHtml(c){
+  const pct = progressPercent(c);
+  const color = progressColor(pct);
+  return `<div class="progress-wrap"><div class="progress-track" title="مسار الإنجاز: ${pct}%"><div class="progress-fill" style="width:${pct}%; background:${color};"></div></div><span class="progress-pct" style="color:${color};">${pct}%</span></div>`;
+}
+const DAYS_SCALE_COLORS = ['#2f9e6f','#8bc34a','#e0a530','#e0821f','#d92d2d'];
+function daysScaleHtml(days){
+  const d = Math.max(0, days||0);
+  const activeIdx = d<=0 ? 0 : Math.min(4, d-1);
+  const segs = DAYS_SCALE_COLORS.map((color,i)=>`<span class="days-seg ${i<=activeIdx?'active':''}" style="--seg-color:${color};" title="يوم ${i+1}"></span>`).join('');
+  return `<div class="days-scale-wrap"><div class="days-scale">${segs}</div><span class="days-scale-label">${d} يوم</span></div>`;
+}
 function tableHtml(list){
   const showActions = state.role==='admin';
-  return `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>التاريخ</th><th>الأولوية</th><th>الحالة</th><th>منذ الوصول</th>${showActions?'<th class="no-print">إجراءات</th>':''}</tr></thead>
+  return `<table><thead><tr><th>رقم</th><th>الموضوع</th><th>مسار الإنجاز</th><th>التاريخ</th><th>الأولوية</th><th>الحالة</th><th>منذ الوصول</th>${showActions?'<th class="no-print">إجراءات</th>':''}</tr></thead>
     <tbody>${list.map(c=>{
       const st = statusStamp(c);
       const ep = effectivePriority(c);
       return `<tr class="row-click ${rowColorClass(c)}" data-detail="${c.id}">
         <td><span class="number-badge">${esc(c.number)||'—'}</span></td>
         <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}${c.archivedAt ? `<div class="closed-meta">🔒 أُغلقت: ${fmtDateTime(c.archivedAt)}</div>` : ''}</td>
+        <td>${progressPathHtml(c)}</td>
         <td>${c.date?esc(c.date):'—'}</td>
         <td><span class="pill ${ep==='مستعجل'?'urgent':'normal'}">${ep==='مستعجل'?'🔴':'🟢'} ${ep}</span></td>
         <td><span class="stamp ${st.cls}"><span class="dot"></span>${st.label}</span></td>
-        <td class="muted">${daysElapsedDisplay(c)} يوم</td>
+        <td>${daysScaleHtml(daysElapsedDisplay(c))}</td>
         ${showActions ? `<td class="no-print"><button class="icon-link" data-edit-row="${c.id}" title="تعديل">✏️</button><button class="icon-link danger" data-delete-row="${c.id}" title="حذف">🗑️</button></td>` : ''}
       </tr>`;
     }).join('')}</tbody></table>`;
@@ -1301,7 +1346,8 @@ function renderDetail(){
   return `
     <button class="btn btn-ghost btn-sm no-print" data-nav="list" style="margin-bottom:14px;">→ الرجوع للقائمة</button>
     <div class="detail-grid">
-      <div class="panel"><div class="panel-head"><h3>السجل الزمني</h3></div><div class="panel-body">
+      <div class="panel"><div class="panel-head"><h3>السجل الزمني (سجل التتبع)</h3></div><div class="panel-body">
+        <div style="margin-bottom:14px;">${progressPathHtml(c)}</div>
         <ul class="timeline">${(c.history||[]).map(h=>`<li><div class="t-action">${esc(h.action)}</div><div class="t-meta">${esc(h.actor)} — ${fmtDateTime(h.ts)}</div></li>`).join('')}</ul>
       </div></div>
       <div>
@@ -1455,6 +1501,16 @@ function renderDetail(){
 function renderReports(){
   const list = visibleConsultations();
   const s = computeStats(list);
+  const completionRate = s.total ? Math.round(((s.archived)/s.total)*100) : 0;
+  const avgResp = avgResponseDays(list);
+  const chartRows = [
+    {label:'مكتمل (منشورة)', count:s.archived, color:'#2f9e6f'},
+    {label:'للنشر', count:s.approved, color:'#2f6fed'},
+    {label:'قيد الانتظار', count:s.pendingTotal, color:'#e0a530'},
+    {label:'متأخرة', count:s.overdue, color:'#d92d2d'},
+    {label:'اعتذار', count:s.apology, color:'#9a9a9a'}
+  ];
+  const maxChart = Math.max(1, ...chartRows.map(r=>r.count));
   return `
     <div class="panel no-print"><div class="panel-head"><h3>تصدير وطباعة</h3></div>
       <div class="panel-body" style="display:flex; gap:10px; flex-wrap:wrap;">
@@ -1467,9 +1523,22 @@ function renderReports(){
     </div>
     <div class="stats-grid">
       <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الاستشارات</div></div>
-      <div class="stat-card accent-blue"><div class="num">${s.answered + s.approved + s.printing}</div><div class="lbl">المجاب عنها</div></div>
-      <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
-      <div class="stat-card accent-urgent"><div class="num">${s.urgent}</div><div class="lbl">المستعجلة</div></div>
+      <div class="stat-card accent-blue"><div class="num">${s.answered + s.approved + s.printing + s.archived}</div><div class="lbl">المجاب عنها</div></div>
+      <div class="stat-card accent-gold"><div class="num">${s.pendingTotal}</div><div class="lbl">قيد الانتظار</div></div>
+      <div class="stat-card accent-normal"><div class="num">${completionRate}%</div><div class="lbl">نسبة الإنجاز</div></div>
+      <div class="stat-card accent-blue"><div class="num">${avgResp}</div><div class="lbl">متوسط مدة الرد (يوم)</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head"><h3>📊 توزيع الاستشارات حسب الحالة</h3></div>
+      <div class="panel-body">
+        <div class="chart-bars">${chartRows.map(r=>`
+          <div class="chart-row">
+            <span class="chart-count">${r.count}</span>
+            <div class="chart-track"><div class="chart-fill" style="width:${(r.count/maxChart*100).toFixed(1)}%; background:${r.color};"></div></div>
+            <span class="chart-label">${r.label}</span>
+          </div>`).join('')}
+        </div>
+      </div>
     </div>
     ${renderRangeReport(list)}
     ${renderMonthlyReport(list, state.role==='admin' ? 'التقرير الشهري لجميع الاستشارات' : 'تقريري الشهري')}
@@ -1483,9 +1552,11 @@ function renderReports(){
 function renderRangeReport(list){
   const from = state.rangeFrom, to = state.rangeTo;
   const type = state.reportType || 'received';
+  const statusFilter = state.reportStatusFilter || '';
   let filtered = list;
   if(from) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
   if(to) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
+  if(statusFilter) filtered = filtered.filter(c=> statusKey(c) === statusFilter);
 
   let bodyHtml = '';
   if(type === 'answered'){
@@ -1540,6 +1611,18 @@ function renderRangeReport(list){
             <option value="received" ${type==='received'?'selected':''}>الاستشارات الواردة</option>
             <option value="answered" ${type==='answered'?'selected':''}>الاستشارات المجاب عنها</option>
             <option value="financial" ${type==='financial'?'selected':''}>تقرير مالي</option>
+          </select>
+        </div>
+        <div class="field"><label>الحالة</label>
+          <select id="reportStatusFilter">
+            <option value="">كل الحالات</option>
+            <option value="جديدة" ${statusFilter==='جديدة'?'selected':''}>جديدة</option>
+            <option value="مستعجلة" ${statusFilter==='مستعجلة'?'selected':''}>مستعجلة</option>
+            <option value="متأخرة" ${statusFilter==='متأخرة'?'selected':''}>متأخرة</option>
+            <option value="تمت الإجابة" ${statusFilter==='تمت الإجابة'?'selected':''}>تمت الإجابة</option>
+            <option value="معتمدة" ${statusFilter==='معتمدة'?'selected':''}>للنشر</option>
+            <option value="مؤرشفة" ${statusFilter==='مؤرشفة'?'selected':''}>منشورة</option>
+            <option value="اعتذار" ${statusFilter==='اعتذار'?'selected':''}>اعتذار</option>
           </select>
         </div>
         <div class="field"><button class="btn btn-outline" data-action="export-range-csv">⬇️ تصدير</button></div>
@@ -1883,6 +1966,7 @@ function bindContentEvents(){
     if(voiceBtn) voiceBtn.addEventListener('click', toggleVoiceInput);
     lastSavedAnswerContent = editor.innerHTML;
     editor.addEventListener('input', scheduleAutoSaveDraft);
+    editor.addEventListener('paste', handleEditorPaste);
     autoSaveIntervalId = setInterval(autoSaveDraftIfChanged, 20000);
   }
   const asA = document.querySelector('[data-action="answer-submit"]'); if(asA) asA.addEventListener('click', ()=>submitAnswer(false));
@@ -1910,6 +1994,7 @@ function bindContentEvents(){
   const rangeFromEl = el('rangeFrom'); if(rangeFromEl) rangeFromEl.addEventListener('change', ()=>{ state.rangeFrom = rangeFromEl.value; renderContent(); });
   const rangeToEl = el('rangeTo'); if(rangeToEl) rangeToEl.addEventListener('change', ()=>{ state.rangeTo = rangeToEl.value; renderContent(); });
   const reportTypeEl = el('reportType'); if(reportTypeEl) reportTypeEl.addEventListener('change', ()=>{ state.reportType = reportTypeEl.value; renderContent(); });
+  const reportStatusEl = el('reportStatusFilter'); if(reportStatusEl) reportStatusEl.addEventListener('change', ()=>{ state.reportStatusFilter = reportStatusEl.value; renderContent(); });
   document.querySelectorAll('[data-action="download-report-pdf"]').forEach(b=>b.addEventListener('click', downloadReportPdf));
   const exportRange = document.querySelector('[data-action="export-range-csv"]'); if(exportRange) exportRange.addEventListener('click', exportRangeCsv);
 
@@ -2068,6 +2153,17 @@ function applyCopiedFormat(){
   toast('تم تطبيق التنسيق');
   copiedFormat = null;
   const btn = el('formatPainterBtn'); if(btn) btn.classList.remove('active');
+}
+function handleEditorPaste(e){
+  e.preventDefault();
+  const editor = e.currentTarget;
+  const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+  if(!text) return;
+  // نحوّل النص الملصوق إلى نص عادي منسّق بفواصل أسطر فقط، متجرداً من أي تنسيق/مواقع/خطوط
+  // خارجية قد تُخرج المحتوى عن حدود المربع أو تجعله غير مقروء (مثل لصق من Word أو صفحات ويب).
+  const safeHtml = esc(text).replace(/\r\n|\r|\n/g, '<br>');
+  document.execCommand('insertHTML', false, safeHtml);
+  editor.dispatchEvent(new Event('input', {bubbles:true}));
 }
 function applyFontFamily(fontName){
   const editor = el('answerEditor'); if(!editor) return;
