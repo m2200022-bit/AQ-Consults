@@ -247,6 +247,11 @@ tr.row-click:hover{background:var(--surface-2);}
 .timeline li::before{content:''; position:absolute; right:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:var(--primary);}
 .timeline li .t-action{font-weight:700; font-size:13px;}
 .timeline li .t-meta{color:var(--ink-faint); font-size:11.5px; margin-top:2px;}
+.timeline-boxes{display:flex; flex-direction:column; gap:9px;}
+.timeline-box{display:flex; align-items:flex-start; gap:10px; border-right:4px solid var(--tl-color); border-radius:10px; padding:11px 14px;}
+.timeline-box .tl-dot{width:10px; height:10px; border-radius:50%; margin-top:4px; flex:0 0 10px;}
+.timeline-box .tl-action{font-weight:800; font-size:13.5px; color:#1a1a1a;}
+.timeline-box .tl-meta{color:var(--ink-faint); font-size:11.5px; margin-top:3px;}
 .kv{display:grid; grid-template-columns:120px 1fr; gap:7px 10px; font-size:18px; font-weight:700; font-family:'Sakkal Majalla','Amiri',serif; margin-bottom:4px;}
 .kv-highlight{background:var(--gold-100); border:1px solid var(--gold); border-radius:10px; padding:10px 12px;}
 .info-bar{display:flex; flex-wrap:wrap; gap:10px 22px; align-items:center; margin-bottom:16px; padding:12px 16px; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;}
@@ -844,7 +849,8 @@ function layoutShell(){
       </div>
       <div class="nav">${items}</div>
       <div class="nav-sep"></div>
-      <div class="sidebar-foot">متصل بقاعدة بيانات Firebase — البيانات محفوظة ومتزامنة بين جميع الأجهزة</div>
+      <!-- تم إخفاء جملة "متصل بقاعدة بيانات Firebase" بناءً على الطلب -->
+      <div class="sidebar-foot" style="display:none;">متصل بقاعدة بيانات Firebase — البيانات محفوظة ومتزامنة بين جميع الأجهزة</div>
     </div>
     <div class="main">
       <div class="topbar">
@@ -1108,6 +1114,36 @@ function bindRowClicks(){
   document.querySelectorAll('[data-action="restore-consultation"]').forEach(b=>b.addEventListener('click', ()=> restoreConsultation(b.getAttribute('data-id'))));
   document.querySelectorAll('[data-action="permadelete-consultation"]').forEach(b=>b.addEventListener('click', ()=> permanentlyDeleteConsultation(b.getAttribute('data-id'))));
 }
+function hexToRgba(hex, alpha){
+  const h = hex.replace('#','');
+  const r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function timelineActionColor(action){
+  const a = action||'';
+  if(/حذف|مهملات/.test(a)) return '#6b7280';
+  if(/استرجاع|إعادة فتح/.test(a)) return '#e0821f';
+  if(/اعتذار/.test(a)) return '#d92d2d';
+  if(/نشر|إغلاق|منشورة/.test(a)) return '#2f9e6f';
+  if(/اعتماد|للنشر|تدقيق/.test(a)) return '#2f6fed';
+  if(/إجابة/.test(a)) return '#e0a530';
+  if(/إنشاء|إرسال/.test(a)) return '#28677a';
+  if(/تعديل|تحديث|أولوية/.test(a)) return '#9c693d';
+  return '#8a8a8a';
+}
+function timelineBoxesHtml(history){
+  if(!history || !history.length) return `<div class="empty">لا توجد إجراءات مسجّلة بعد</div>`;
+  return `<div class="timeline-boxes">${history.map(h=>{
+    const color = timelineActionColor(h.action);
+    return `<div class="timeline-box" style="--tl-color:${color}; background:${hexToRgba(color,0.09)};">
+      <div class="tl-dot" style="background:${color};"></div>
+      <div class="tl-content">
+        <div class="tl-action">${esc(h.action)}</div>
+        <div class="tl-meta">${esc(h.actor)} — ${fmtDateTime(h.ts)}</div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
 function progressPercent(c){
   let pct = 30; // إرسال الاستشارة
   if(['تمت الإجابة','معتمدة','قيد الطباعة','مؤرشفة'].includes(c.status)) pct += 30; // الإجابة
@@ -1348,7 +1384,7 @@ function renderDetail(){
     <div class="detail-grid">
       <div class="panel"><div class="panel-head"><h3>السجل الزمني (سجل التتبع)</h3></div><div class="panel-body">
         <div style="margin-bottom:14px;">${progressPathHtml(c)}</div>
-        <ul class="timeline">${(c.history||[]).map(h=>`<li><div class="t-action">${esc(h.action)}</div><div class="t-meta">${esc(h.actor)} — ${fmtDateTime(h.ts)}</div></li>`).join('')}</ul>
+        ${timelineBoxesHtml(c.history)}
       </div></div>
       <div>
         <div class="panel">
@@ -1895,26 +1931,39 @@ function openAuditModal(){
   document.getElementById('auditOverlay').addEventListener('click', (e)=>{ if(e.target.id==='auditOverlay') closeAuditModal(); });
 }
 function closeAuditModal(){ el('modalRoot').innerHTML = ''; }
+function normalizeDigits(str){
+  const arabicIndic = '٠١٢٣٤٥٦٧٨٩';
+  return String(str).replace(/[٠-٩]/g, d => String(arabicIndic.indexOf(d)));
+}
 function runAudit(){
   const raw = el('auditInput').value;
   const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
   if(!lines.length){ toast('الرجاء لصق أرقام الاستشارات أولاً'); return; }
-  const knownNumbers = new Set(state.consultations.filter(c=>!c.deleted).map(c=> (c.number||'').trim()).filter(Boolean));
+  const knownNumbers = new Set(state.consultations.filter(c=>!c.deleted).map(c=> normalizeDigits((c.number||'').trim())).filter(Boolean));
   const results = lines.map(line=>{
-    const m = line.match(/\d{3,}/);
+    const normalizedLine = normalizeDigits(line);
+    const m = normalizedLine.match(/\d{3,}/);
     const num = m ? m[0] : null;
     return { line, num, found: num ? knownNumbers.has(num) : false };
   });
   const missing = results.filter(r=> !r.num || !r.found);
+  const missingWithNum = missing.filter(r=> r.num);
+  const missingNoNum = missing.filter(r=> !r.num);
   const found = results.filter(r=> r.num && r.found);
-  let html = `<div class="report-table-wrap" style="margin-bottom:12px; overflow:hidden;"><div style="display:flex; justify-content:space-around; padding:10px; font-weight:800;">
+
+  let html = `<div class="report-table-wrap" style="margin-bottom:14px; overflow:hidden;"><div style="display:flex; justify-content:space-around; padding:10px; font-weight:800;">
       <span style="color:#0a5c3f;">✅ موجودة: ${found.length}</span>
       <span style="color:var(--urgent);">⚠️ غير موجودة: ${missing.length}</span>
       <span>الإجمالي: ${results.length}</span>
     </div></div>`;
-  if(missing.length){
-    html += `<div style="font-weight:800; margin-bottom:6px;">الاستشارات غير الموجودة في النظام:</div>`;
-    html += missing.map(r=> `<div class="audit-result-item missing">⚠️ ${r.num ? ('رقم الاستشارة '+esc(r.num)+' غير موجود في النظام') : ('لم يُعثر على رقم استشارة في السطر: '+esc(r.line))}</div>`).join('');
+
+  if(missingWithNum.length){
+    html += `<div style="font-weight:800; margin-bottom:8px; color:var(--urgent);">⚠️ أرقام الاستشارات غير المدرجة في النظام (${missingWithNum.length}):</div>`;
+    html += `<div style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:14px;">${missingWithNum.map(r=>`<span class="number-badge" style="background:linear-gradient(135deg,var(--urgent) 0%, #a12020 100%);" title="${esc(r.line)}">${esc(r.num)}</span>`).join('')}</div>`;
+  }
+  if(missingNoNum.length){
+    html += `<div style="font-weight:800; margin-bottom:6px;">⚠️ أسطر لم يُعثر فيها على رقم استشارة صالح:</div>`;
+    html += missingNoNum.map(r=> `<div class="audit-result-item missing">${esc(r.line)}</div>`).join('');
   }
   if(!missing.length && found.length){
     html += `<div class="audit-result-item found">✅ جميع الاستشارات المدخلة (${found.length}) موجودة في النظام ومُرسلة للمستشار للإجابة عليها.</div>`;
