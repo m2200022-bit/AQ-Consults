@@ -281,6 +281,10 @@ tr.row-urgent-full td:first-child{border-right:4px solid var(--urgent);}
 tr.row-normal-open td{background:#e7f7ef !important;}
 tr.row-normal-open:hover td{background:#d9f2e5 !important;}
 tr.row-normal-open td:first-child{border-right:4px solid #2f9e6f;}
+tr.row-published td{background:#e7f7ef !important;}
+tr.row-published:hover td{background:#d9f2e5 !important;}
+tr.row-published td:first-child{border-right:4px solid #2f9e6f;}
+.published-tag{display:inline-block; background:#2f9e6f; color:#fff; font-size:10.5px; font-weight:800; padding:2px 8px; border-radius:999px; margin-bottom:4px;}
 .btn-outline-danger{background:#fff; border:1.5px solid var(--urgent); color:var(--urgent);}
 .mobile-toggle{display:none; border:none; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; width:36px; height:36px; font-size:16px; cursor:pointer;}
 @media(max-width:900px){.mobile-toggle{display:block;}}
@@ -461,6 +465,7 @@ let state = {
   rangeTo: '',
   reportType: 'received',
   reportStatusFilter: '',
+  reportCategoryFilter: '',
   suggestions: [],
   unseenMessages: 0
 };
@@ -565,6 +570,7 @@ function daysElapsedDisplay(c){
   return daysSince(c.assignedAt||c.createdAt);
 }
 function rowColorClass(c){
+  if(c.status === 'مؤرشفة') return 'row-published';
   if(c.status !== 'تحت الإجابة') return '';
   return effectivePriority(c)==='مستعجل' ? 'row-urgent-full' : 'row-normal-open';
 }
@@ -819,12 +825,12 @@ function setView(view, extra){
   state.sidebarOpen = false;
   render();
 }
-function iconFor(view){ return {dashboard:'🏠', list:'📋', add:'➕', closed:'🔒', reports:'🖨️', monthly:'📅', trash:'🗑️', messages:'✉️', audit:'🕵️', settings:'⚙️'}[view] || '•'; }
+function iconFor(view){ return {dashboard:'🏠', list:'📋', answered:'✅', add:'➕', closed:'🔒', reports:'🖨️', monthly:'📅', trash:'🗑️', messages:'✉️', audit:'🕵️', settings:'⚙️'}[view] || '•'; }
 function navItems(){
   if(state.role==='admin'){
-    return [ ['dashboard','لوحة التحكم'], ['list','الاستشارات'], ['add','إضافة استشارة'], ['closed','الاستشارات المغلقة'], ['reports','التقارير'], ['trash','سلة المهملات'], ['messages','الرسائل'], ['audit','سجل العمليات'], ['settings','إدارة المستخدمين والصلاحيات'] ];
+    return [ ['dashboard','لوحة التحكم'], ['list','الاستشارات'], ['answered','تمت الإجابة عنها'], ['add','إضافة استشارة'], ['closed','الاستشارات المغلقة'], ['reports','التقارير'], ['trash','سلة المهملات'], ['messages','الرسائل'], ['audit','سجل العمليات'], ['settings','إدارة المستخدمين والصلاحيات'] ];
   }
-  return [ ['dashboard','لوحة التحكم'], ['list','استشاراتي'], ['closed','استشاراتي المغلقة'], ['reports','التقارير'], ['messages','الرسائل'] ];
+  return [ ['dashboard','لوحة التحكم'], ['list','استشاراتي'], ['answered','التي أجبت عنها'], ['closed','استشاراتي المغلقة'], ['reports','التقارير'], ['messages','الرسائل'] ];
 }
 function pendingBadgeCount(){
   if(state.role==='consultant'){
@@ -832,11 +838,18 @@ function pendingBadgeCount(){
   }
   return state.consultations.filter(c=>!c.deleted && c.status==='تحت الإجابة').length;
 }
+function answeredBadgeCount(){
+  if(state.role==='consultant'){
+    return state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تمت الإجابة').length;
+  }
+  return state.consultations.filter(c=>!c.deleted && c.status==='تمت الإجابة').length;
+}
 function layoutShell(){
   const items = navItems().map(([v,label])=>{
     let badgeCount = 0;
     if(v==='messages') badgeCount = state.unseenMessages;
     if(v==='list') badgeCount = pendingBadgeCount();
+    if(v==='answered') badgeCount = answeredBadgeCount();
     const badge = badgeCount>0 ? `<span class="nav-badge">${badgeCount}</span>` : '';
     return `<button class="nav-item ${state.view===v?'active':''}" data-nav="${v}" title="${esc(label)}"><span>${iconFor(v)}</span><span>${label}</span>${badge}</button>`;
   }).join('');
@@ -944,6 +957,7 @@ function renderContent(){
   else if(state.view==='list') c.innerHTML = renderList();
   else if(state.view==='closed') c.innerHTML = renderClosedList();
   else if(state.view==='trash') c.innerHTML = renderTrash();
+  else if(state.view==='answered') c.innerHTML = renderAnsweredList();
   else if(state.view==='add') c.innerHTML = renderAddForm();
   else if(state.view==='detail') c.innerHTML = renderDetail();
   else if(state.view==='reports') c.innerHTML = renderReports();
@@ -1087,9 +1101,9 @@ function renderRecentTable(list, title){
 
 /* ---------- List ---------- */
 function renderList(){
-  const list = visibleConsultations().filter(c=>c.status!=='مؤرشفة');
+  const list = visibleConsultations().filter(c=>c.status!=='مؤرشفة' && c.status!=='تمت الإجابة');
   const f = state.filters;
-  const statusOptions = ['جديدة','مستعجلة','متأخرة','مستعجلة ومتأخرة','تمت الإجابة','معتمدة','قيد الطباعة','اعتذار'];
+  const statusOptions = ['جديدة','مستعجلة','متأخرة','مستعجلة ومتأخرة','معتمدة','قيد الطباعة','اعتذار'];
   return `
     <div class="searchbar">
       <div class="field grow"><label>بحث (الموضوع أو رقم الاستشارة)</label><input type="text" id="fq" value="${esc(f.q)}" placeholder="اكتب كلمة للبحث…"></div>
@@ -1103,7 +1117,7 @@ function renderList(){
 function refreshListResults(){
   const body = el('listResultsBody');
   if(!body) return;
-  const list = visibleConsultations().filter(c=>c.status!=='مؤرشفة');
+  const list = visibleConsultations().filter(c=>c.status!=='مؤرشفة' && c.status!=='تمت الإجابة');
   body.innerHTML = list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">🗂️</div>لا توجد نتائج مطابقة</div>`;
   bindRowClicks();
 }
@@ -1152,10 +1166,11 @@ function progressPercent(c){
   return Math.min(100, pct);
 }
 function progressColor(pct){
+  // نفس ألوان مسار "منذ الوصول": أحمر (بداية) → برتقالي → ذهبي → أخضر (اكتمال)
   if(pct>=100) return '#2f9e6f';
-  if(pct>=90) return '#2f6fed';
-  if(pct>=60) return '#e0a530';
-  return '#9a9a9a';
+  if(pct>=90) return '#e0a530';
+  if(pct>=60) return '#e0821f';
+  return '#d92d2d';
 }
 function progressPathHtml(c){
   const pct = progressPercent(c);
@@ -1177,7 +1192,7 @@ function tableHtml(list){
       const ep = effectivePriority(c);
       return `<tr class="row-click ${rowColorClass(c)}" data-detail="${c.id}">
         <td><span class="number-badge">${esc(c.number)||'—'}</span></td>
-        <td>${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}${c.archivedAt ? `<div class="closed-meta">🔒 أُغلقت: ${fmtDateTime(c.archivedAt)}</div>` : ''}</td>
+        <td>${c.status==='مؤرشفة' ? `<div class="published-tag">✅ منشورة</div>` : ''}${esc(c.subject)||'<span class="muted">بدون موضوع</span>'}${c.archivedAt ? `<div class="closed-meta">🔒 أُغلقت: ${fmtDateTime(c.archivedAt)}</div>` : ''}${c.returnedForEdit ? `<div class="closed-meta">🔄 مسترجعة للتعديل</div>` : ''}</td>
         <td>${progressPathHtml(c)}</td>
         <td>${c.date?esc(c.date):'—'}</td>
         <td><span class="pill ${ep==='مستعجل'?'urgent':'normal'}">${ep==='مستعجل'?'🔴':'🟢'} ${ep}</span></td>
@@ -1202,6 +1217,13 @@ function renderTrash(){
           </tr>`).join('')}</tbody>
         </table>` : `<div class="empty"><div class="e-icon">🗑️</div>سلة المهملات فارغة</div>`}
       </div>
+    </div>`;
+}
+function renderAnsweredList(){
+  const list = visibleConsultations().filter(c=>c.status==='تمت الإجابة').sort((a,b)=>new Date(b.answeredAt||b.createdAt)-new Date(a.answeredAt||a.createdAt));
+  return `
+    <div class="panel table-panel-outlined"><div class="panel-head"><h3>✅ الاستشارات التي تمت الإجابة عنها (${list.length})</h3><span class="muted">${state.role==='admin'?'بانتظار الاعتماد والإرسال للنشر':'بانتظار اعتماد الإدارة'}</span></div>
+      <div class="panel-body" style="padding:0;">${list.length ? tableHtml(list) : `<div class="empty"><div class="e-icon">📭</div>لا توجد استشارات تمت الإجابة عنها حالياً</div>`}</div>
     </div>`;
 }
 function renderClosedList(){
@@ -1280,6 +1302,27 @@ function renderAddForm(){
             <td style="padding:6px;"><textarea id="f_question" placeholder="الصق نص السؤال هنا…" class="table-cell-input table-cell-textarea">${editing?esc(editing.question):''}</textarea></td>
           </tr></tbody>
         </table>
+      </div>
+      <div class="grid-2">
+        <div class="field"><label>تصنيف الاستشارة (اختياري — لتقارير التصنيف)</label>
+          <select id="f_category">
+            <option value="">— غير مصنّفة —</option>
+            <option value="عبادات" ${editing&&editing.category==='عبادات'?'selected':''}>عبادات</option>
+            <option value="معاملات" ${editing&&editing.category==='معاملات'?'selected':''}>معاملات</option>
+            <option value="أسرية" ${editing&&editing.category==='أسرية'?'selected':''}>أسرية</option>
+            <option value="عقيدة" ${editing&&editing.category==='عقيدة'?'selected':''}>عقيدة</option>
+            <option value="أخرى" ${editing&&editing.category==='أخرى'?'selected':''}>أخرى</option>
+          </select>
+        </div>
+        <div class="field"><label>مصدر الاستشارة (اختياري — لتقارير المصادر)</label>
+          <select id="f_source">
+            <option value="">— غير محدد —</option>
+            <option value="الموقع الرسمي" ${editing&&editing.source==='الموقع الرسمي'?'selected':''}>الموقع الرسمي</option>
+            <option value="البريد الإلكتروني" ${editing&&editing.source==='البريد الإلكتروني'?'selected':''}>البريد الإلكتروني</option>
+            <option value="واتساب" ${editing&&editing.source==='واتساب'?'selected':''}>واتساب</option>
+            <option value="أخرى" ${editing&&editing.source==='أخرى'?'selected':''}>أخرى</option>
+          </select>
+        </div>
       </div>
       <div class="field"><label>ملاحظات داخلية (لا تظهر للمستشار)</label><textarea id="f_notes" placeholder="ملاحظات خاصة بالإدارة فقط">${editing?esc(editing.internalNotes):''}</textarea></div>
       <div class="field">
@@ -1399,6 +1442,16 @@ function renderDetail(){
             ${(state.role==='admin' || (state.role==='consultant' && isMine)) ? `<button class="btn btn-outline-danger btn-sm no-print" style="margin-bottom:12px;" data-action="download-word">⬇️ تنزيل صفحة Word (رقم الاستشارة، البيانات، ومربع للإجابة)</button>` : ''}
 
             ${state.role==='consultant' && c.status==='مؤرشفة' ? `<div class="notice-banner">🔒 تم إغلاق هذه الاستشارة بتاريخ ${fmtDateTime(c.archivedAt)}</div>` : ''}
+            ${state.role==='admin' && c.status==='مؤرشفة' ? `<div class="field" style="margin-bottom:12px;"><label>تقييم رضا المستفيد (اختياري)</label>
+              <select id="satisfactionRating">
+                <option value="0" ${!c.satisfactionRating?'selected':''}>— بدون تقييم —</option>
+                <option value="1" ${c.satisfactionRating==1?'selected':''}>⭐ (1) غير راضٍ</option>
+                <option value="2" ${c.satisfactionRating==2?'selected':''}>⭐⭐ (2)</option>
+                <option value="3" ${c.satisfactionRating==3?'selected':''}>⭐⭐⭐ (3) متوسط</option>
+                <option value="4" ${c.satisfactionRating==4?'selected':''}>⭐⭐⭐⭐ (4)</option>
+                <option value="5" ${c.satisfactionRating==5?'selected':''}>⭐⭐⭐⭐⭐ (5) راضٍ جداً</option>
+              </select>
+            </div>` : ''}
             ${isCritical(c) ? `<div class="notice-banner notice-critical">🔴 تجاوزت هذه الاستشارة 4 أيام دون إجابة — تحتاج اهتماماً عاجلاً</div>` : ''}
 
             <div class="report-table-wrap" style="margin-bottom:12px; overflow-x:auto;">
@@ -1507,6 +1560,7 @@ function renderDetail(){
                   <div class="doc-page word-like" id="answerEditor" contenteditable="true">${c.draftAnswer || buildAnswerTemplate(c)}</div>
                 </div>
                 <div id="autoSaveStatus" class="autosave-status no-print"></div>
+                ${c.returnedForEdit ? `<div class="notice-banner notice-critical" style="margin-top:10px;">🔄 هذه الاستشارة <b>مسترجعة للتعديل</b> — الإجابة أدناه هي إجابتك السابقة، عدّلها ثم أرسلها من جديد.</div>` : ''}
                 ${c.returnFeedback ? `<div class="notice-banner" style="margin-top:10px;">📝 ملاحظة الإدارة على الإجابة السابقة: ${esc(c.returnFeedback)}</div>` : ''}
                 <div class="icon-actions">
                   <button class="icon-btn" data-action="answer-submit"><span class="ic">✅</span>إجابة السؤال</button>
@@ -1534,48 +1588,224 @@ function renderDetail(){
 }
 
 /* ---------- Reports ---------- */
+/* ---------- Reports: chart + metric helpers ---------- */
+function uniqueBeneficiariesCount(list){
+  return new Set(list.map(c=>(c.askerName||'').trim()).filter(Boolean)).size;
+}
+function activeConsultantsCount(list){
+  const names = new Set();
+  list.forEach(c=>(c.assignedTo||[]).forEach(n=>{ if(n) names.add(n); }));
+  return names.size || 1;
+}
+function donutChartHtml(segments){
+  const total = segments.reduce((s,x)=>s+x.value,0) || 0;
+  let acc = 0;
+  const stops = total ? segments.map(s=>{
+    const start = (acc/total)*360; acc+=s.value; const end=(acc/total)*360;
+    return `${s.color} ${start.toFixed(1)}deg ${end.toFixed(1)}deg`;
+  }).join(', ') : '#e4ded2 0deg 360deg';
+  return `<div style="display:flex; align-items:center; gap:24px; flex-wrap:wrap;">
+    <div style="width:150px; height:150px; border-radius:50%; background:conic-gradient(${stops}); position:relative; flex:0 0 150px;">
+      <div style="position:absolute; inset:20px; background:#fff; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:20px;">${total}</div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:7px;">
+      ${segments.map(s=>`<div style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700;"><span style="width:12px;height:12px;border-radius:3px;background:${s.color}; display:inline-block;"></span>${esc(s.label)}: <b>${s.value}</b> ${total?`(${Math.round(s.value/total*100)}%)`:''}</div>`).join('')}
+    </div>
+  </div>`;
+}
+function lineChartSvg(points){
+  const w=560,h=190,pad=32;
+  const max = Math.max(1,...points.map(p=>p.value));
+  const stepX = points.length>1 ? (w-2*pad)/(points.length-1) : 0;
+  const coords = points.map((p,i)=>{
+    const x = pad + i*stepX;
+    const y = h-pad - (p.value/max)*(h-2*pad);
+    return {x,y,label:p.label,value:p.value};
+  });
+  if(!coords.length) return `<div class="empty">لا توجد بيانات كافية لعرض المخطط</div>`;
+  const path = coords.map((c,i)=> (i===0?'M':'L')+c.x.toFixed(1)+','+c.y.toFixed(1)).join(' ');
+  const areaPath = path + ` L${coords[coords.length-1].x.toFixed(1)},${h-pad} L${coords[0].x.toFixed(1)},${h-pad} Z`;
+  return `<svg viewBox="0 0 ${w} ${h}" style="width:100%; height:auto; max-height:220px;">
+    <path d="${areaPath}" fill="rgba(47,111,237,0.08)" stroke="none"></path>
+    <path d="${path}" fill="none" stroke="#2f6fed" stroke-width="2.5"></path>
+    ${coords.map(c=>`<circle cx="${c.x.toFixed(1)}" cy="${c.y.toFixed(1)}" r="4" fill="#2f6fed"></circle><text x="${c.x.toFixed(1)}" y="${(c.y-10).toFixed(1)}" font-size="10.5" text-anchor="middle" fill="#193044" font-weight="700">${c.value}</text>`).join('')}
+    ${coords.map(c=>`<text x="${c.x.toFixed(1)}" y="${h-8}" font-size="10" text-anchor="middle" fill="#66747a">${esc(c.label)}</text>`).join('')}
+  </svg>`;
+}
+function verticalBarChartHtml(points){
+  const max = Math.max(1,...points.map(p=>p.value));
+  if(!points.length) return `<div class="empty">لا توجد بيانات كافية لعرض المخطط</div>`;
+  return `<div style="display:flex; align-items:flex-end; gap:12px; height:190px; padding:10px 4px;">
+    ${points.map(p=>`
+      <div style="flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; height:100%; justify-content:flex-end;">
+        <div style="font-size:11px; font-weight:800;">${p.value}</div>
+        <div style="width:100%; max-width:38px; height:${Math.max(4,(p.value/max*100))}%; background:linear-gradient(180deg,#2f6fed,#1e4fb0); border-radius:6px 6px 0 0;"></div>
+        <div style="font-size:10.5px; color:var(--ink-soft); font-weight:700; text-align:center;">${esc(p.label)}</div>
+      </div>`).join('')}
+  </div>`;
+}
+function horizontalBarsHtml(rows){
+  const max = Math.max(1,...rows.map(r=>r.value));
+  if(!rows.length) return `<div class="empty">لا توجد بيانات كافية</div>`;
+  return `<div class="chart-bars">${rows.map(r=>`
+    <div class="chart-row">
+      <span class="chart-count">${r.value}</span>
+      <div class="chart-track"><div class="chart-fill" style="width:${(r.value/max*100).toFixed(1)}%; background:${r.color||'#2f6fed'};"></div></div>
+      <span class="chart-label">${esc(r.label)}</span>
+    </div>`).join('')}</div>`;
+}
+function categoryBreakdown(list){
+  const counts = {};
+  list.forEach(c=>{ const k = c.category || 'غير مصنّفة'; counts[k]=(counts[k]||0)+1; });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value}));
+}
+function sourceBreakdown(list){
+  const counts = {};
+  list.forEach(c=>{ const k = c.source || 'غير محدد'; counts[k]=(counts[k]||0)+1; });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).map(([label,value])=>({label,value}));
+}
+function consultantPerformanceRows(list){
+  const map = {};
+  list.forEach(c=>{
+    (c.assignedTo||[]).forEach(name=>{
+      if(!name) return;
+      if(!map[name]) map[name] = {name, total:0, completed:0, totalResponseDays:0, responseCount:0};
+      map[name].total++;
+      if(['تمت الإجابة','معتمدة','قيد الطباعة','مؤرشفة'].includes(c.status)) map[name].completed++;
+      if(c.answeredAt){ map[name].totalResponseDays += (new Date(c.answeredAt)-new Date(c.assignedAt||c.createdAt))/86400000; map[name].responseCount++; }
+    });
+  });
+  return Object.values(map).map(r=>({...r, avgResponse: r.responseCount? (r.totalResponseDays/r.responseCount).toFixed(1) : '—', rate: r.total? Math.round(r.completed/r.total*100):0 }));
+}
+function workflowStages(list){
+  return [
+    {label:'جديدة', value:list.filter(c=>statusKey(c)==='جديدة').length, color:'#2f6fed'},
+    {label:'قيد المعالجة (مستعجلة/متأخرة)', value:list.filter(c=>['مستعجلة','متأخرة','مستعجلة ومتأخرة'].includes(statusKey(c))).length, color:'#e0a530'},
+    {label:'تمت الإجابة', value:list.filter(c=>c.status==='تمت الإجابة').length, color:'#e0821f'},
+    {label:'للنشر', value:list.filter(c=>c.status==='معتمدة').length, color:'#9c27b0'},
+    {label:'منشورة', value:list.filter(c=>c.status==='مؤرشفة').length, color:'#2f9e6f'}
+  ];
+}
+function monthlyResponseAvg(list){
+  const byMonth = {};
+  list.forEach(c=>{
+    if(!c.answeredAt) return;
+    const k = monthKey(c.createdAt);
+    const days = (new Date(c.answeredAt)-new Date(c.assignedAt||c.createdAt))/86400000;
+    if(!byMonth[k]) byMonth[k] = {sum:0,count:0};
+    byMonth[k].sum += days; byMonth[k].count++;
+  });
+  return Object.entries(byMonth).sort((a,b)=>a[0]<b[0]?-1:1).slice(-6).map(([k,v])=>({label:monthLabel(k).split(' ')[0], value:Math.round((v.sum/v.count)*10)/10}));
+}
+function smartAlertsHtml(list){
+  const overdue = list.filter(isOverdue);
+  const nearDeadline = list.filter(c=> c.status==='تحت الإجابة' && !isOverdue(c) && hoursSince(c.assignedAt||c.createdAt) >= 24 && hoursSince(c.assignedAt||c.createdAt) < 36);
+  if(!overdue.length && !nearDeadline.length) return `<div class="notice-banner" style="color:#0a5c3f; background:#e7f7ef; border-color:#2f9e6f;">✅ لا توجد استشارات متأخرة أو مقاربة لتجاوز مدة الرد حالياً.</div>`;
+  let html = '';
+  if(overdue.length) html += `<div class="notice-banner notice-critical">🔴 ${overdue.length} استشارة متأخرة تحتاج متابعة فورية.</div>`;
+  if(nearDeadline.length) html += `<div class="notice-banner" style="background:#fffbe0; border-color:#eab308; color:#a16207; margin-top:8px;">🟡 ${nearDeadline.length} استشارة تقترب من تجاوز مدة الرد المحددة.</div>`;
+  return html;
+}
 function renderReports(){
   const list = visibleConsultations();
   const s = computeStats(list);
   const completionRate = s.total ? Math.round(((s.archived)/s.total)*100) : 0;
   const avgResp = avgResponseDays(list);
-  const chartRows = [
-    {label:'مكتمل (منشورة)', count:s.archived, color:'#2f9e6f'},
-    {label:'للنشر', count:s.approved, color:'#2f6fed'},
-    {label:'قيد الانتظار', count:s.pendingTotal, color:'#e0a530'},
-    {label:'متأخرة', count:s.overdue, color:'#d92d2d'},
-    {label:'اعتذار', count:s.apology, color:'#9a9a9a'}
+  const beneficiaries = uniqueBeneficiariesCount(list);
+  const activeConsultants = activeConsultantsCount(list);
+  const months = monthlyCounts(list);
+
+  const statusChartRows = [
+    {label:'مكتمل (منشورة)', value:s.archived, color:'#2f9e6f'},
+    {label:'للنشر', value:s.approved, color:'#2f6fed'},
+    {label:'قيد الانتظار', value:s.pendingTotal, color:'#e0a530'},
+    {label:'متأخرة', value:s.overdue, color:'#d92d2d'},
+    {label:'اعتذار', value:s.apology, color:'#9a9a9a'}
   ];
-  const maxChart = Math.max(1, ...chartRows.map(r=>r.count));
+  const donutSegments = [
+    {label:'جديدة', value:s.new, color:'#2f6fed'},
+    {label:'قيد المعالجة', value:s.urgentPending+s.overdue, color:'#e0a530'},
+    {label:'تمت الإجابة', value:s.answered, color:'#e0821f'},
+    {label:'للنشر', value:s.approved+s.printing, color:'#9c27b0'},
+    {label:'منشورة', value:s.archived, color:'#2f9e6f'},
+    {label:'اعتذار', value:s.apology, color:'#9a9a9a'}
+  ];
+  const monthlyCompletionPoints = months.map(([k,v])=>({label:monthLabel(k).split(' ')[0], value:v}));
+  const trendPoints = months.map(([k,v])=>({label:monthLabel(k).split(' ')[0], value:v}));
+  const categoryRows = categoryBreakdown(list);
+  const sourceRows = sourceBreakdown(list);
+  const consultantRows = consultantPerformanceRows(list);
+  const respTimePoints = monthlyResponseAvg(list);
+  const workflowRows = workflowStages(list);
+
   return `
     <div class="panel no-print"><div class="panel-head"><h3>تصدير وطباعة</h3></div>
       <div class="panel-body" style="display:flex; gap:10px; flex-wrap:wrap;">
         <button class="btn btn-primary" data-action="print-report">🖨️ طباعة</button>
-        <button class="btn btn-outline" data-action="export-csv" data-set="all">⬇️ تصدير الكل</button>
+        <button class="btn btn-outline" data-action="download-report-pdf" title="تنزيل PDF">📄 تنزيل PDF</button>
+        <button class="btn btn-outline" data-action="export-csv" data-set="all">⬇️ تصدير الكل (Excel/CSV)</button>
         <button class="btn btn-outline" data-action="export-csv" data-set="answered">⬇️ المجاب عنها</button>
         <button class="btn btn-outline" data-action="export-csv" data-set="overdue">⬇️ المتأخرة</button>
         <button class="btn btn-outline" data-action="export-csv" data-set="urgent">⬇️ المستعجلة</button>
       </div>
     </div>
-    <div class="stats-grid">
-      <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الاستشارات</div></div>
-      <div class="stat-card accent-blue"><div class="num">${s.answered + s.approved + s.printing + s.archived}</div><div class="lbl">المجاب عنها</div></div>
-      <div class="stat-card accent-gold"><div class="num">${s.pendingTotal}</div><div class="lbl">قيد الانتظار</div></div>
-      <div class="stat-card accent-normal"><div class="num">${completionRate}%</div><div class="lbl">نسبة الإنجاز</div></div>
-      <div class="stat-card accent-blue"><div class="num">${avgResp}</div><div class="lbl">متوسط مدة الرد (يوم)</div></div>
+
+    <div class="panel"><div class="panel-head"><h3>🔔 تنبيهات ذكية</h3></div>
+      <div class="panel-body">${smartAlertsHtml(list)}</div>
     </div>
-    <div class="panel">
-      <div class="panel-head"><h3>📊 توزيع الاستشارات حسب الحالة</h3></div>
+
+    <div id="reportsPrintArea">
+    <div class="panel"><div class="panel-head"><h3>📌 لوحة المؤشرات الرئيسية</h3></div>
       <div class="panel-body">
-        <div class="chart-bars">${chartRows.map(r=>`
-          <div class="chart-row">
-            <span class="chart-count">${r.count}</span>
-            <div class="chart-track"><div class="chart-fill" style="width:${(r.count/maxChart*100).toFixed(1)}%; background:${r.color};"></div></div>
-            <span class="chart-label">${r.label}</span>
-          </div>`).join('')}
+        <div class="stats-grid">
+          <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">إجمالي الاستشارات</div></div>
+          <div class="stat-card accent-blue"><div class="num">${s.new}</div><div class="lbl">الاستشارات الجديدة</div></div>
+          <div class="stat-card accent-normal"><div class="num">${s.answered + s.approved + s.printing + s.archived}</div><div class="lbl">المجاب عنها</div></div>
+          <div class="stat-card accent-gold"><div class="num">${s.pendingTotal}</div><div class="lbl">قيد المعالجة</div></div>
+          <div class="stat-card accent-urgent"><div class="num">${s.overdue}</div><div class="lbl">المتأخرة</div></div>
+          <div class="stat-card accent-normal"><div class="num">${completionRate}%</div><div class="lbl">نسبة الإنجاز</div></div>
+          <div class="stat-card accent-blue"><div class="num">${avgResp}</div><div class="lbl">متوسط زمن الرد (يوم)</div></div>
+          <div class="stat-card accent-gold"><div class="num">${beneficiaries}</div><div class="lbl">عدد المستفيدين</div></div>
+          <div class="stat-card accent-normal"><div class="num">${activeConsultants}</div><div class="lbl">الباحثون النشطون</div></div>
         </div>
       </div>
     </div>
+
+    <div class="panel"><div class="panel-head"><h3>🥧 حالة الاستشارات</h3></div>
+      <div class="panel-body">${donutChartHtml(donutSegments)}</div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>📊 الإنجاز الشهري</h3></div>
+      <div class="panel-body">${verticalBarChartHtml(monthlyCompletionPoints)}</div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>📈 تطور أعداد الاستشارات</h3></div>
+      <div class="panel-body">${lineChartSvg(trendPoints)}</div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>🏷️ تصنيف الاستشارات حسب النوع</h3><span class="muted">حسب حقل "التصنيف" الاختياري عند إضافة الاستشارة</span></div>
+      <div class="panel-body">${horizontalBarsHtml(categoryRows.map(r=>({...r, color:'#28677a'})))}</div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>📥 مصادر الاستشارات</h3><span class="muted">حسب حقل "المصدر" الاختياري عند إضافة الاستشارة</span></div>
+      <div class="panel-body">${horizontalBarsHtml(sourceRows.map(r=>({...r, color:'#9c693d'})))}</div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>👤 أداء الباحثين والمختصين</h3></div>
+      <div class="panel-body"><table><thead><tr><th>الاسم</th><th>الإجمالي المخصص</th><th>المكتمل</th><th>نسبة الإنجاز</th><th>متوسط زمن الرد (يوم)</th></tr></thead>
+        <tbody>${consultantRows.length ? consultantRows.map(r=>`<tr><td>${esc(r.name)}</td><td>${r.total}</td><td>${r.completed}</td><td>${r.rate}%</td><td>${r.avgResponse}</td></tr>`).join('') : `<tr><td colspan="5" class="muted" style="text-align:center;">لا توجد بيانات</td></tr>`}</tbody>
+      </table></div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>⏱️ متوسط زمن الاستجابة الشهري</h3></div>
+      <div class="panel-body">${verticalBarChartHtml(respTimePoints)}</div>
+    </div>
+
+    <div class="panel"><div class="panel-head"><h3>🔀 سير العمل حسب المرحلة</h3></div>
+      <div class="panel-body">${horizontalBarsHtml(workflowRows)}</div>
+    </div>
+    </div>
+
     ${renderRangeReport(list)}
     ${renderMonthlyReport(list, state.role==='admin' ? 'التقرير الشهري لجميع الاستشارات' : 'تقريري الشهري')}
     ${state.role==='admin' ? `
@@ -1589,10 +1819,13 @@ function renderRangeReport(list){
   const from = state.rangeFrom, to = state.rangeTo;
   const type = state.reportType || 'received';
   const statusFilter = state.reportStatusFilter || '';
+  const categoryFilter = state.reportCategoryFilter || '';
   let filtered = list;
   if(from) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) >= from);
   if(to) filtered = filtered.filter(c=> (c.date||c.createdAt.slice(0,10)) <= to);
   if(statusFilter) filtered = filtered.filter(c=> statusKey(c) === statusFilter);
+  if(categoryFilter) filtered = filtered.filter(c=> (c.category||'غير مصنّفة') === categoryFilter);
+  const allCategories = Array.from(new Set(list.map(c=>c.category).filter(Boolean)));
 
   let bodyHtml = '';
   if(type === 'answered'){
@@ -1618,6 +1851,65 @@ function renderRangeReport(list){
       <div class="report-table-wrap" style="margin-top:14px;"><table class="report-table"><thead><tr><th>رقم الاستشارة</th><th>تاريخ الاستشارة</th><th>المبلغ المالي (ر.ق)</th></tr></thead>
         <tbody>${filtered.length ? filtered.map(c=>`<tr><td>${esc(c.number)||'—'}</td><td>${c.date?esc(c.date):'—'}</td><td>${unit}</td></tr>`).join('') : `<tr><td colspan="3" class="muted">لا توجد استشارات في هذه الفترة</td></tr>`}</tbody>
       </table>${filtered.length ? `<div class="report-total-row">الإجمالي: <b>${total} ر.ق</b></div>` : ''}</div>`;
+  } else if(type === 'daily'){
+    const today = todayStr();
+    const dailyList = list.filter(c=> (c.date||c.createdAt.slice(0,10)) === today);
+    bodyHtml = `<div class="stats-grid"><div class="stat-card"><div class="num">${dailyList.length}</div><div class="lbl">استشارات اليوم (${esc(today)})</div></div></div>${reportTableHtml(dailyList)}`;
+  } else if(type === 'open'){
+    const openList = filtered.filter(c=>c.status==='تحت الإجابة');
+    bodyHtml = `<div class="stats-grid"><div class="stat-card"><div class="num">${openList.length}</div><div class="lbl">الاستشارات المفتوحة</div></div></div>${reportTableHtml(openList)}`;
+  } else if(type === 'overdue'){
+    const overdueList = filtered.filter(isOverdue);
+    bodyHtml = `<div class="stats-grid"><div class="stat-card accent-urgent"><div class="num">${overdueList.length}</div><div class="lbl">الاستشارات المتأخرة</div></div></div>${reportTableHtml(overdueList)}`;
+  } else if(type === 'yearly'){
+    const byYear = {};
+    filtered.forEach(c=>{ const y = (c.date||c.createdAt.slice(0,10)).slice(0,4); byYear[y]=(byYear[y]||0)+1; });
+    const rows = Object.entries(byYear).sort((a,b)=>b[0]-a[0]);
+    bodyHtml = `<div class="report-table-wrap"><table class="report-table"><thead><tr><th>السنة</th><th>عدد الاستشارات</th></tr></thead>
+      <tbody>${rows.length ? rows.map(([y,c])=>`<tr><td>${esc(y)}</td><td>${c}</td></tr>`).join('') : `<tr><td colspan="2" class="muted">لا توجد بيانات</td></tr>`}</tbody></table></div>`;
+  } else if(type === 'category'){
+    bodyHtml = horizontalBarsHtml(categoryBreakdown(filtered).map(r=>({...r,color:'#28677a'})));
+  } else if(type === 'beneficiaries'){
+    const counts = {};
+    filtered.forEach(c=>{ const k=(c.askerName||'').trim(); if(!k) return; counts[k]=(counts[k]||0)+1; });
+    const rows = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+    bodyHtml = `<div class="stats-grid"><div class="stat-card"><div class="num">${rows.length}</div><div class="lbl">عدد المستفيدين</div></div></div>
+      <div class="report-table-wrap"><table class="report-table"><thead><tr><th>اسم المستفيد</th><th>عدد الاستشارات</th></tr></thead>
+      <tbody>${rows.length ? rows.map(([n,c])=>`<tr><td>${esc(n)}</td><td>${c}</td></tr>`).join('') : `<tr><td colspan="2" class="muted">لا توجد بيانات</td></tr>`}</tbody></table></div>`;
+  } else if(type === 'satisfaction'){
+    const rated = filtered.filter(c=>c.satisfactionRating>0);
+    const avg = rated.length ? (rated.reduce((s,c)=>s+c.satisfactionRating,0)/rated.length).toFixed(1) : '—';
+    bodyHtml = `<div class="stats-grid"><div class="stat-card"><div class="num">${rated.length}</div><div class="lbl">استشارات مُقيَّمة</div></div><div class="stat-card accent-gold"><div class="num">${avg}</div><div class="lbl">متوسط التقييم (من 5)</div></div></div>
+      <div class="muted" style="margin-top:8px;">يُضبط التقييم يدوياً من صفحة تفاصيل الاستشارة بعد نشرها. لا توجد تقييمات بعد إن ظهر العدد صفراً.</div>`;
+  } else if(type === 'kpi'){
+    const s2 = computeStats(filtered);
+    const rate = filtered.length ? Math.round((s2.archived/filtered.length)*100) : 0;
+    bodyHtml = `<div class="report-table-wrap"><table class="report-table"><thead><tr><th>المؤشر</th><th>القيمة</th></tr></thead>
+      <tbody>
+        <tr><td>إجمالي الاستشارات</td><td>${filtered.length}</td></tr>
+        <tr><td>المجاب عنها</td><td>${s2.answered+s2.approved+s2.printing+s2.archived}</td></tr>
+        <tr><td>المتأخرة</td><td>${s2.overdue}</td></tr>
+        <tr><td>نسبة الإنجاز</td><td>${rate}%</td></tr>
+        <tr><td>متوسط زمن الرد (يوم)</td><td>${avgResponseDays(filtered)}</td></tr>
+        <tr><td>عدد المستفيدين</td><td>${uniqueBeneficiariesCount(filtered)}</td></tr>
+      </tbody></table></div>`;
+  } else if(type === 'executive'){
+    const s2 = computeStats(filtered);
+    const rate = filtered.length ? Math.round((s2.archived/filtered.length)*100) : 0;
+    bodyHtml = `
+      <div class="stats-grid">
+        <div class="stat-card"><div class="num">${filtered.length}</div><div class="lbl">إجمالي الاستشارات</div></div>
+        <div class="stat-card accent-normal"><div class="num">${rate}%</div><div class="lbl">نسبة الإنجاز</div></div>
+        <div class="stat-card accent-urgent"><div class="num">${s2.overdue}</div><div class="lbl">المتأخرة</div></div>
+        <div class="stat-card accent-blue"><div class="num">${avgResponseDays(filtered)}</div><div class="lbl">متوسط زمن الرد</div></div>
+      </div>
+      <p style="line-height:1.9; font-size:15px;">خلال الفترة المحددة، وردت <b>${filtered.length}</b> استشارة، بلغت نسبة الإنجاز <b>${rate}%</b>، بمتوسط زمن رد قدره <b>${avgResponseDays(filtered)}</b> يوم. يوجد حالياً <b>${s2.overdue}</b> استشارة متأخرة تحتاج متابعة، و<b>${s2.pendingTotal}</b> استشارة قيد المعالجة.</p>
+      ${donutChartHtml([
+        {label:'منشورة', value:s2.archived, color:'#2f9e6f'},
+        {label:'قيد المعالجة', value:s2.pendingTotal, color:'#e0a530'},
+        {label:'متأخرة', value:s2.overdue, color:'#d92d2d'},
+        {label:'اعتذار', value:s2.apology, color:'#9a9a9a'}
+      ])}`;
   } else {
     const s = computeStats(filtered);
     bodyHtml = `
@@ -1645,7 +1937,16 @@ function renderRangeReport(list){
         <div class="field"><label>نوع التقرير</label>
           <select id="reportType">
             <option value="received" ${type==='received'?'selected':''}>الاستشارات الواردة</option>
+            <option value="daily" ${type==='daily'?'selected':''}>الاستشارات اليومية</option>
+            <option value="open" ${type==='open'?'selected':''}>الاستشارات المفتوحة</option>
+            <option value="overdue" ${type==='overdue'?'selected':''}>الاستشارات المتأخرة</option>
             <option value="answered" ${type==='answered'?'selected':''}>الاستشارات المجاب عنها</option>
+            <option value="category" ${type==='category'?'selected':''}>تصنيفات الاستشارات</option>
+            <option value="beneficiaries" ${type==='beneficiaries'?'selected':''}>تقرير المستفيدين</option>
+            <option value="satisfaction" ${type==='satisfaction'?'selected':''}>رضا المستفيدين</option>
+            <option value="kpi" ${type==='kpi'?'selected':''}>مؤشرات الأداء (KPI)</option>
+            <option value="executive" ${type==='executive'?'selected':''}>التقرير التنفيذي</option>
+            <option value="yearly" ${type==='yearly'?'selected':''}>الإنجاز السنوي</option>
             <option value="financial" ${type==='financial'?'selected':''}>تقرير مالي</option>
           </select>
         </div>
@@ -1659,6 +1960,12 @@ function renderRangeReport(list){
             <option value="معتمدة" ${statusFilter==='معتمدة'?'selected':''}>للنشر</option>
             <option value="مؤرشفة" ${statusFilter==='مؤرشفة'?'selected':''}>منشورة</option>
             <option value="اعتذار" ${statusFilter==='اعتذار'?'selected':''}>اعتذار</option>
+          </select>
+        </div>
+        <div class="field"><label>التصنيف</label>
+          <select id="reportCategoryFilter">
+            <option value="">كل التصنيفات</option>
+            ${allCategories.map(cat=>`<option value="${esc(cat)}" ${categoryFilter===cat?'selected':''}>${esc(cat)}</option>`).join('')}
           </select>
         </div>
         <div class="field"><button class="btn btn-outline" data-action="export-range-csv">⬇️ تصدير</button></div>
@@ -1720,7 +2027,7 @@ function renderMonthlyReport(list, title){
 /* ---------- Messages ---------- */
 let replyingTo = null;
 async function downloadReportPdf(){
-  const area = el('rangeReportPrintArea') || el('monthlyReportPrintArea');
+  const area = el('rangeReportPrintArea') || el('monthlyReportPrintArea') || el('reportsPrintArea');
   if(!area){ toast('تعذّر إيجاد محتوى التقرير'); return; }
   if(typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined'){
     toast('جارٍ تحميل أدوات إنشاء PDF…');
@@ -1915,6 +2222,25 @@ async function checkAndShowEntryModal(){
     document.querySelector('[data-action="close-modal"]').addEventListener('click', ()=>{ el('modalRoot').innerHTML=''; });
   }
 }
+function openReturnModal({title, hint, confirmLabel, onConfirm}){
+  el('modalRoot').innerHTML = `<div class="modal-overlay" id="returnModalOverlay"><div class="modal modal-wide">
+    <h3 style="text-align:center;">${esc(title)}</h3>
+    <p class="muted" style="text-align:center; margin-bottom:14px;">${esc(hint)}</p>
+    <textarea id="returnReasonInput" placeholder="سبب إرجاع الاستشارة للمستشار…" style="min-height:130px; width:100%;"></textarea>
+    <div style="display:flex; gap:10px; margin-top:12px; justify-content:flex-end;">
+      <button class="btn btn-ghost btn-sm" data-action="close-return-modal">إلغاء</button>
+      <button class="btn btn-primary" data-action="confirm-return-modal">${esc(confirmLabel)}</button>
+    </div>
+  </div></div>`;
+  const close = ()=>{ el('modalRoot').innerHTML = ''; };
+  document.querySelector('[data-action="close-return-modal"]').addEventListener('click', close);
+  document.getElementById('returnModalOverlay').addEventListener('click', (e)=>{ if(e.target.id==='returnModalOverlay') close(); });
+  document.querySelector('[data-action="confirm-return-modal"]').addEventListener('click', async ()=>{
+    const reason = (el('returnReasonInput').value||'').trim();
+    close();
+    await onConfirm(reason);
+  });
+}
 function openAuditModal(){
   el('modalRoot').innerHTML = `<div class="modal-overlay" id="auditOverlay"><div class="modal modal-wide">
     <h3 style="text-align:center;">🔍 تدقيق الاستشارات</h3>
@@ -2044,6 +2370,15 @@ function bindContentEvents(){
   const rangeToEl = el('rangeTo'); if(rangeToEl) rangeToEl.addEventListener('change', ()=>{ state.rangeTo = rangeToEl.value; renderContent(); });
   const reportTypeEl = el('reportType'); if(reportTypeEl) reportTypeEl.addEventListener('change', ()=>{ state.reportType = reportTypeEl.value; renderContent(); });
   const reportStatusEl = el('reportStatusFilter'); if(reportStatusEl) reportStatusEl.addEventListener('change', ()=>{ state.reportStatusFilter = reportStatusEl.value; renderContent(); });
+  const reportCategoryEl = el('reportCategoryFilter'); if(reportCategoryEl) reportCategoryEl.addEventListener('change', ()=>{ state.reportCategoryFilter = reportCategoryEl.value; renderContent(); });
+  const satisfactionEl = el('satisfactionRating'); if(satisfactionEl) satisfactionEl.addEventListener('change', async ()=>{
+    const c = state.consultations.find(x=>x.id===state.detailId);
+    if(!c) return;
+    c.satisfactionRating = Number(satisfactionEl.value)||0;
+    await persistConsultations();
+    logAudit('تحديث تقييم الرضا لاستشارة '+(c.number||c.id));
+    toast('تم حفظ التقييم');
+  });
   document.querySelectorAll('[data-action="download-report-pdf"]').forEach(b=>b.addEventListener('click', downloadReportPdf));
   const exportRange = document.querySelector('[data-action="export-range-csv"]'); if(exportRange) exportRange.addEventListener('click', exportRangeCsv);
 
@@ -2087,6 +2422,8 @@ async function saveConsultation(){
   const askerMarital = el('f_marital').value.trim();
   const subject = el('f_subject').value.trim();
   const question = el('f_question').value.trim();
+  const category = el('f_category').value.trim();
+  const source = el('f_source').value.trim();
   const internalNotes = el('f_notes').value.trim();
 
   if(number){
@@ -2100,7 +2437,7 @@ async function saveConsultation(){
   if(state.editingId){
     const c = state.consultations.find(x=>x.id===state.editingId);
     if(!c){ toast('تعذر العثور على الاستشارة'); return; }
-    c.number = number; c.date = el('f_date').value || c.date; c.askerName = askerName; c.askerCountry = askerCountry; c.askerGender = askerGender; c.askerAge = askerAge; c.askerMarital = askerMarital; c.subject = subject; c.question = question; c.internalNotes = internalNotes; c.priority = priority;
+    c.number = number; c.date = el('f_date').value || c.date; c.askerName = askerName; c.askerCountry = askerCountry; c.askerGender = askerGender; c.askerAge = askerAge; c.askerMarital = askerMarital; c.subject = subject; c.question = question; c.category = category; c.source = source; c.internalNotes = internalNotes; c.priority = priority;
     c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم تعديل بيانات الاستشارة'});
     await persistConsultations();
     logAudit('تعديل استشارة رقم '+(c.number||c.id));
@@ -2113,11 +2450,11 @@ async function saveConsultation(){
   const ts = nowIso();
   const c = {
     id: uid('c'), number, date: todayStr(),
-    entity:'', beneficiary:'', askerName, askerCountry, askerGender, askerAge, askerMarital, subject, question,
+    entity:'', beneficiary:'', askerName, askerCountry, askerGender, askerAge, askerMarital, subject, question, category, source, satisfactionRating:0,
     internalNotes,
     images: [],
     priority, assignedTo:[consultantName], status:'تحت الإجابة',
-    answer:'', draftAnswer:'', apologyReason:'', returnFeedback:'', showNotesToConsultant:false,
+    answer:'', draftAnswer:'', apologyReason:'', returnFeedback:'', showNotesToConsultant:false, returnedForEdit:false,
     createdAt: ts, assignedAt: ts, answeredAt:null, approvedAt:null, printedAt:null, archivedAt:null,
     notesThread: [],
     history: [{ts, actor: actorName(), action:'تم إنشاء الاستشارة وإرسالها إلى '+consultantName}]
@@ -2254,11 +2591,12 @@ async function submitAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   const html = el('answerEditor').innerHTML.trim();
   if(!html || html==='<br>'){ toast('يرجى كتابة نص الإجابة قبل الإرسال'); return; }
-  c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso(); c.returnFeedback='';
+  c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso(); c.returnFeedback=''; c.returnedForEdit=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إرسال الإجابة'});
   await persistConsultations();
   logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
-  toast('✅ تم إرسال الإجابة إلى الإدارة بنجاح');
+  await sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
+  toast('✅ تمت الإجابة على الاستشارة رقم '+(c.number||c.id)+' بنجاح');
   renderContent();
 }
 async function declineAnswer(){
@@ -2416,12 +2754,23 @@ async function approveAnswer(){
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إرسال الإجابة للموقع الرسمي للتدقيق والنشر'});
   await persistConsultations(); logAudit('إرسال إجابة استشارة للتدقيق والنشر '+(c.number||c.id)); toast('تم إرسالها للموقع الرسمي للتدقيق والنشر'); renderContent();
 }
-async function returnAnswer(){
+function returnAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
-  const feedback = prompt('يرجى كتابة ملاحظات التعديل المطلوبة للمستشار:') || '';
-  c.status='تحت الإجابة'; c.draftAnswer = c.answer; c.assignedAt = nowIso(); c.returnFeedback = feedback;
-  c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'أعيدت للتعديل'+(feedback?(' — ملاحظة: '+feedback):'')});
-  await persistConsultations(); logAudit('إعادة استشارة للتعديل '+(c.number||c.id)); toast('تمت إعادة الاستشارة للمستشار'); renderContent();
+  if(!c) return;
+  openReturnModal({
+    title: '↩️ إعادة الاستشارة للتعديل',
+    hint: 'اكتب سبب إرجاع الاستشارة — ستظهر هذه الملاحظة للمستشار مع إجابته السابقة جاهزة للتعديل (وليس إجابة جديدة فارغة).',
+    confirmLabel: 'إعادة للمستشار',
+    onConfirm: async (feedback)=>{
+      c.status='تحت الإجابة'; c.draftAnswer = c.answer || ''; c.assignedAt = nowIso(); c.returnFeedback = feedback; c.returnedForEdit = true;
+      c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'مسترجعة للتعديل'+(feedback?(' — السبب: '+feedback):'')});
+      await persistConsultations();
+      await sendSystemMessage('تم إرجاع الاستشارة رقم '+(c.number||c.id)+' للتعديل'+(feedback?(' — السبب: '+feedback):''));
+      logAudit('إعادة استشارة للتعديل '+(c.number||c.id));
+      toast('تمت إعادة الاستشارة للمستشار مع إجابتها السابقة للتعديل');
+      renderContent();
+    }
+  });
 }
 async function markPrinting(){
   const c = state.consultations.find(x=>x.id===state.detailId);
@@ -2445,18 +2794,27 @@ async function reopenConsultation(){
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'أعيدت فتح الاستشارة للمستشار'});
   await persistConsultations(); logAudit('إعادة فتح استشارة '+(c.number||c.id)); toast('تمت الإعادة'); renderContent();
 }
-async function reopenClosedConsultation(){
+function reopenClosedConsultation(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   if(!c) return;
-  if(!confirm('سيتم فتح هذه الاستشارة المغلقة من جديد وإرسالها للمستشار للتعديل. متابعة؟')) return;
-  c.status='تحت الإجابة'; c.assignedAt=nowIso(); c.archivedAt=null; c.printedAt=null; c.answeredAt=null; c.approvedAt=null;
-  c.showNotesToConsultant = true;
-  c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تمت إعادة فتح الاستشارة المغلقة وإرسالها للمستشار للتعديل'});
-  await persistConsultations();
-  await sendSystemMessage('تمت إعادة فتح الاستشارة رقم '+(c.number||c.id)+' وإرسالها إليك للتعديل — يرجى مراجعة الملاحظة المرفقة والقيام باللازم.');
-  logAudit('إعادة فتح استشارة مغلقة '+(c.number||c.id));
-  toast('تم فتح الاستشارة وإعادتها للمستشار');
-  renderContent();
+  openReturnModal({
+    title: '🔓 فتح الاستشارة المغلقة وإعادتها للتعديل',
+    hint: 'اكتب سبب إعادة فتحها — ستظهر إجابتها السابقة جاهزة للتعديل مع هذه الملاحظة، دون فتح إجابة جديدة فارغة.',
+    confirmLabel: 'فتح وإعادة للمستشار',
+    onConfirm: async (reason)=>{
+      c.status='تحت الإجابة'; c.assignedAt=nowIso(); c.archivedAt=null; c.printedAt=null; c.answeredAt=null; c.approvedAt=null;
+      c.draftAnswer = c.answer || '';
+      c.returnFeedback = reason;
+      c.returnedForEdit = true;
+      c.showNotesToConsultant = true;
+      c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'مسترجعة للتعديل (إعادة فتح من الاستشارات المغلقة)'+(reason?(' — السبب: '+reason):'')});
+      await persistConsultations();
+      await sendSystemMessage('تمت إعادة فتح الاستشارة رقم '+(c.number||c.id)+' وإرسالها إليك للتعديل'+(reason?(' — السبب: '+reason):''));
+      logAudit('إعادة فتح استشارة مغلقة '+(c.number||c.id));
+      toast('تم فتح الاستشارة وإعادتها للمستشار مع إجابتها السابقة للتعديل');
+      renderContent();
+    }
+  });
 }
 async function sendNote(){
   const c = state.consultations.find(x=>x.id===state.detailId);
