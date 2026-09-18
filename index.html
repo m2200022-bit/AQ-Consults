@@ -247,7 +247,8 @@ tr.row-click:hover{background:var(--surface-2);}
 .timeline li::before{content:''; position:absolute; right:-6px; top:2px; width:10px; height:10px; border-radius:50%; background:var(--primary);}
 .timeline li .t-action{font-weight:700; font-size:13px;}
 .timeline li .t-meta{color:var(--ink-faint); font-size:11.5px; margin-top:2px;}
-.timeline-boxes{display:flex; flex-direction:column; gap:9px;}
+.timeline-boxes{display:grid; grid-template-columns:1fr 1fr; gap:9px;}
+@media (max-width:640px){.timeline-boxes{grid-template-columns:1fr;}}
 .timeline-box{display:flex; align-items:flex-start; gap:10px; border-right:4px solid var(--tl-color); border-radius:10px; padding:11px 14px;}
 .timeline-box .tl-dot{width:10px; height:10px; border-radius:50%; margin-top:4px; flex:0 0 10px;}
 .timeline-box .tl-action{font-weight:800; font-size:13.5px; color:#1a1a1a;}
@@ -554,6 +555,40 @@ function toggleVoiceInput(){
 }
 function fmtDate(iso){ if(!iso) return '—'; const d=new Date(iso); return d.toLocaleDateString('en-GB',{year:'numeric',month:'2-digit',day:'2-digit'}); }
 function fmtDateTime(iso){ if(!iso) return '—'; const d=new Date(iso); return fmtDate(iso)+' '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function fmtTimeOnly(iso){ if(!iso) return '—'; return new Date(iso).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'}); }
+function consultantActivitySheetHtml(){
+  const consultantName = state.consultantProfile.name;
+  const logins = state.audit.filter(a=>a.action==='تسجيل دخول المستشار' && a.actor===consultantName);
+  const answeredByDate = {};
+  state.consultations.forEach(c=>{
+    (c.history||[]).forEach(h=>{
+      if(h.actor===consultantName && h.action==='تم إرسال الإجابة'){
+        const d = h.ts.slice(0,10);
+        if(!answeredByDate[d]) answeredByDate[d] = [];
+        answeredByDate[d].push(c.number || c.id);
+      }
+    });
+  });
+  const loginsByDate = {};
+  logins.forEach(l=>{
+    const d = l.ts.slice(0,10);
+    if(!loginsByDate[d]) loginsByDate[d] = [];
+    loginsByDate[d].push(fmtTimeOnly(l.ts));
+  });
+  const allDates = Array.from(new Set([...Object.keys(loginsByDate), ...Object.keys(answeredByDate)])).sort().reverse();
+  if(!allDates.length) return `<div class="empty">لا يوجد نشاط مسجّل للمستشار بعد</div>`;
+  return `<table><thead><tr><th>التاريخ</th><th>أوقات الدخول</th><th>أرقام الاستشارات المجاب عنها</th><th>هل تمت الإجابة على أي استشارة؟</th></tr></thead>
+    <tbody>${allDates.map(d=>{
+      const times = loginsByDate[d] || [];
+      const answered = answeredByDate[d] || [];
+      return `<tr>
+        <td>${esc(d)}</td>
+        <td>${times.length ? times.map(t=>esc(t)).join('، ') : '<span class="muted">لم يُسجَّل دخول</span>'}</td>
+        <td>${answered.length ? answered.map(n=>`<span class="number-badge" style="margin:2px; font-size:13px; padding:3px 9px;">${esc(n)}</span>`).join(' ') : '<span class="muted">لا يوجد</span>'}</td>
+        <td><span class="pill ${answered.length?'normal':'urgent'}">${answered.length ? ('✅ نعم ('+answered.length+')') : '❌ لا'}</span></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
 function daysSince(iso){ if(!iso) return 0; return Math.floor((Date.now()-new Date(iso).getTime())/86400000); }
 function hoursSince(iso){ if(!iso) return 0; return (Date.now()-new Date(iso).getTime())/3600000; }
 function effectivePriority(c){
@@ -606,7 +641,7 @@ function updateSyncIndicator(){
   if(!dot || !label) return;
   if(state.syncStatus === 'synced'){
     dot.classList.remove('offline');
-    label.textContent = 'متزامن';
+    label.textContent = 'متصل';
   } else {
     dot.classList.add('offline');
     label.textContent = 'غير متزامن';
@@ -686,14 +721,29 @@ async function autoEscalatePriorities(){
     if(state.authenticated) renderContent();
   }
 }
+function withTimeout(promise, ms){
+  return Promise.race([
+    promise,
+    new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), ms))
+  ]);
+}
+async function retryStoreSet(key, value, shared, attempts){
+  attempts = attempts || 3;
+  for(let i=0;i<attempts;i++){
+    const ok = await storeSet(key, value, shared);
+    if(ok) return true;
+    if(i < attempts-1) await new Promise(r=>setTimeout(r, 1000*(i+1)));
+  }
+  return false;
+}
 async function persistConsultations(removedIds, replaceMode){
   if(replaceMode){
-    await storeSet('consultations_v2', JSON.stringify(state.consultations), true);
+    await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true);
     return;
   }
   try{
     const ref = doc(db, APP_STATE_COLLECTION, 'consultations_v2');
-    const remoteSnap = await getDoc(ref);
+    const remoteSnap = await withTimeout(getDoc(ref), 6000);
     let remoteList = [];
     if(remoteSnap.exists()){
       try{ remoteList = JSON.parse(remoteSnap.data().value || '[]'); }catch(e){ remoteList = []; }
@@ -705,10 +755,10 @@ async function persistConsultations(removedIds, replaceMode){
     if(removedIds && removedIds.length){ removedIds.forEach(id=> delete map[id]); }
     const merged = Object.values(map);
     state.consultations = merged;
-    await storeSet('consultations_v2', JSON.stringify(merged), true);
+    await retryStoreSet('consultations_v2', JSON.stringify(merged), true);
   }catch(e){
     console.error('persistConsultations merge failed, falling back to direct write', e);
-    await storeSet('consultations_v2', JSON.stringify(state.consultations), true);
+    await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true);
   }
 }
 async function persistMessages(){ await storeSet('messages_v2', JSON.stringify(state.messages), true); }
@@ -856,7 +906,7 @@ function layoutShell(){
   return `
     <div class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${state.logoUrl?`<img src="${state.logoUrl}" class="brand-logo">`:`<div class="brand-seal">است</div>`}<div class="brand-text">نظام الاستشارات<small>مكتب الدكتور عقيل محمد المقطري</small>
-        <div class="sync-status-row"><span class="sync-dot ${state.syncStatus!=='synced'?'offline':''}" id="syncDot" title="حالة المزامنة"></span><span id="syncLabel">${state.syncStatus==='synced'?'متزامن':'غير متزامن'}</span></div>
+        <div class="sync-status-row"><span class="sync-dot ${state.syncStatus!=='synced'?'offline':''}" id="syncDot" title="حالة الاتصال"></span><span id="syncLabel">${state.syncStatus==='synced'?'متصل':'غير متزامن'}</span></div>
       </div>
         <button class="sidebar-collapse-btn no-print" data-action="toggle-collapse" title="${state.sidebarCollapsed?'توسيع القائمة':'طي القائمة'}">${state.sidebarCollapsed?'»':'«'}</button>
       </div>
@@ -939,6 +989,7 @@ function bindLoginEvents(){
       state.authenticated = true; state.role = 'consultant'; state.view = 'dashboard';
       await loadSidebarPref('consultant');
       render(); refreshUnseenMessages().then(()=>{ render(); checkAndShowEntryModal(); });
+      logAudit('تسجيل دخول المستشار');
       return;
     }
     err.textContent = 'اسم المستخدم أو كلمة المرور غير صحيحة';
@@ -1303,7 +1354,7 @@ function renderAddForm(){
           </tr></tbody>
         </table>
       </div>
-      <div class="grid-2">
+      <div class="grid-2" style="display:none;">
         <div class="field"><label>تصنيف الاستشارة (اختياري — لتقارير التصنيف)</label>
           <select id="f_category">
             <option value="">— غير مصنّفة —</option>
@@ -2099,7 +2150,11 @@ function renderMessages(){
 
 /* ---------- Audit ---------- */
 function renderAudit(){
-  return `<div class="panel"><div class="panel-head"><h3>سجل العمليات (${state.audit.length})</h3></div>
+  return `
+    <div class="panel"><div class="panel-head"><h3>📋 ورقة نشاط المستشار</h3><span class="muted">تسجيل الدخول والاستشارات المجاب عنها يومياً</span></div>
+      <div class="panel-body" style="padding:0;">${consultantActivitySheetHtml()}</div>
+    </div>
+    <div class="panel"><div class="panel-head"><h3>سجل العمليات (${state.audit.length})</h3></div>
     <div class="panel-body" style="padding:0;">
       ${state.audit.length ? `<table><thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>الجهاز</th></tr></thead>
       <tbody>${state.audit.map(a=>`<tr><td>${fmtDateTime(a.ts)}</td><td>${esc(a.actor)}</td><td>${esc(a.action)}</td><td class="muted">${esc(a.device)}</td></tr>`).join('')}</tbody></table>`
@@ -2412,7 +2467,7 @@ function bindContentEvents(){
   document.querySelectorAll('[data-action="delete-suggestion"]').forEach(b=>b.addEventListener('click', ()=>{ deleteSuggestion(Number(b.getAttribute('data-idx'))); }));
 }
 
-async function saveConsultation(){
+function saveConsultation(){
   const priority = (document.querySelector('input[name=priority]:checked')||{}).value || 'عادي';
   const number = el('f_number').value.trim();
   const askerName = el('f_asker').value.trim();
@@ -2439,10 +2494,9 @@ async function saveConsultation(){
     if(!c){ toast('تعذر العثور على الاستشارة'); return; }
     c.number = number; c.date = el('f_date').value || c.date; c.askerName = askerName; c.askerCountry = askerCountry; c.askerGender = askerGender; c.askerAge = askerAge; c.askerMarital = askerMarital; c.subject = subject; c.question = question; c.category = category; c.source = source; c.internalNotes = internalNotes; c.priority = priority;
     c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم تعديل بيانات الاستشارة'});
-    await persistConsultations();
-    logAudit('تعديل استشارة رقم '+(c.number||c.id));
     setView('detail', {detailId: c.id});
     toast('تم حفظ التعديلات');
+    (async ()=>{ await persistConsultations(); logAudit('تعديل استشارة رقم '+(c.number||c.id)); })();
     return;
   }
 
@@ -2460,11 +2514,13 @@ async function saveConsultation(){
     history: [{ts, actor: actorName(), action:'تم إنشاء الاستشارة وإرسالها إلى '+consultantName}]
   };
   state.consultations.push(c);
-  await persistConsultations();
-  logAudit('إنشاء استشارة رقم '+(c.number||c.id));
-  sendNewConsultationEmail(c);
   setView('list');
   toast('تم حفظ الاستشارة وإرسالها إلى المستشار');
+  (async ()=>{
+    await persistConsultations();
+    logAudit('إنشاء استشارة رقم '+(c.number||c.id));
+    sendNewConsultationEmail(c);
+  })();
 }
 async function deleteConsultation(id){
   const c = state.consultations.find(x=>x.id===id);
@@ -2586,18 +2642,21 @@ async function loadDeviceFonts(){
     toast('تعذّرت قراءة خطوط الجهاز — قد تكون رفضت إذن الوصول، أو المتصفح لا يدعم هذه الميزة');
   }
 }
-async function submitAnswer(){
+function submitAnswer(){
   stopAutoSaveTimers();
   const c = state.consultations.find(x=>x.id===state.detailId);
   const html = el('answerEditor').innerHTML.trim();
   if(!html || html==='<br>'){ toast('يرجى كتابة نص الإجابة قبل الإرسال'); return; }
   c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso(); c.returnFeedback=''; c.returnedForEdit=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إرسال الإجابة'});
-  await persistConsultations();
-  logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
-  await sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
-  toast('✅ تمت الإجابة على الاستشارة رقم '+(c.number||c.id)+' بنجاح');
+  // تحديث فوري للواجهة دون انتظار اكتمال الحفظ عبر الشبكة — يمنع أي تأخير محسوس حتى مع إنترنت ضعيف
+  toast('✅ تم إرسال إجابتك');
   renderContent();
+  (async ()=>{
+    await persistConsultations();
+    logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
+    await sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
+  })();
 }
 async function declineAnswer(){
   stopAutoSaveTimers();
