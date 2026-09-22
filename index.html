@@ -2632,9 +2632,9 @@ function submitAnswer(){
   if(!html || html==='<br>'){ toast('يرجى كتابة نص الإجابة قبل الإرسال'); return; }
   c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso(); c.returnFeedback=''; c.returnedForEdit=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إرسال الإجابة'});
-  // تحديث فوري للواجهة دون انتظار اكتمال الحفظ عبر الشبكة — يمنع أي تأخير محسوس حتى مع إنترنت ضعيف
+  // تحديث فوري للواجهة وإغلاق الاستشارة تلقائياً بالرجوع للقائمة دون انتظار اكتمال الحفظ عبر الشبكة
   toast('✅ تم إرسال إجابتك');
-  renderContent();
+  setView('list');
   (async ()=>{
     await persistConsultations();
     logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
