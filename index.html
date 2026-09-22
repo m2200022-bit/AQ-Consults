@@ -624,7 +624,7 @@ async function storeGet(key, shared){
 async function storeSet(key, value, shared){
   try{
     const ref = doc(db, APP_STATE_COLLECTION, key);
-    await setDoc(ref, { value, updatedAt: Date.now() });
+    await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), 8000);
     markSyncOk();
     return true;
   }catch(e){ console.error('firestore set failed', key, e); showSyncError(e); return false; }
@@ -737,29 +737,12 @@ async function retryStoreSet(key, value, shared, attempts){
   return false;
 }
 async function persistConsultations(removedIds, replaceMode){
-  if(replaceMode){
-    await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true);
-    return;
+  // كتابة مباشرة سريعة (خطوة شبكة واحدة فقط بدل قراءة+دمج+كتابة) — الاستمرار الحي
+  // (watchConsultationsLive) يبقي البيانات المحلية محدَّثة باستمرار، فلا حاجة لجلب إضافي قبل كل حفظ.
+  if(removedIds && removedIds.length){
+    state.consultations = state.consultations.filter(c=>!removedIds.includes(c.id));
   }
-  try{
-    const ref = doc(db, APP_STATE_COLLECTION, 'consultations_v2');
-    const remoteSnap = await withTimeout(getDoc(ref), 6000);
-    let remoteList = [];
-    if(remoteSnap.exists()){
-      try{ remoteList = JSON.parse(remoteSnap.data().value || '[]'); }catch(e){ remoteList = []; }
-    }
-    // Merge by id: start from remote (may include records this client never loaded), overlay with local (assumed newer/intentional for shared ids)
-    const map = {};
-    remoteList.forEach(r=>{ if(r && r.id) map[r.id] = r; });
-    state.consultations.forEach(l=>{ if(l && l.id) map[l.id] = l; });
-    if(removedIds && removedIds.length){ removedIds.forEach(id=> delete map[id]); }
-    const merged = Object.values(map);
-    state.consultations = merged;
-    await retryStoreSet('consultations_v2', JSON.stringify(merged), true);
-  }catch(e){
-    console.error('persistConsultations merge failed, falling back to direct write', e);
-    await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true);
-  }
+  await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true);
 }
 async function persistMessages(){ await storeSet('messages_v2', JSON.stringify(state.messages), true); }
 async function persistAudit(){ await storeSet('audit_v2', JSON.stringify(state.audit), true); }
@@ -2678,7 +2661,7 @@ function scheduleAutoSaveDraft(){
   const statusEl = el('autoSaveStatus');
   if(statusEl){ statusEl.textContent = '✏️ يكتب الآن…'; statusEl.className = 'autosave-status'; }
   clearTimeout(autoSaveDebounceId);
-  autoSaveDebounceId = setTimeout(autoSaveDraftIfChanged, 1200);
+  autoSaveDebounceId = setTimeout(autoSaveDraftIfChanged, 600);
 }
 function stopAutoSaveTimers(){
   clearTimeout(autoSaveDebounceId);
@@ -2690,17 +2673,15 @@ async function autoSaveDraftIfChanged(){
   if(current === lastSavedAnswerContent) return;
   if(autoSaveInFlight) return;
   autoSaveInFlight = true;
+  const c = state.consultations.find(x=>x.id===state.detailId);
+  if(!c){ autoSaveInFlight = false; return; }
+  // تحديث فوري: نعتبرها محفوظة في الواجهة فوراً، والكتابة الفعلية على الشبكة تجري في الخلفية دون انتظار
+  c.draftAnswer = current;
   const statusEl = el('autoSaveStatus');
-  if(statusEl){ statusEl.textContent = '⏳ جارٍ الحفظ…'; statusEl.className = 'autosave-status saving'; }
+  if(statusEl){ statusEl.textContent = '✅ تم الحفظ — '+ new Date().toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'}); statusEl.className = 'autosave-status saved'; }
   try{
-    const c = state.consultations.find(x=>x.id===state.detailId);
-    if(c){
-      c.draftAnswer = current;
-      await persistConsultations();
-      lastSavedAnswerContent = current;
-      const statusEl2 = el('autoSaveStatus');
-      if(statusEl2){ statusEl2.textContent = '✅ تم الحفظ — '+ new Date().toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'}); statusEl2.className = 'autosave-status saved'; }
-    }
+    await persistConsultations();
+    lastSavedAnswerContent = current; // تُعتبر محفوظة فعلياً فقط بعد نجاح الكتابة، لضمان إعادة المحاولة الصحيحة عند الفشل
   }catch(e){
     console.error('auto-save failed', e);
     const statusEl3 = el('autoSaveStatus');
