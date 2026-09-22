@@ -616,18 +616,18 @@ function monthLabel(key){ if(!key) return ''; const [y,m]=key.split('-'); const 
 async function storeGet(key, shared){
   try{
     const ref = doc(db, APP_STATE_COLLECTION, key);
-    const snap = await getDoc(ref);
+    const snap = await withTimeout(getDoc(ref), 25000);
     markSyncOk();
     return snap.exists() ? snap.data().value : null;
   }catch(e){ console.error('firestore get failed', key, e); showSyncError(e); return null; }
 }
-async function storeSet(key, value, shared){
+async function storeSet(key, value, shared, silent){
   try{
     const ref = doc(db, APP_STATE_COLLECTION, key);
-    await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), 8000);
+    await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), 25000);
     markSyncOk();
     return true;
-  }catch(e){ console.error('firestore set failed', key, e); showSyncError(e); return false; }
+  }catch(e){ console.error('firestore set failed', key, e); if(!silent) showSyncError(e); return false; }
 }
 function markSyncOk(){
   if(state.syncStatus !== 'synced'){
@@ -730,9 +730,10 @@ function withTimeout(promise, ms){
 async function retryStoreSet(key, value, shared, attempts){
   attempts = attempts || 3;
   for(let i=0;i<attempts;i++){
-    const ok = await storeSet(key, value, shared);
+    const isLast = i === attempts-1;
+    const ok = await storeSet(key, value, shared, !isLast);
     if(ok) return true;
-    if(i < attempts-1) await new Promise(r=>setTimeout(r, 1000*(i+1)));
+    if(!isLast) await new Promise(r=>setTimeout(r, 1000*(i+1)));
   }
   return false;
 }
