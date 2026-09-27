@@ -634,6 +634,14 @@ function markSyncOk(){
     state.syncStatus = 'synced';
     updateSyncIndicator();
   }
+  // بمجرد نجاح أي عملية حفظ/جلب لاحقة، إن كانت نافذة "غير متزامن" ظاهرة من محاولة سابقة فاشلة، أغلقها تلقائياً
+  // بدل تركها عالقة على الشاشة رغم عودة الاتصال ونجاح الحفظ.
+  if(syncPopupShown){
+    const overlay = document.getElementById('syncModalOverlay');
+    if(overlay && overlay.parentElement){ overlay.parentElement.innerHTML = ''; }
+    syncPopupShown = false;
+  }
+  syncErrorShown = false;
 }
 function updateSyncIndicator(){
   const dot = document.getElementById('syncDot');
@@ -727,23 +735,26 @@ function withTimeout(promise, ms){
     new Promise((_,reject)=> setTimeout(()=>reject(new Error('timeout')), ms))
   ]);
 }
-async function retryStoreSet(key, value, shared, attempts){
+async function retryStoreSet(key, value, shared, attempts, forceSilent){
   attempts = attempts || 3;
   for(let i=0;i<attempts;i++){
     const isLast = i === attempts-1;
-    const ok = await storeSet(key, value, shared, !isLast);
+    const ok = await storeSet(key, value, shared, forceSilent ? true : !isLast);
     if(ok) return true;
     if(!isLast) await new Promise(r=>setTimeout(r, 1000*(i+1)));
   }
   return false;
 }
-async function persistConsultations(removedIds, replaceMode){
+async function persistConsultations(removedIds, replaceMode, silentAll){
   // كتابة مباشرة سريعة (خطوة شبكة واحدة فقط بدل قراءة+دمج+كتابة) — الاستمرار الحي
   // (watchConsultationsLive) يبقي البيانات المحلية محدَّثة باستمرار، فلا حاجة لجلب إضافي قبل كل حفظ.
+  // silentAll=true (تُستخدم أثناء الحفظ التلقائي للمسودة) تمنع ظهور نافذة "غير متزامن" العامة
+  // بسبب عثرة عابرة أثناء كتابة الإجابة؛ شريط حالة الحفظ التلقائي بجانب المحرر كافٍ لإعلام المستخدم،
+  // وستنجح المحاولة التالية تلقائياً دون إزعاجه بنافذة منبثقة وهو يكتب.
   if(removedIds && removedIds.length){
     state.consultations = state.consultations.filter(c=>!removedIds.includes(c.id));
   }
-  await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true);
+  return await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true, 3, silentAll);
 }
 async function persistMessages(){ await storeSet('messages_v2', JSON.stringify(state.messages), true); }
 async function persistAudit(){ await storeSet('audit_v2', JSON.stringify(state.audit), true); }
@@ -2681,12 +2692,20 @@ async function autoSaveDraftIfChanged(){
   const statusEl = el('autoSaveStatus');
   if(statusEl){ statusEl.textContent = '✅ تم الحفظ — '+ new Date().toLocaleTimeString('ar', {hour:'2-digit', minute:'2-digit'}); statusEl.className = 'autosave-status saved'; }
   try{
-    await persistConsultations();
-    lastSavedAnswerContent = current; // تُعتبر محفوظة فعلياً فقط بعد نجاح الكتابة، لضمان إعادة المحاولة الصحيحة عند الفشل
+    // silentAll=true: لا تُظهر نافذة "غير متزامن" العامة بسبب عثرة عابرة أثناء الحفظ التلقائي —
+    // شريط الحالة أسفل المحرر (نجح/سيُعاد المحاولة) هو ما يراه المستخدم أثناء الكتابة.
+    const ok = await persistConsultations(undefined, undefined, true);
+    if(ok){
+      lastSavedAnswerContent = current; // تُعتبر محفوظة فعلياً فقط بعد نجاح الكتابة، لضمان إعادة المحاولة الصحيحة عند الفشل
+    } else {
+      const statusEl3 = el('autoSaveStatus');
+      if(statusEl3){ statusEl3.textContent = '⚠️ تعذّر الحفظ مؤقتاً — جارٍ إعادة المحاولة تلقائياً'; statusEl3.className = 'autosave-status'; }
+      setTimeout(autoSaveDraftIfChanged, 3000);
+    }
   }catch(e){
     console.error('auto-save failed', e);
     const statusEl3 = el('autoSaveStatus');
-    if(statusEl3){ statusEl3.textContent = '⚠️ تعذّر الحفظ — جارٍ إعادة المحاولة تلقائياً'; statusEl3.className = 'autosave-status'; }
+    if(statusEl3){ statusEl3.textContent = '⚠️ تعذّر الحفظ مؤقتاً — جارٍ إعادة المحاولة تلقائياً'; statusEl3.className = 'autosave-status'; }
     setTimeout(autoSaveDraftIfChanged, 3000);
   }finally{
     autoSaveInFlight = false;
