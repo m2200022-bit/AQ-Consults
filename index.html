@@ -403,7 +403,7 @@ tr.row-published td:first-child{border-right:4px solid #2f9e6f;}
 <script type="module">
 /* ===================== FIREBASE ===================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 let getAnalytics = null;
 try{
   ({ getAnalytics } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js"));
@@ -420,7 +420,16 @@ const firebaseConfig = {
   measurementId: "G-4RCC6TWBNX"
 };
 const fbApp = initializeApp(firebaseConfig);
-const db = getFirestore(fbApp);
+// نفعّل التخزين المحلي الدائم (Offline Persistence): يجعل القراءة/الكتابة تعمل فوراً من نسخة محلية
+// حتى مع ضعف الإنترنت أو انقطاعه مؤقتاً، وتُرسَل التغييرات تلقائياً لقاعدة البيانات فور تحسّن الاتصال
+// دون فقدان أي بيانات وبدون إبطاء واجهة المستخدم.
+let db;
+try{
+  db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }) });
+}catch(e){
+  console.warn('تعذّر تفعيل التخزين المحلي الدائم (قد يكون المتصفح لا يدعمه أو مفتوحاً في أكثر من تبويب)، سيعمل النظام بدونه', e);
+  db = getFirestore(fbApp);
+}
 try{ if(getAnalytics) getAnalytics(fbApp); }catch(e){ /* ignore */ }
 const APP_STATE_COLLECTION = 'app_state';
 
@@ -613,21 +622,45 @@ function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+String(d.get
 function monthKey(iso){ const d=new Date(iso); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); }
 function monthLabel(key){ if(!key) return ''; const [y,m]=key.split('-'); const names=['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر']; return names[parseInt(m,10)-1]+' '+y; }
 
+// أكواد الأخطاء التي تعني فعلاً مشكلة إعداد/صلاحيات حقيقية يجب تنبيه المستخدم لها.
+// أي كود آخر (انقطاع شبكة، بطء اتصال، إلغاء مؤقت...) يُعامل كـ"جارٍ المزامنة" فقط دون تنبيه مخيف،
+// لأن التخزين المحلي الدائم المُفعّل عند تهيئة Firestore يحفظ البيانات فوراً ويرسلها تلقائياً عند تحسّن الاتصال.
+const REAL_ERROR_CODES = ['permission-denied','invalid-argument','not-found','unauthenticated'];
+function isRealSyncError(e){
+  const code = (e && e.code) || '';
+  return REAL_ERROR_CODES.includes(code);
+}
 async function storeGet(key, shared){
   try{
     const ref = doc(db, APP_STATE_COLLECTION, key);
-    const snap = await withTimeout(getDoc(ref), 25000);
+    const snap = await getDoc(ref);
     markSyncOk();
     return snap.exists() ? snap.data().value : null;
-  }catch(e){ console.error('firestore get failed', key, e); showSyncError(e); return null; }
+  }catch(e){
+    console.error('firestore get failed', key, e);
+    if(isRealSyncError(e)) showSyncError(e); else markSyncPending();
+    return null;
+  }
 }
 async function storeSet(key, value, shared, silent){
+  const ref = doc(db, APP_STATE_COLLECTION, key);
+  // لا نُلغي العملية بمهلة اصطناعية: مع ضعف الإنترنت قد يتأخر وصول الرد، لكن الكتابة تبقى محفوظة محلياً
+  // بأمان (بفضل التخزين المحلي الدائم) وتُرسَل تلقائياً بمجرد عودة الاتصال. نكتفي بإظهار مؤشر "جارٍ المزامنة"
+  // اللطيف إن تأخر الرد قليلاً، دون اعتبار ذلك فشلاً ودون نافذة تحذير.
+  let settled = false;
+  const softTimer = setTimeout(()=>{ if(!settled) markSyncPending(); }, 4000);
   try{
-    const ref = doc(db, APP_STATE_COLLECTION, key);
-    await withTimeout(setDoc(ref, { value, updatedAt: Date.now() }), 25000);
+    await setDoc(ref, { value, updatedAt: Date.now() });
+    settled = true; clearTimeout(softTimer);
     markSyncOk();
     return true;
-  }catch(e){ console.error('firestore set failed', key, e); if(!silent) showSyncError(e); return false; }
+  }catch(e){
+    settled = true; clearTimeout(softTimer);
+    console.error('firestore set failed', key, e);
+    if(isRealSyncError(e)){ if(!silent) showSyncError(e); }
+    else { markSyncPending(); } // مشكلة شبكة عابرة فقط — ستُعاد المزامنة تلقائياً دون إزعاج المستخدم
+    return false;
+  }
 }
 function markSyncOk(){
   if(state.syncStatus !== 'synced'){
@@ -643,6 +676,14 @@ function markSyncOk(){
   }
   syncErrorShown = false;
 }
+function markSyncPending(){
+  // حالة "جارٍ المزامنة" — ليست خطأ؛ الاتصال بطيء أو منقطع مؤقتاً فقط، والبيانات محفوظة محلياً بأمان
+  // وستُرسل تلقائياً بمجرد عودة الاتصال، دون الحاجة لأي إجراء من المستخدم.
+  if(state.syncStatus !== 'error'){
+    state.syncStatus = 'syncing';
+    updateSyncIndicator();
+  }
+}
 function updateSyncIndicator(){
   const dot = document.getElementById('syncDot');
   const label = document.getElementById('syncLabel');
@@ -650,6 +691,12 @@ function updateSyncIndicator(){
   if(state.syncStatus === 'synced'){
     dot.classList.remove('offline');
     label.textContent = 'متصل';
+  } else if(state.syncStatus === 'syncing'){
+    dot.classList.add('offline');
+    label.textContent = 'جارٍ المزامنة…';
+  } else if(state.syncStatus === 'offline'){
+    dot.classList.add('offline');
+    label.textContent = 'غير متصل — سيُحفظ تلقائياً';
   } else {
     dot.classList.add('offline');
     label.textContent = 'غير متزامن';
@@ -901,7 +948,7 @@ function layoutShell(){
   return `
     <div class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${state.logoUrl?`<img src="${state.logoUrl}" class="brand-logo">`:`<div class="brand-seal">است</div>`}<div class="brand-text">نظام الاستشارات<small>مكتب الدكتور عقيل محمد المقطري</small>
-        <div class="sync-status-row"><span class="sync-dot ${state.syncStatus!=='synced'?'offline':''}" id="syncDot" title="حالة الاتصال"></span><span id="syncLabel">${state.syncStatus==='synced'?'متصل':'غير متزامن'}</span></div>
+        <div class="sync-status-row"><span class="sync-dot ${state.syncStatus!=='synced'?'offline':''}" id="syncDot" title="حالة الاتصال"></span><span id="syncLabel">${state.syncStatus==='synced'?'متصل':(state.syncStatus==='syncing'?'جارٍ المزامنة…':(state.syncStatus==='offline'?'غير متصل — سيُحفظ تلقائياً':'غير متزامن'))}</span></div>
       </div>
         <button class="sidebar-collapse-btn no-print" data-action="toggle-collapse" title="${state.sidebarCollapsed?'توسيع القائمة':'طي القائمة'}">${state.sidebarCollapsed?'»':'«'}</button>
       </div>
@@ -3082,8 +3129,10 @@ function watchConsultationsLive(){
 }
 async function init(){
   el('app').innerHTML = `<div style="padding:40px; font-family:'Sakkal Majalla',Tajawal,sans-serif; color:#5B6660;">جاري التحميل…</div>`;
-  window.addEventListener('offline', ()=>{ state.syncStatus='error'; updateSyncIndicator(); showSyncError({code:'offline'}); });
-  window.addEventListener('online', ()=>{ markSyncOk(); });
+  // انقطاع/عودة الإنترنت أمر طبيعي مع الشبكات الضعيفة وليس خطأً: نعرض حالة هادئة فقط
+  // (البيانات محفوظة محلياً بأمان وستُرسل تلقائياً)، دون نافذة تحذير مخيفة.
+  window.addEventListener('offline', ()=>{ state.syncStatus='offline'; updateSyncIndicator(); });
+  window.addEventListener('online', ()=>{ markSyncPending(); });
   await loadAll();
   render();
   watchConsultationsLive();
