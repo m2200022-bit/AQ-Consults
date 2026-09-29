@@ -403,7 +403,7 @@ tr.row-published td:first-child{border-right:4px solid #2f9e6f;}
 <script type="module">
 /* ===================== FIREBASE ===================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentSingleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 let getAnalytics = null;
 try{
   ({ getAnalytics } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js"));
@@ -423,11 +423,14 @@ const fbApp = initializeApp(firebaseConfig);
 // نفعّل التخزين المحلي الدائم (Offline Persistence): يجعل القراءة/الكتابة تعمل فوراً من نسخة محلية
 // حتى مع ضعف الإنترنت أو انقطاعه مؤقتاً، وتُرسَل التغييرات تلقائياً لقاعدة البيانات فور تحسّن الاتصال
 // دون فقدان أي بيانات وبدون إبطاء واجهة المستخدم.
+// نستخدم persistentMultipleTabManager (بدل single-tab) حتى لا تتعطّل الاستمرارية المحلية إن فتح
+// المستخدم النظام في أكثر من تبويب/نافذة على نفس الجهاز (شائع على الجوال) — فلا نضطر للتراجع
+// الصامت إلى وضع بلا تخزين محلي بسبب تعارض التبويبات.
 let db;
 try{
-  db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentSingleTabManager({}) }) });
+  db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 }catch(e){
-  console.warn('تعذّر تفعيل التخزين المحلي الدائم (قد يكون المتصفح لا يدعمه أو مفتوحاً في أكثر من تبويب)، سيعمل النظام بدونه', e);
+  console.warn('تعذّر تفعيل التخزين المحلي الدائم (قد لا يدعمه المتصفح، مثل وضع التصفح الخفي)، سيعمل النظام بدونه', e);
   db = getFirestore(fbApp);
 }
 try{ if(getAnalytics) getAnalytics(fbApp); }catch(e){ /* ignore */ }
@@ -803,6 +806,72 @@ async function persistConsultations(removedIds, replaceMode, silentAll){
   }
   return await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true, 3, silentAll);
 }
+
+/* ===================== نسخة احتياطية محلية للإجابات المُرسلة (خط دفاع أخير ضد ضعف/انقطاع الإنترنت) =====================
+   المشكلة: عند إرسال المستشار للإجابة، تُحدَّث الواجهة فوراً وتُغلق الاستشارة قبل انتظار تأكيد الشبكة (لسرعة الاستخدام).
+   لكن مع إنترنت ضعيف جداً أو منقطع تماماً، قد يُغلق المستشار المتصفح أو يفقد الاتصال قبل أن تصل الكتابة إلى قاعدة
+   البيانات فعلياً. لضمان عدم ضياع الإجابة في هذه الحالة، نحفظ نسخة من كل إجابة تم إرسالها في localStorage
+   (مستقل تماماً عن الشبكة ومتاح فوراً حتى بلا إنترنت إطلاقاً)، ولا نحذفها إلا بعد تأكيد نجاح الحفظ في قاعدة البيانات.
+   وعند فتح النظام لاحقاً (حتى بعد إغلاق المتصفح تماماً وإعادة فتحه)، نتحقق من وجود إجابات لم تُؤكَّد مزامنتها
+   ونعيد محاولة إرسالها تلقائياً دون أي تدخل من المستخدم. */
+const PENDING_ANSWERS_KEY = 'pending_answers_backup_v1';
+function getPendingAnswers(){
+  try{ return JSON.parse(localStorage.getItem(PENDING_ANSWERS_KEY) || '{}'); }catch(e){ return {}; }
+}
+function savePendingAnswerBackup(consultation){
+  try{
+    const all = getPendingAnswers();
+    all[consultation.id] = { consultation, savedAt: nowIso() };
+    localStorage.setItem(PENDING_ANSWERS_KEY, JSON.stringify(all));
+  }catch(e){ console.error('تعذّر حفظ النسخة الاحتياطية المحلية للإجابة', e); }
+}
+function clearPendingAnswerBackup(id){
+  try{
+    const all = getPendingAnswers();
+    if(all[id]){ delete all[id]; localStorage.setItem(PENDING_ANSWERS_KEY, JSON.stringify(all)); }
+  }catch(e){ /* تجاهل */ }
+}
+let resendingPendingAnswers = false;
+async function resendPendingAnswersIfAny(){
+  if(resendingPendingAnswers) return;
+  const pending = getPendingAnswers();
+  const ids = Object.keys(pending);
+  if(!ids.length) return;
+  resendingPendingAnswers = true;
+  try{
+    let appliedAny = false;
+    ids.forEach(id=>{
+      const rec = pending[id];
+      const localCopy = rec && rec.consultation;
+      if(!localCopy) return;
+      const idx = state.consultations.findIndex(x=>x.id===id);
+      if(idx>=0){
+        // إن كانت النسخة المحفوظة على الخادم لا تحمل نفس الإجابة المحفوظة محلياً، فهذا يعني أن
+        // الإرسال السابق لم يصل فعلياً — نعيد تطبيق النسخة المحلية المضمونة.
+        if(JSON.stringify(state.consultations[idx].answer||'') !== JSON.stringify(localCopy.answer||'') || state.consultations[idx].status !== localCopy.status){
+          state.consultations[idx] = Object.assign({}, state.consultations[idx], localCopy);
+          appliedAny = true;
+        }
+      } else {
+        // الاستشارة غير موجودة في النسخة المحمّلة (حالة نادرة) — نضيفها احتياطاً كي لا تضيع الإجابة نهائياً.
+        state.consultations.push(localCopy);
+        appliedAny = true;
+      }
+    });
+    if(appliedAny){
+      const ok = await persistConsultations();
+      if(ok){ ids.forEach(clearPendingAnswerBackup); if(state.authenticated) renderContent(); }
+      // إن فشلت مجدداً (لا يزال الإنترنت ضعيفاً)، تبقى النسخة الاحتياطية محفوظة وستتم إعادة المحاولة
+      // في المرة القادمة (عند 'online' أو إعادة فتح الصفحة) دون أي خطر على البيانات.
+    } else {
+      // النسخة على الخادم مطابقة فعلاً لما هو محفوظ محلياً — الإرسال كان قد نجح، فقط نظّف السجل المحلي.
+      ids.forEach(clearPendingAnswerBackup);
+    }
+  } finally {
+    resendingPendingAnswers = false;
+  }
+}
+
 async function persistMessages(){ await storeSet('messages_v2', JSON.stringify(state.messages), true); }
 async function persistAudit(){ await storeSet('audit_v2', JSON.stringify(state.audit), true); }
 async function persistProfiles(){ await storeSet('profiles_v2', JSON.stringify({admin:state.adminProfile, consultant:state.consultantProfile}), true); }
@@ -2691,13 +2760,22 @@ function submitAnswer(){
   if(!html || html==='<br>'){ toast('يرجى كتابة نص الإجابة قبل الإرسال'); return; }
   c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso(); c.returnFeedback=''; c.returnedForEdit=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إرسال الإجابة'});
+  // نسخة احتياطية محلية فورية (localStorage) — مستقلة تماماً عن الشبكة، تضمن عدم ضياع الإجابة
+  // حتى لو أُغلق المتصفح أو انقطع الإنترنت كلياً فور الإرسال قبل اكتمال الحفظ في قاعدة البيانات.
+  // تُحذف فقط بعد تأكيد نجاح الحفظ، وإلا فسيُعاد إرسالها تلقائياً عند إعادة فتح النظام.
+  savePendingAnswerBackup(c);
   // تحديث فوري للواجهة وإغلاق الاستشارة تلقائياً بالرجوع للقائمة دون انتظار اكتمال الحفظ عبر الشبكة
   toast('✅ تم إرسال إجابتك');
   setView('list');
   (async ()=>{
-    await persistConsultations();
-    logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
-    await sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
+    const ok = await persistConsultations();
+    if(ok){
+      clearPendingAnswerBackup(c.id);
+      logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
+      await sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
+    }
+    // إن لم تنجح المزامنة الآن (إنترنت ضعيف جداً)، تبقى النسخة الاحتياطية المحلية محفوظة بأمان
+    // وستتم إعادة محاولة إرسالها تلقائياً بمجرد عودة الاتصال أو إعادة فتح النظام — دون فقدان الإجابة.
   })();
 }
 async function declineAnswer(){
@@ -2706,11 +2784,17 @@ async function declineAnswer(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   c.status='اعتذار'; c.apologyReason=reason; c.answeredAt=nowIso(); c.returnFeedback='';
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'اعتذر المستشار عن الإجابة'+(reason?(' — '+reason):'')});
-  await persistConsultations();
-  logAudit('اعتذار عن استشارة '+(c.number||c.id));
-  await sendSystemMessage('اعتذر المستشار عن الإجابة على الاستشارة رقم '+(c.number||c.id)+(reason?(' — السبب: '+reason):''));
+  savePendingAnswerBackup(c); // نفس الحماية المحلية من ضياع البيانات مع ضعف الإنترنت
   toast('تم إرسال الاعتذار إلى الإدارة');
   setView('list');
+  (async ()=>{
+    const ok = await persistConsultations();
+    if(ok){
+      clearPendingAnswerBackup(c.id);
+      logAudit('اعتذار عن استشارة '+(c.number||c.id));
+      await sendSystemMessage('اعتذر المستشار عن الإجابة على الاستشارة رقم '+(c.number||c.id)+(reason?(' — السبب: '+reason):''));
+    }
+  })();
 }
 let lastSavedAnswerContent = null;
 let autoSaveIntervalId = null;
@@ -3132,12 +3216,19 @@ async function init(){
   // انقطاع/عودة الإنترنت أمر طبيعي مع الشبكات الضعيفة وليس خطأً: نعرض حالة هادئة فقط
   // (البيانات محفوظة محلياً بأمان وستُرسل تلقائياً)، دون نافذة تحذير مخيفة.
   window.addEventListener('offline', ()=>{ state.syncStatus='offline'; updateSyncIndicator(); });
-  window.addEventListener('online', ()=>{ markSyncPending(); });
+  window.addEventListener('online', ()=>{ markSyncPending(); resendPendingAnswersIfAny(); });
   await loadAll();
+  // في حال كانت هناك إجابة أُرسلت في زيارة سابقة ولم تصل مزامنتها فعلياً لقاعدة البيانات (بسبب انقطاع
+  // الإنترنت أو إغلاق المتصفح قبل اكتمال الحفظ)، نعيد محاولة إرسالها تلقائياً الآن قبل عرض الواجهة،
+  // حتى لا تضيع إجابة المستشار مهما ضعف الاتصال.
+  await resendPendingAnswersIfAny();
   render();
   watchConsultationsLive();
   autoEscalatePriorities();
   setInterval(autoEscalatePriorities, 5*60*1000);
+  // شبكة الأمان الأخيرة: محاولة دورية لإعادة إرسال أي إجابة لم تُؤكَّد مزامنتها بعد (كل 20 ثانية)
+  // طوال بقاء الصفحة مفتوحة — يغطي حالات تذبذب الاتصال المتكرر دون أن ينتظر المستخدم حدث 'online'.
+  setInterval(resendPendingAnswersIfAny, 20000);
 }
 init();
 </script>
