@@ -296,6 +296,7 @@ tr.row-published td:first-child{border-right:4px solid #2f9e6f;}
 .icon-btn{display:flex; flex-direction:column; align-items:center; gap:4px; border:1px solid var(--border); background:#fff; border-radius:12px; padding:10px 16px; cursor:pointer; font-family:inherit; font-size:11.5px; color:var(--ink-soft); min-width:92px;}
 .icon-btn .ic{font-size:20px;}
 .icon-btn:hover{border-color:var(--primary); color:var(--primary);}
+.icon-btn:disabled{opacity:.55; cursor:not-allowed; pointer-events:none;}
 .icon-btn.danger:hover{border-color:var(--urgent); color:var(--urgent);}
 .editor-toolbar{display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap;}
 .editor-toolbar button{border:1px solid var(--border); background:#fff; border-radius:6px; width:30px; height:30px; cursor:pointer; font-size:13px;}
@@ -403,7 +404,7 @@ tr.row-published td:first-child{border-right:4px solid #2f9e6f;}
 <script type="module">
 /* ===================== FIREBASE ===================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, setDoc, deleteDoc, collection, getDocs, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 let getAnalytics = null;
 try{
   ({ getAnalytics } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-analytics.js"));
@@ -750,6 +751,7 @@ async function loadAll(){
     storeGet('suggestions_v1', true)
   ]);
   state.consultations = c ? JSON.parse(c) : [];
+  snapshotSyncedConsultations(state.consultations); // خط أساس لمعرفة أي السجلات يُعدّلها هذا الجهاز لاحقاً
   state.messages = m ? JSON.parse(m) : [];
   state.audit = a ? JSON.parse(a) : [];
   state.suggestions = sg ? JSON.parse(sg) : [];
@@ -795,16 +797,80 @@ async function retryStoreSet(key, value, shared, attempts, forceSilent){
   }
   return false;
 }
+// خط الأساس: نسخة كل استشارة (كنص JSON) وقت آخر مزامنة ناجحة مع القاعدة على *هذا* الجهاز تحديداً.
+// يُستخدم لتحديد أي السجلات عدّلها هذا الجهاز فعلياً منذ آخر مزامنة، بدل افتراض أن كل شيء تغيّر.
+let lastSyncedConsultationsById = new Map();
+function snapshotSyncedConsultations(arr){
+  lastSyncedConsultationsById = new Map((arr||[]).map(c=>[c.id, JSON.stringify(c)]));
+}
+
 async function persistConsultations(removedIds, replaceMode, silentAll){
-  // كتابة مباشرة سريعة (خطوة شبكة واحدة فقط بدل قراءة+دمج+كتابة) — الاستمرار الحي
-  // (watchConsultationsLive) يبقي البيانات المحلية محدَّثة باستمرار، فلا حاجة لجلب إضافي قبل كل حفظ.
-  // silentAll=true (تُستخدم أثناء الحفظ التلقائي للمسودة) تمنع ظهور نافذة "غير متزامن" العامة
-  // بسبب عثرة عابرة أثناء كتابة الإجابة؛ شريط حالة الحفظ التلقائي بجانب المحرر كافٍ لإعلام المستخدم،
-  // وستنجح المحاولة التالية تلقائياً دون إزعاجه بنافذة منبثقة وهو يكتب.
   if(removedIds && removedIds.length){
     state.consultations = state.consultations.filter(c=>!removedIds.includes(c.id));
   }
-  return await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true, 3, silentAll);
+  if(replaceMode){
+    // استبدال كامل ومتعمَّد (يُستخدم فقط عند استعادة نسخة احتياطية كاملة بعد تأكيد صريح من المستخدم)
+    const ok = await retryStoreSet('consultations_v2', JSON.stringify(state.consultations), true, 3, silentAll);
+    if(ok) snapshotSyncedConsultations(state.consultations);
+    return ok;
+  }
+
+  /* ===================== الإصلاح الجذري لمشكلة اختفاء إجابة المستشار بعد المزامنة =====================
+     السبب الحقيقي للمشكلة: كل عملية حفظ سابقاً كانت تكتب مصفوفة الاستشارات المحلية بأكملها فوق قاعدة
+     البيانات (استبدال كامل). فإذا كان جهاز آخر (متصفح الإدارة مثلاً) يحمل نسخة محلية أقدم لم تتحدّث بعد
+     بإجابة أرسلها المستشار للتو، ثم قام ذلك الجهاز بأي عملية حفظ لسبب مختلف تماماً (تعديل استشارة أخرى،
+     تغيير ملاحظة، إلخ)، كانت كتابته الكاملة "تمحو" إجابة المستشار المحفوظة فعلاً في القاعدة وتُعيد
+     الاستشارة لحالة "غير مُجاب عليها" — رغم أن لا أحد حذفها فعلياً، بل ببساطة استُبدلت ببيانات أقدم.
+
+     الحل: بدل كتابة المصفوفة كاملة، نحدّد أولاً أي السجلات تغيّرت فعلياً على *هذا* الجهاز تحديداً منذ آخر
+     مزامنة ناجحة له (بمقارنة كل سجل محلي بنسخته المحفوظة وقت آخر مزامنة)، ثم نقرأ أحدث نسخة من القاعدة
+     داخل معاملة ذرّية (Transaction) ونُطبّق فوقها فقط تلك التغييرات المحلية الفعلية — وليس المصفوفة كاملة.
+     أي سجل غيّره جهاز آخر (كإجابة المستشار) يبقى كما هو في القاعدة تماماً ولا يُعاد إلى حالة قديمة أبداً،
+     بغض النظر عن مدى قِدَم النسخة المحلية لباقي البيانات على هذا الجهاز. */
+  const localById = new Map(state.consultations.map(c=>[c.id, c]));
+  const dirtyIds = new Set();
+  localById.forEach((c, id)=>{
+    if(JSON.stringify(c) !== lastSyncedConsultationsById.get(id)) dirtyIds.add(id);
+  });
+  lastSyncedConsultationsById.forEach((_, id)=>{
+    if(!localById.has(id)) dirtyIds.add(id); // سجل كان موجوداً وحُذف محلياً على هذا الجهاز تحديداً
+  });
+  if(dirtyIds.size === 0) return true; // لا تغييرات فعلية على هذا الجهاز — لا داعي لأي كتابة شبكة
+
+  const ref = doc(db, APP_STATE_COLLECTION, 'consultations_v2');
+  const attemptOnce = async ()=>{
+    return await runTransaction(db, async (tx)=>{
+      const snap = await tx.get(ref);
+      let remoteArr = [];
+      if(snap.exists()){
+        try{ remoteArr = JSON.parse(snap.data().value || '[]'); }catch(e){ remoteArr = []; }
+      }
+      const remoteById = new Map(remoteArr.map(x=>[x.id, x]));
+      dirtyIds.forEach(id=>{
+        if(localById.has(id)) remoteById.set(id, localById.get(id));
+        else remoteById.delete(id);
+      });
+      const mergedArr = Array.from(remoteById.values());
+      tx.set(ref, { value: JSON.stringify(mergedArr), updatedAt: Date.now() });
+      return mergedArr;
+    });
+  };
+  for(let i=0;i<3;i++){
+    const isLast = i===2;
+    try{
+      const merged = await attemptOnce();
+      markSyncOk();
+      state.consultations = merged;
+      snapshotSyncedConsultations(merged);
+      return true;
+    }catch(e){
+      console.error('persistConsultations transaction failed', e);
+      if(isRealSyncError(e)){ if(!silentAll) showSyncError(e); return false; }
+      markSyncPending(); // مشكلة شبكة عابرة — لا نُظهر تحذيراً مخيفاً، سنعيد المحاولة
+      if(!isLast) await new Promise(r=>setTimeout(r, 1000*(i+1))); else return false;
+    }
+  }
+  return false;
 }
 
 /* ===================== نسخة احتياطية محلية للإجابات المُرسلة (خط دفاع أخير ضد ضعف/انقطاع الإنترنت) =====================
@@ -2753,48 +2819,84 @@ async function loadDeviceFonts(){
     toast('تعذّرت قراءة خطوط الجهاز — قد تكون رفضت إذن الوصول، أو المتصفح لا يدعم هذه الميزة');
   }
 }
-function submitAnswer(){
-  stopAutoSaveTimers();
+let submittingAnswer = false;
+async function submitAnswer(){
+  // منع الإرسال المتكرر: لو كان هناك إرسال قيد التنفيذ فعلاً، تجاهل أي ضغطة إضافية على الزر
+  if(submittingAnswer) return;
   const c = state.consultations.find(x=>x.id===state.detailId);
-  const html = el('answerEditor').innerHTML.trim();
+  if(!c) return;
+  const editorEl = el('answerEditor');
+  const html = editorEl ? editorEl.innerHTML.trim() : '';
   if(!html || html==='<br>'){ toast('يرجى كتابة نص الإجابة قبل الإرسال'); return; }
-  c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso(); c.returnFeedback=''; c.returnedForEdit=false;
+  stopAutoSaveTimers();
+  submittingAnswer = true;
+  const submitBtn = document.querySelector('[data-action="answer-submit"]');
+  const declineBtn = document.querySelector('[data-action="answer-decline"]');
+  const prevBtnHtml = submitBtn ? submitBtn.innerHTML : null;
+  if(submitBtn){ submitBtn.disabled = true; submitBtn.innerHTML = '<span class="ic">⏳</span>جارٍ الحفظ…'; }
+  if(declineBtn){ declineBtn.disabled = true; }
+  // نحتفظ بالحالة السابقة الكاملة كي نتمكّن من التراجع الفوري عنها إن فشل الحفظ فعلياً في قاعدة البيانات.
+  const prevSnapshot = JSON.parse(JSON.stringify(c));
+  c.answer = html; c.draftAnswer=''; c.status='تمت الإجابة'; c.answeredAt=nowIso();
+  c.answeredBy = actorName(); c.answeredByUsername = (state.consultantProfile && state.consultantProfile.username) || '';
+  c.updatedAt = nowIso();
+  c.returnFeedback=''; c.returnedForEdit=false;
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'تم إرسال الإجابة'});
   // نسخة احتياطية محلية فورية (localStorage) — مستقلة تماماً عن الشبكة، تضمن عدم ضياع الإجابة
   // حتى لو أُغلق المتصفح أو انقطع الإنترنت كلياً فور الإرسال قبل اكتمال الحفظ في قاعدة البيانات.
-  // تُحذف فقط بعد تأكيد نجاح الحفظ، وإلا فسيُعاد إرسالها تلقائياً عند إعادة فتح النظام.
+  // تُحذف فقط بعد تأكيد نجاح الحفظ فعلياً، وإلا فسيُعاد إرسالها تلقائياً لاحقاً دون ضياعها.
   savePendingAnswerBackup(c);
-  // تحديث فوري للواجهة وإغلاق الاستشارة تلقائياً بالرجوع للقائمة دون انتظار اكتمال الحفظ عبر الشبكة
-  toast('✅ تم إرسال إجابتك');
-  setView('list');
-  (async ()=>{
+  try{
+    // لا يتم الانتقال إلى «تمت الإجابة» أو إغلاق الاستشارة إلا بعد تأكيد نجاح الحفظ الفعلي في قاعدة
+    // البيانات (عبر معاملة Firestore ذرّية في persistConsultations) — وليس بالاعتماد على حالة مؤقتة
+    // في الواجهة أو على النسخة الاحتياطية المحلية وحدها.
     const ok = await persistConsultations();
     if(ok){
       clearPendingAnswerBackup(c.id);
+      toast('✅ تم حفظ الإجابة وإرسالها بنجاح');
       logAudit('إرسال إجابة على استشارة '+(c.number||c.id));
-      await sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
+      sendSystemMessage('تمت الإجابة على الاستشارة رقم '+(c.number||c.id));
+      setView('list');
+    } else {
+      // فشل تأكيد الحفظ الفعلي: نُرجع الاستشارة إلى حالتها السابقة في الواجهة ولا نعتبرها "مجاب عليها"
+      // إطلاقاً حتى ينجح الحفظ فعلياً. النسخة الاحتياطية المحلية تبقى محفوظة وستُعاد محاولة إرسالها
+      // تلقائياً عند تحسّن الاتصال (دون أن تظهر للمستشار حالة غير صحيحة في هذه الأثناء).
+      Object.assign(c, prevSnapshot);
+      toast('⚠️ تعذّر حفظ الإجابة في قاعدة البيانات — الاتصال ضعيف جداً حالياً. سيُعاد إرسالها تلقائياً بمجرد تحسّن الاتصال، ويمكنك المحاولة يدوياً الآن أيضاً.');
+      renderContent();
     }
-    // إن لم تنجح المزامنة الآن (إنترنت ضعيف جداً)، تبقى النسخة الاحتياطية المحلية محفوظة بأمان
-    // وستتم إعادة محاولة إرسالها تلقائياً بمجرد عودة الاتصال أو إعادة فتح النظام — دون فقدان الإجابة.
-  })();
+  } finally {
+    submittingAnswer = false;
+  }
 }
+let decliningAnswer = false;
 async function declineAnswer(){
+  if(decliningAnswer) return;
   stopAutoSaveTimers();
   const reason = prompt('يرجى ذكر سبب الاعتذار عن الإجابة (اختياري):') || '';
   const c = state.consultations.find(x=>x.id===state.detailId);
-  c.status='اعتذار'; c.apologyReason=reason; c.answeredAt=nowIso(); c.returnFeedback='';
+  if(!c) return;
+  decliningAnswer = true;
+  const prevSnapshot = JSON.parse(JSON.stringify(c));
+  c.status='اعتذار'; c.apologyReason=reason; c.answeredAt=nowIso(); c.updatedAt=nowIso(); c.returnFeedback='';
   c.history = c.history||[]; c.history.push({ts:nowIso(), actor: actorName(), action:'اعتذر المستشار عن الإجابة'+(reason?(' — '+reason):'')});
   savePendingAnswerBackup(c); // نفس الحماية المحلية من ضياع البيانات مع ضعف الإنترنت
-  toast('تم إرسال الاعتذار إلى الإدارة');
-  setView('list');
-  (async ()=>{
+  try{
     const ok = await persistConsultations();
     if(ok){
       clearPendingAnswerBackup(c.id);
+      toast('تم إرسال الاعتذار إلى الإدارة');
       logAudit('اعتذار عن استشارة '+(c.number||c.id));
       await sendSystemMessage('اعتذر المستشار عن الإجابة على الاستشارة رقم '+(c.number||c.id)+(reason?(' — السبب: '+reason):''));
+      setView('list');
+    } else {
+      Object.assign(c, prevSnapshot);
+      toast('⚠️ تعذّر حفظ الاعتذار — الاتصال ضعيف. سيُعاد إرساله تلقائياً بمجرد تحسّن الاتصال.');
+      renderContent();
     }
-  })();
+  } finally {
+    decliningAnswer = false;
+  }
 }
 let lastSavedAnswerContent = null;
 let autoSaveIntervalId = null;
@@ -3161,6 +3263,7 @@ async function forceResyncFromFirebase(){
     }
     const fresh = JSON.parse(snap.data().value || '[]');
     state.consultations = fresh;
+    snapshotSyncedConsultations(fresh);
     toast('✅ تم جلب '+fresh.length+' استشارة من قاعدة البيانات مباشرة');
     render();
   }catch(e){
@@ -3203,6 +3306,7 @@ function watchConsultationsLive(){
       let incoming;
       try{ incoming = JSON.parse(snap.data().value || '[]'); }catch(e){ return; }
       state.consultations = incoming;
+      snapshotSyncedConsultations(incoming); // تحديث خط الأساس دائماً — هذه بيانات مؤكَّدة من القاعدة
       const editorFocused = document.activeElement && document.activeElement.id === 'answerEditor';
       const onAddForm = state.view === 'add';
       if(!editorFocused && !onAddForm){
