@@ -642,6 +642,7 @@ async function storeGet(key, shared){
     return snap.exists() ? snap.data().value : null;
   }catch(e){
     console.error('firestore get failed', key, e);
+    failedGetKeys.add(key);
     if(isRealSyncError(e)) showSyncError(e); else markSyncPending();
     return null;
   }
@@ -741,12 +742,24 @@ function showSyncError(e){
   setTimeout(()=>{ syncErrorShown = false; bar.remove(); }, 15000);
 }
 
+const failedGetKeys = new Set();
+async function storeGetRetry(key){
+  // تحميل أولي مقاوم لضعف الإنترنت: إعادة المحاولة عدة مرات قبل الاستسلام
+  for(let i=0;i<4;i++){
+    failedGetKeys.delete(key);
+    const v = await storeGet(key, true);
+    if(!failedGetKeys.has(key)) return v;
+    await new Promise(r=>setTimeout(r, 1500*(i+1)));
+  }
+  return null;
+}
 async function loadAll(){
+  failedGetKeys.clear();
   const [c, m, a, p, b, sg] = await Promise.all([
-    storeGet('consultations_v2', true),
+    storeGetRetry('consultations_v2'),
     storeGet('messages_v2', true),
     storeGet('audit_v2', true),
-    storeGet('profiles_v2', true),
+    storeGetRetry('profiles_v2'),
     storeGet('branding_v1', true),
     storeGet('suggestions_v1', true)
   ]);
@@ -759,7 +772,7 @@ async function loadAll(){
     const parsed = JSON.parse(p);
     state.adminProfile = Object.assign({}, state.adminProfile, parsed.admin||{});
     state.consultantProfile = Object.assign({}, state.consultantProfile, parsed.consultant||{});
-  } else { persistProfiles(); }
+  } else if(!failedGetKeys.has('profiles_v2')) { persistProfiles(); }
   if(b){ const parsedB = JSON.parse(b); state.logoUrl = parsedB.logoUrl || ''; }
 }
 async function autoEscalatePriorities(){
@@ -986,10 +999,14 @@ const STAMP_MAP = {
 function statusStamp(c){ return STAMP_MAP[statusKey(c)] || {cls:'st-new', label:c.status}; }
 function isOverdue(c){ const k = statusKey(c); return k==='متأخرة' || k==='مستعجلة ومتأخرة'; }
 
+// النظام يحتوي حساب مستشار واحد فقط، لذا كل الاستشارات غير المحذوفة تخصّه. كان الفلتر السابق يطابق الاسم حرفياً
+// (assignedTo يساوي اسم المستشار الحالي)، فتختفي الاستشارة من قائمته إن اختلف الاسم (إعادة تسمية، أو تحميل
+// ملفه الشخصي افتراضياً بسبب ضعف الإنترنت) بينما تبقى محسوبة في عدّاد صفحة الدخول التي لا تفلتر بالاسم.
+function isMineConsultation(c){ return true; }
 function visibleConsultations(){
   let list = state.consultations.filter(c=>!c.deleted);
   if(state.role==='consultant'){
-    list = list.filter(c => (c.assignedTo||[]).includes(state.consultantProfile.name));
+    list = list.filter(c => isMineConsultation(c));
   }
   const f = state.filters;
   if(f.q){
@@ -1061,13 +1078,13 @@ function navItems(){
 }
 function pendingBadgeCount(){
   if(state.role==='consultant'){
-    return state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة').length;
+    return state.consultations.filter(c=>!c.deleted && isMineConsultation(c) && c.status==='تحت الإجابة').length;
   }
   return state.consultations.filter(c=>!c.deleted && c.status==='تحت الإجابة').length;
 }
 function answeredBadgeCount(){
   if(state.role==='consultant'){
-    return state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تمت الإجابة').length;
+    return state.consultations.filter(c=>!c.deleted && isMineConsultation(c) && c.status==='تمت الإجابة').length;
   }
   return state.consultations.filter(c=>!c.deleted && c.status==='تمت الإجابة').length;
 }
@@ -1297,7 +1314,7 @@ function renderAdminDashboard(){
   `;
 }
 function renderConsultantDashboard(){
-  const mine = state.consultations.filter(c=>!c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name));
+  const mine = state.consultations.filter(c=>!c.deleted && isMineConsultation(c));
   const s = computeStats(mine);
   const newOnes = mine.filter(c=>['جديدة','مستعجلة'].includes(statusKey(c))).sort((a,b)=>new Date(b.createdAt)-new Date(a.createdAt));
   const overdueOnes = mine.filter(isOverdue).sort((a,b)=>new Date(a.assignedAt||a.createdAt)-new Date(b.assignedAt||b.createdAt));
@@ -1646,7 +1663,7 @@ function renderDetail(){
   const c = state.consultations.find(x=>x.id===state.detailId);
   if(!c) return `<div class="empty">تعذر العثور على الاستشارة</div>`;
   const st = statusStamp(c);
-  const isMine = (c.assignedTo||[]).includes(state.consultantProfile.name);
+  const isMine = isMineConsultation(c);
   const canAct = state.role==='consultant' && isMine && c.status==='تحت الإجابة';
   const canReview = state.role==='admin' && c.status==='تمت الإجابة';
 
@@ -2444,7 +2461,7 @@ async function checkAndShowEntryModal(){
   if(state.role==='consultant'){
     const raw = await storeGet('lastseen_consult', false);
     const last = raw ? new Date(raw) : null;
-    const fresh = state.consultations.filter(c=> !c.deleted && (c.assignedTo||[]).includes(state.consultantProfile.name) && c.status==='تحت الإجابة' && (!last || new Date(c.assignedAt||c.createdAt) > last));
+    const fresh = state.consultations.filter(c=> !c.deleted && isMineConsultation(c) && c.status==='تحت الإجابة' && (!last || new Date(c.assignedAt||c.createdAt) > last));
     await storeSet('lastseen_consult', nowIso(), false);
     if(fresh.length) parts.push(`لديك (${fresh.length}) استشارات جديدة`);
   }
