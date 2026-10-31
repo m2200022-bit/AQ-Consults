@@ -450,6 +450,14 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
 .pass-wrap input{padding-left:42px}
 .pass-wrap button{position:absolute;left:4px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--ink-faint);cursor:pointer;width:34px;height:34px;display:grid;place-items:center}
 .form-error{background:var(--danger-100);color:var(--danger);border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:flex-start}
+.login-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 20px}
+.login-stat{display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:14px;border:1px solid var(--border);background:var(--surface)}
+.login-stat .ls-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:0 0 40px;background:var(--primary-100);color:var(--primary)}
+.login-stat.alert .ls-ic{background:var(--danger-100);color:var(--danger)}
+.login-stat.alert{border-color:color-mix(in srgb,var(--danger) 35%,var(--border))}
+.login-stat .ls-n{font-size:24px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
+.login-stat .ls-l{font-size:12.5px;font-weight:600;color:var(--ink-soft)}
+.login-stat.loading .ls-n{color:var(--ink-faint)}
 .splash{min-height:100vh;display:grid;place-items:center;color:var(--ink-faint)}
 .spinner{width:30px;height:30px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--primary);animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -985,6 +993,7 @@ function startSync(){
         if(!firstC && state.user) notifyConsultChanges(before);
         prevStatusById=new Map(state.consultations.map(c=>[c.id,c.status]));
         if(firstC){ firstC=false; if(state.user) setTimeout(entryNotice,400); }
+        if(!state.user) updateLoginStats();
       } else if(k==='m'){
         recompute('m');
         if(!firstM && state.user) state.messages.forEach(m=>{ if(!seenMsgIds.has(m.id) && !isMyMessage(m)) notify('رسالة جديدة', (m.fromName?m.fromName+': ':'')+(m.text||'').slice(0,90)); });
@@ -1212,10 +1221,22 @@ function authSide(){
       <span>${ic('hourglass')}متابعة المهلة لكل استشارة لحظة بلحظة</span>
     </div></div>`;
 }
+function loginStatsHtml(){
+  const pend=state.consultations.filter(c=>!c.deleted && c.status==='pending');
+  const hot=pend.filter(c=>{ const f=flags(c); return f.late||f.urgent; }).length;
+  const fresh=pend.length-hot;
+  const ld=state.consultsLoaded?'':' loading';
+  const n=v=> state.consultsLoaded ? v : '…';
+  return `<div class="login-stat${ld}"><span class="ls-ic">${ic('inbox')}</span><span><div class="ls-n">${n(fresh)}</div><div class="ls-l">استشارات جديدة</div></span></div>
+    <div class="login-stat ${hot?'alert':''}${ld}"><span class="ls-ic">${ic('flame')}</span><span><div class="ls-n">${n(hot)}</div><div class="ls-l">متأخرة ومستعجلة</div></span></div>`;
+}
+function updateLoginStats(){ const el=$('loginStats'); if(el && !state.user){ el.innerHTML=loginStatsHtml(); refreshIcons(); } }
+setInterval(updateLoginStats, 60000);
 function mobileBrand(){ return `<div class="auth-mobile-brand">${brandMark('brand-mark')}<div><div style="font-family:var(--font-display);font-size:22px;font-weight:700">نظام الاستشارات</div><div class="muted">مكتب الدكتور عقيل محمد المقطري</div></div></div>`; }
 function loginHtml(){
   return `<div class="auth">${authSide()}
     <div class="auth-main"><div class="auth-card">${mobileBrand()}
+      <div class="login-stats" id="loginStats">${loginStatsHtml()}</div>
       <h2>تسجيل الدخول</h2><p class="sub">أدخل بيانات حسابك للمتابعة</p>
       ${state.loginError?`<div class="form-error">${ic('circle-alert')}<span>${esc(state.loginError)}</span></div>`:''}
       <div class="field"><label class="lbl" for="loginUser">اسم المستخدم</label>
