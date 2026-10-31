@@ -458,6 +458,9 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
 .login-stat .ls-n{font-size:24px;font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums}
 .login-stat .ls-l{font-size:12.5px;font-weight:600;color:var(--ink-soft)}
 .login-stat.loading .ls-n{color:var(--ink-faint)}
+.login-stat.tone-gold .ls-ic{background:var(--gold-100);color:var(--gold-ink)}
+.login-stat.tone-slate .ls-ic{background:var(--slate-100);color:var(--slate)}
+.login-stat .ls-l{line-height:1.35}
 .splash{min-height:100vh;display:grid;place-items:center;color:var(--ink-faint)}
 .spinner{width:30px;height:30px;border-radius:50%;border:3px solid var(--border);border-top-color:var(--primary);animation:spin .8s linear infinite;margin:0 auto 12px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -663,7 +666,8 @@ function flags(c){
   return { late:h>=SLA.lateH, urgent: manual || h>=SLA.autoUrgentH, critical:h>=SLA.criticalH, auto: !manual && h>=SLA.autoUrgentH };
 }
 function stageKey(c){ if(c.status==='pending') return c.openedAt ? 'pending' : 'new'; return c.status; }
-function stageLabel(c){ const k=stageKey(c); return k==='new' ? 'جديدة' : (STATUS[k]||{}).label || c.status; }
+function answeredLabel(){ return isConsultant() ? 'تمت الإجابة' : 'بانتظار الاعتماد'; }
+function stageLabel(c){ const k=stageKey(c); if(k==='answered') return answeredLabel(); return k==='new' ? 'جديدة' : (STATUS[k]||{}).label || c.status; }
 function stageChip(c){
   const k=stageKey(c);
   const icon = k==='new' ? 'inbox' : (STATUS[k]||{}).icon || 'circle';
@@ -1077,7 +1081,7 @@ async function entryNotice(){
     if(ret) parts.push(`<b>${ret}</b> استشارة مسترجعة للتعديل`);
   } else {
     const waiting=live().filter(c=>c.status==='answered').length;
-    if(waiting) parts.push(`<b>${waiting}</b> إجابة بانتظار اعتمادك`);
+    if(waiting) parts.push(`<b>${waiting}</b> استشارة بانتظار الاعتماد`);
     const late=live().filter(c=>flags(c).late).length;
     if(late) parts.push(`<b>${late}</b> استشارة متأخرة`);
   }
@@ -1110,7 +1114,7 @@ function navItems(){
     {g:'العمل اليومي'},
     {v:'dashboard', l:'لوحة التحكم', i:'layout-dashboard'},
     {v:'list', l:'استشاراتي', i:'inbox', b:pending},
-    {v:'answered', l:'أجبت عنها', i:'circle-check'},
+    {v:'answered', l:'تمت الإجابة', i:'circle-check'},
     {v:'closed', l:'الأرشيف', i:'archive'},
     {g:'المتابعة'},
     {v:'reports', l:'تقاريري', i:'chart-column'},
@@ -1126,7 +1130,7 @@ const TITLES={ dashboard:['لوحة التحكم',''], list:['الاستشارا
 function pageTitle(){
   let [t,s]=TITLES[state.view]||['نظام الاستشارات',''];
   if(state.view==='list' && isConsultant()) t='استشاراتي';
-  if(state.view==='answered' && isConsultant()){ t='أجبت عنها'; s='بانتظار اعتماد الإدارة'; }
+  if(state.view==='answered' && isConsultant()){ t='تمت الإجابة'; s='الاستشارات التي أجبت عنها وأُرسلت للإدارة'; }
   if(state.view==='add' && state.editingId) t='تعديل الاستشارة';
   if(state.view==='settings' && isConsultant()) t='حسابي والمقاطع';
   if(state.view==='dashboard') s=new Date().toLocaleDateString('ar-EG-u-nu-latn',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
@@ -1222,13 +1226,15 @@ function authSide(){
     </div></div>`;
 }
 function loginStatsHtml(){
-  const pend=state.consultations.filter(c=>!c.deleted && c.status==='pending');
+  const all=state.consultations.filter(c=>!c.deleted);
+  const pend=all.filter(c=>c.status==='pending');
   const hot=pend.filter(c=>{ const f=flags(c); return f.late||f.urgent; }).length;
   const fresh=pend.length-hot;
+  const waiting=all.filter(c=>c.status==='answered').length;
   const ld=state.consultsLoaded?'':' loading';
   const n=v=> state.consultsLoaded ? v : '…';
-  return `<div class="login-stat${ld}"><span class="ls-ic">${ic('inbox')}</span><span><div class="ls-n">${n(fresh)}</div><div class="ls-l">استشارات جديدة</div></span></div>
-    <div class="login-stat ${hot?'alert':''}${ld}"><span class="ls-ic">${ic('flame')}</span><span><div class="ls-n">${n(hot)}</div><div class="ls-l">متأخرة ومستعجلة</div></span></div>`;
+  const box=(icon,v,l,cls='')=>`<div class="login-stat ${cls}${ld}"><span class="ls-ic">${ic(icon)}</span><span><div class="ls-n">${n(v)}</div><div class="ls-l">${l}</div></span></div>`;
+  return box('inbox',fresh,'استشارات جديدة')+box('flame',hot,'متأخرة ومستعجلة',hot?'alert':'')+box('user-pen',pend.length,'لم يُجب عنها بعد','tone-slate')+box('circle-check',waiting,'بانتظار الاعتماد','tone-gold');
 }
 function updateLoginStats(){ const el=$('loginStats'); if(el && !state.user){ el.innerHTML=loginStatsHtml(); refreshIcons(); } }
 setInterval(updateLoginStats, 60000);
@@ -1317,14 +1323,14 @@ function adminDashboard(){
   const months=lastMonths(6);
   return `
     <div class="kpis">
-      ${kpi('inbox','قيد الإجابة',pend.length,'لدى المستشار الآن','primary','list','')}
+      ${kpi('inbox','لدى المستشار',pend.length,'لم يُجب عنها بعد','primary','list','')}
       ${kpi('alarm-clock','متأخرة',late.length,'تجاوزت '+SLA.lateH+' ساعة','warn','list','late')}
       ${kpi('flame','مستعجلة',urgent.length,'يدوياً أو بعد '+SLA.autoUrgentH+' ساعة','danger','list','urgent')}
-      ${kpi('circle-check','بانتظار اعتمادك',answered.length,'جاهزة للمراجعة','gold','answered','')}
+      ${kpi('circle-check','بانتظار الاعتماد',answered.length,'أجاب عنها المستشار','gold','answered','')}
       ${kpi('globe','للنشر',toPub.length,'أُرسلت للتدقيق','slate','kanban','')}
       ${kpi('badge-check','نُشرت هذا الشهر',pubMonth,monthLabel(mk),'ok','closed','')}
     </div>
-    ${answered.length?`<div class="panel tone-gold"><div class="panel-head"><h3>${ic('circle-check')}بانتظار اعتمادك</h3><span class="count gold">${answered.length}</span><span class="spacer"></span><button class="btn btn-sm btn-ghost" data-nav="answered">عرض الكل ${ic('arrow-left','ico-sm')}</button></div><div class="panel-body flush">${consultTable(answered.slice(0,6),{noActions:true})}</div></div>`:''}
+    ${answered.length?`<div class="panel tone-gold"><div class="panel-head"><h3>${ic('circle-check')}بانتظار الاعتماد</h3><span class="count gold">${answered.length}</span><span class="spacer"></span><button class="btn btn-sm btn-ghost" data-nav="answered">عرض الكل ${ic('arrow-left','ico-sm')}</button></div><div class="panel-body flush">${consultTable(answered.slice(0,6),{noActions:true})}</div></div>`:''}
     ${queuePanel(sortByUrgency(pend), 'لدى المستشار — مرتّبة حسب الأولوية', 'list-checks', late.length?'warn':'primary', {empty:'لا توجد استشارات مفتوحة', emptyDesc:'كل الاستشارات تمت الإجابة عنها'})}
     ${(toPub.length||declined.length)?`<div class="grid-2">
       <div class="panel"><div class="panel-head"><h3>${ic('globe')}للنشر</h3>${toPub.length?`<span class="count">${toPub.length}</span>`:''}</div><div class="panel-body flush">${toPub.length?toPub.slice(0,6).map(queueItem).join(''):emptyHtml('globe','لا شيء بانتظار النشر')}</div></div>
@@ -1400,8 +1406,8 @@ function listView(){
 function refreshListBody(){ const b=$('listBody'); if(!b) return; b.innerHTML=consultTable(filteredOpen(),{empty:'لا توجد نتائج مطابقة', emptyIcon:'search-x'}); refreshIcons(); }
 function answeredView(){
   const list=live().filter(c=>c.status==='answered').sort(byDesc('answeredAt'));
-  return `<div class="panel ${list.length?'tone-gold':''}"><div class="panel-head"><h3>${ic('circle-check')}${isAdmin()?'إجابات بانتظار اعتمادك':'إجاباتي بانتظار اعتماد الإدارة'}</h3>${list.length?`<span class="count gold">${list.length}</span>`:''}</div>
-    <div class="panel-body flush">${consultTable(list,{empty:'لا توجد إجابات بانتظار الاعتماد', emptyIcon:'circle-check'})}</div></div>`;
+  return `<div class="panel ${list.length?'tone-gold':''}"><div class="panel-head"><h3>${ic('circle-check')}${isAdmin()?'بانتظار الاعتماد':'تمت الإجابة'}</h3>${list.length?`<span class="count gold">${list.length}</span>`:''}</div>
+    <div class="panel-body flush">${consultTable(list,{empty: isAdmin()?'لا توجد إجابات بانتظار الاعتماد':'لا توجد استشارات أجبت عنها حالياً', emptyIcon:'circle-check'})}</div></div>`;
 }
 function closedList(){
   let all=live().filter(isClosed).sort((a,b)=> new Date(b.closedAt||b.publishedAt||0)-new Date(a.closedAt||a.publishedAt||0));
@@ -1647,7 +1653,7 @@ function noticesHtml(c, canAct){
   let h='';
   if(c.status==='pending' && c.returnedForEdit) h+=`<div class="notice gold">${ic('undo-2')}<span><b>مسترجعة للتعديل.</b> ${c.returnFeedback?'ملاحظة الإدارة: '+esc(c.returnFeedback):'إجابتك السابقة جاهزة في المحرر للتعديل.'}</span></div>`;
   if(c.status==='declined') h+=`<div class="notice">${ic('ban')}<span><b>اعتذر المستشار عن الإجابة.</b>${c.apologyReason?' السبب: '+esc(c.apologyReason):''}${c.closedAt?' — أُغلقت بتاريخ '+fmtDate(c.closedAt):''}</span></div>`;
-  if(c.status==='answered') h+=`<div class="notice ok">${ic('circle-check')}<span>${isAdmin()?'أجاب المستشار عن هذه الاستشارة — راجع الإجابة ثم اعتمدها أو أعدها للتعديل.':'تم إرسال إجابتك — بانتظار اعتماد الإدارة.'}</span></div>`;
+  if(c.status==='answered') h+=`<div class="notice ok">${ic('circle-check')}<span>${isAdmin()?'أجاب المستشار عن هذه الاستشارة — راجع الإجابة ثم اعتمدها أو أعدها للتعديل.':'تمت الإجابة وأُرسلت إلى الإدارة.'}</span></div>`;
   if(c.status==='published') h+=`<div class="notice ok">${ic('badge-check')}<span>نُشرت وأُغلقت بتاريخ ${fmtDateTime(c.publishedAt||c.closedAt)}</span></div>`;
   if(flags(c).critical) h+=`<div class="notice danger">${ic('siren')}<span>تجاوزت هذه الاستشارة ${SLA.criticalH/24} أيام دون إجابة — تحتاج اهتماماً عاجلاً.</span></div>`;
   if(c.internalNotes && (isAdmin() || c.showNotesToConsultant)) h+=`<div class="notice primary">${ic('sticky-note')}<span><b>${isAdmin()?'ملاحظات الإدارة'+(c.showNotesToConsultant?' (ظاهرة للمستشار)':' (داخلية)'):'ملاحظة من الإدارة'}:</b> ${esc(c.internalNotes)}</span></div>`;
@@ -2064,7 +2070,7 @@ function reportsView(){
     </div>
     <div class="grid-2">
       <div class="panel"><div class="panel-head"><h3>${ic('chart-pie')}توزيع الحالات</h3></div><div class="panel-body">${donut([
-        ['قيد الإجابة',counts.pending,'var(--primary)'],['بانتظار الاعتماد',counts.answered,'var(--gold)'],['للنشر',counts.to_publish,'var(--slate)'],['منشورة',counts.published,'var(--ok)'],['اعتذار',counts.declined,'var(--ink-faint)']])}</div></div>
+        ['قيد الإجابة',counts.pending,'var(--primary)'],[answeredLabel(),counts.answered,'var(--gold)'],['للنشر',counts.to_publish,'var(--slate)'],['منشورة',counts.published,'var(--ok)'],['اعتذار',counts.declined,'var(--ink-faint)']])}</div></div>
       <div class="panel"><div class="panel-head"><h3>${ic('chart-column')}الوارد والمنشور شهرياً</h3></div><div class="panel-body">${monthlyBars(all, lastMonths(6))}</div></div>
     </div>
     <div class="grid-2">
