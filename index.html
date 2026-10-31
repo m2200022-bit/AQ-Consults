@@ -450,7 +450,8 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
 .pass-wrap input{padding-left:42px}
 .pass-wrap button{position:absolute;left:4px;top:50%;transform:translateY(-50%);border:0;background:transparent;color:var(--ink-faint);cursor:pointer;width:34px;height:34px;display:grid;place-items:center}
 .form-error{background:var(--danger-100);color:var(--danger);border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:12px;display:flex;gap:8px;align-items:flex-start}
-.login-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 20px}
+.login-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 20px}
+.login-stats:empty{display:none}
 .login-stat{display:flex;align-items:center;gap:11px;padding:13px 14px;border-radius:14px;border:1px solid var(--border);background:var(--surface)}
 .login-stat .ls-ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;flex:0 0 40px;background:var(--primary-100);color:var(--primary)}
 .login-stat.alert .ls-ic{background:var(--danger-100);color:var(--danger)}
@@ -1231,18 +1232,17 @@ function loginStatsHtml(){
   const hot=pend.filter(c=>{ const f=flags(c); return f.late||f.urgent; }).length;
   const fresh=pend.length-hot;
   const waiting=all.filter(c=>c.status==='answered').length;
-  const ld=state.consultsLoaded?'':' loading';
-  const n=v=> state.consultsLoaded ? v : '…';
-  const box=(icon,v,l,cls='')=>`<div class="login-stat ${cls}${ld}"><span class="ls-ic">${ic(icon)}</span><span><div class="ls-n">${n(v)}</div><div class="ls-l">${l}</div></span></div>`;
+  if(!state.consultsLoaded) return '';
+  const box=(icon,v,l,cls='')=> v>0 ? `<div class="login-stat ${cls}"><span class="ls-ic">${ic(icon)}</span><span><div class="ls-n">${v}</div><div class="ls-l">${l}</div></span></div>` : '';
   return box('inbox',fresh,'استشارات جديدة')+box('flame',hot,'متأخرة ومستعجلة',hot?'alert':'')+box('user-pen',pend.length,'لم يُجب عنها بعد','tone-slate')+box('circle-check',waiting,'بانتظار الاعتماد','tone-gold');
 }
-function updateLoginStats(){ const el=$('loginStats'); if(el && !state.user){ el.innerHTML=loginStatsHtml(); refreshIcons(); } }
+function updateLoginStats(){ const el=$('loginStats'); if(el && !state.user){ el.innerHTML=loginStatsHtml().trim(); refreshIcons(); } }
 setInterval(updateLoginStats, 60000);
 function mobileBrand(){ return `<div class="auth-mobile-brand">${brandMark('brand-mark')}<div><div style="font-family:var(--font-display);font-size:22px;font-weight:700">نظام الاستشارات</div><div class="muted">مكتب الدكتور عقيل محمد المقطري</div></div></div>`; }
 function loginHtml(){
   return `<div class="auth">${authSide()}
     <div class="auth-main"><div class="auth-card">${mobileBrand()}
-      <div class="login-stats" id="loginStats">${loginStatsHtml()}</div>
+      <div class="login-stats" id="loginStats">${loginStatsHtml().trim()}</div>
       <h2>تسجيل الدخول</h2><p class="sub">أدخل بيانات حسابك للمتابعة</p>
       ${state.loginError?`<div class="form-error">${ic('circle-alert')}<span>${esc(state.loginError)}</span></div>`:''}
       <div class="field"><label class="lbl" for="loginUser">اسم المستخدم</label>
