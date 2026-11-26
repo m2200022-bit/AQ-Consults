@@ -1015,7 +1015,7 @@ function enterApp(role, restored, extra){
   if(!restored || Date.now()-last > 30*60*1000){ lsSet(k, String(Date.now())); logAudit(role==='consultant'?'تسجيل دخول المستشار':'تسجيل دخول الإدارة'); }
   setTimeout(handleImportHash, 600);
 }
-async function enterSecure(fu, restored){
+async function enterSecure(fu, restored, attempt){
   try{
     const s=await getDoc(doc(db,'users',fu.uid));
     if(!s.exists() || s.data().active===false){
@@ -1031,7 +1031,12 @@ async function enterSecure(fu, restored){
     ensureLocked();
   }catch(e){
     console.error('enterSecure', e);
-    state.loginError='تعذّر تحميل الحساب — تحقق من الاتصال'; state.authReady=true; render();
+    const code=(e && (e.code||e.name||'')) || '';
+    if(!attempt && !state.user && /unavailable|deadline|network|offline|internal/i.test(code+' '+(e&&e.message||''))){
+      await new Promise(r=>setTimeout(r,2500)); return enterSecure(fu, restored, 1);   // انقطاع عابر: محاولة ثانية تلقائياً
+    }
+    if(state.user) return;   // الدخول تمّ وفشل جزء ثانوي بعده — لا نُخرج المستخدم
+    state.loginError='تعذّر تحميل الحساب — تحقق من الاتصال'+(code||e&&e.message?' ('+(code||String(e.message).slice(0,60))+')':''); state.authReady=true; render();
   }
 }
 /* إكمال القفل إن انقطع أول تفعيل في منتصفه */
