@@ -40,5 +40,9 @@ D8	decrypted download: consultations=\['c1', 'c0'\] messages=1
 D9	outbox after refusal=0 ; later write saved=True
 D10	restored from external: main ids=\['c1', 'c0'\]
 D11	push tokens registered: \[\['push_tokens/tok-\d+', '(admin|consultant)', True\].* ; vapid passed=True
+D13	folder chosen: files=\['نسخة_الاستشارات_\d{4}-\d\d-\d\d\.json'\] consultations=[1-9]\d* toast=True
+D14	auto backup on open: writes (\d+) -> (?!\1)\d+ ; toast=True
+D15	permission banner=True no write before click=True ; after click writes=1 banner gone=True
+D16	kept dated files=30 ; other files untouched=True
 D11b	الإشعارات والنظام مغلق \| هذا الجهاز مسجّل
 D12	after logout tokens: .* deleted=[1-9]

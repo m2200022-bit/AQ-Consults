@@ -48,6 +48,18 @@ with sync_playwright() as p:
         if 'fonts.g' in u or 'cdnjs' in u: return r.fulfill(status=200, content_type='text/css', body='')
         return r.continue_()
     ctx.route('**/*', route)
+    ctx.add_init_script("""(()=>{
+      const S=sessionStorage, J=(k,d)=>{ try{ return JSON.parse(S.getItem(k))??d; }catch(e){ return d; } };
+      const files=()=>J('__lbFiles',{}), save=f=>S.setItem('__lbFiles',JSON.stringify(f));
+      const mkDir=()=>({ name:'نسخي', kind:'directory',
+        queryPermission: async()=> S.getItem('__lbPerm')||'granted',
+        requestPermission: async()=>{ S.setItem('__lbPerm','granted'); return 'granted'; },
+        getFileHandle: async(n)=>({ createWritable: async()=>{ let buf=''; return { write: async(d)=>{ buf+=d; }, close: async()=>{ const f=files(); f[n]=buf.length; save(f); S.setItem('__lbWrites', String(+(S.getItem('__lbWrites')||0)+1)); S.setItem('__lbLast', buf.slice(0,4000000)); } }; } }),
+        entries: async function*(){ for(const n of Object.keys(files())) yield [n,{kind:'file'}]; },
+        removeEntry: async(n)=>{ const f=files(); delete f[n]; save(f); } });
+      window.showDirectoryPicker=async()=>{ S.setItem('__lbHas','1'); return mkDir(); };
+      window.__lbTestDir = S.getItem('__lbHas') ? mkDir() : null;
+    })();""")
     page=ctx.new_page()
     page.on('pageerror', lambda e: errors.append('PAGEERROR '+str(e)))
     page.on('console', lambda m: errors.append('CONSOLE '+m.type+': '+m.text) if m.type in ('error','warning') else None)

@@ -33,6 +33,31 @@ shot(page,'s07_settings_ext')
 
 pt=page.evaluate("[...window.__store.docs.entries()].filter(([k])=>k.startsWith('push_tokens/')).map(([k,v])=>[k,v.role,!!v.uid])")
 log('D11 push tokens registered: %s ; vapid passed=%s' % (pt, page.evaluate("!!(window.__pushOpts&&window.__pushOpts.vapidKey&&window.__pushOpts.serviceWorkerRegistration)")))
+# --- نسخة تلقائية إلى مجلد على الجهاز ---
+toasts=lambda: ' | '.join(page.locator('.toast').all_inner_texts())
+nav('settings'); page.wait_for_timeout(600)
+page.click('[data-action="lb-choose"]'); page.wait_for_timeout(2500)
+lbf=page.evaluate("JSON.parse(sessionStorage.getItem('__lbFiles')||'{}')")
+lastc=page.evaluate("(()=>{ try{ return JSON.parse(sessionStorage.getItem('__lbLast')).consultations.length; }catch(e){ return -1; } })()")
+log('D13 folder chosen: files=%s consultations=%d toast=%s' % (list(lbf.keys()), lastc, 'تم تحديث النسخة الاحتياطية بتاريخ' in toasts()))
+w0=int(page.evaluate("sessionStorage.getItem('__lbWrites')||0"))
+page.reload()
+seen=False
+for _ in range(30):
+    page.wait_for_timeout(400)
+    if 'تم تحديث النسخة الاحتياطية بتاريخ' in toasts(): seen=True; break
+page.wait_for_timeout(1500)
+w1=int(page.evaluate("sessionStorage.getItem('__lbWrites')||0"))
+log('D14 auto backup on open: writes %d -> %d ; toast=%s' % (w0, w1, seen))
+page.evaluate("(()=>{ const f=JSON.parse(sessionStorage.getItem('__lbFiles')||'{}'); for(let i=1;i<=35;i++){ f['نسخة_الاستشارات_2025-01-'+String(i%28+1).padStart(2,'0')+'x.json']=1; f['نسخة_الاستشارات_2024-'+String(i%12+1).padStart(2,'0')+'-'+String(i%28+1).padStart(2,'0')+'.json']=1; } f['ملف_آخر.txt']=1; sessionStorage.setItem('__lbFiles', JSON.stringify(f)); sessionStorage.setItem('__lbPerm','prompt'); })()")
+page.reload(); page.wait_for_timeout(7000)
+banner=page.is_visible('#lbBanner'); w2=int(page.evaluate("sessionStorage.getItem('__lbWrites')||0"))
+page.click('#lbBanner [data-action="lb-now"]'); page.wait_for_timeout(2500)
+w3=int(page.evaluate("sessionStorage.getItem('__lbWrites')||0"))
+lbf=page.evaluate("JSON.parse(sessionStorage.getItem('__lbFiles')||'{}')")
+dated=[n for n in lbf if __import__('re').match(r'^نسخة_الاستشارات_\d{4}-\d\d-\d\d\.json$', n)]
+log('D15 permission banner=%s no write before click=%s ; after click writes=%d banner gone=%s' % (banner, w2==w1, w3-w2, not page.is_visible('#lbBanner')))
+log('D16 kept dated files=%d ; other files untouched=%s' % (len(dated), 'ملف_آخر.txt' in lbf and any(n.endswith('x.json') for n in lbf)))
 nav('settings'); page.wait_for_timeout(800)
 log('D11b push status row: %s' % page.locator('li', has_text='الإشعارات والنظام مغلق').first.inner_text().replace('\n',' | '))
 page.click('[data-action="logout"]'); page.wait_for_timeout(500)

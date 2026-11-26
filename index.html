@@ -426,6 +426,7 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
 .progress{height:8px;background:var(--surface-3);border-radius:99px;overflow:hidden;margin-top:12px}
 .progress i{display:block;height:100%;background:var(--primary);transition:width .3s}
 .toasts{position:fixed;bottom:20px;left:20px;display:flex;flex-direction:column;gap:8px;z-index:200;pointer-events:none}
+.lb-banner{position:fixed;bottom:18px;inset-inline-start:50%;transform:translateX(50%);z-index:60;background:var(--surface);color:var(--ink);border:1px solid var(--border);box-shadow:var(--shadow);border-radius:14px;padding:9px 12px;display:flex;gap:10px;align-items:center;font-size:13.5px;max-width:calc(100vw - 24px)}
 .toast{background:var(--ink);color:var(--bg);padding:10px 15px;border-radius:12px;font-size:13.5px;box-shadow:var(--shadow);display:flex;gap:9px;align-items:center;animation:slideup .2s;max-width:400px;pointer-events:auto}
 .toast.warn svg{color:#F2C94C}.toast.ok svg{color:#5ED39A}.toast.err svg{color:#FF8A80}
 
@@ -1008,6 +1009,7 @@ function enterApp(role, restored, extra){
   state.loginError=''; state.view='dashboard'; entryNoticeShown=false;
   startAuditListener();
   registerPush();
+  if(isAdmin() && lbSupported()) lbGetDir().then(h=>{ if(h){ lb.folder=h.name; } });
   computeUnseen();
   render();
   if(state.consultsLoaded) setTimeout(entryNotice, 400);
@@ -1137,7 +1139,7 @@ async function logout(){
   await unregisterPush();
   teardownPrivate();
   if(wasSecure){ bootBusy=true; await signOut(auth).catch(()=>{}); bootBusy=false; }
-  state.user=null; state.view='dashboard'; render();
+  state.user=null; state.view='dashboard'; lb.needsPermission=false; lbBanner(); render();
 }
 async function changeMyPassword(){
   const cur=$('pwCur').value, n1=$('pwNew').value, n2=$('pwNew2').value;
@@ -1441,7 +1443,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.6</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.7</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -2581,6 +2583,7 @@ function settingsView(){
       <div class="field"><label class="lbl">الأرشيف الشهري</label>
         <div class="muted">${archivePeriods().length?`${state.consultations.filter(c=>c._arch).length} استشارة مؤرشفة في ${archivePeriods().length} شهراً — تظهر في النظام كالمعتاد`:'لا توجد استشارات مؤرشفة بعد'}</div>
         <button class="btn btn-sm" data-action="archive-now" style="margin-top:8px">${ic('archive')}أرشفة المغلقة منذ أكثر من ${ARCHIVE_AFTER_DAYS} يوماً</button></div>
+      ${localBackupPanel()}
       <div class="field"><label class="lbl">النسخ اليومية التلقائية (آخر ${BACKUP_KEEP_DAYS} يوماً)</label>
         <div id="backupsList"><button class="btn btn-sm" data-action="load-backups">${ic('history')}عرض النسخ اليومية</button></div></div>
       <div class="btn-row"><button class="btn" data-action="export-backup">${ic('download')}تنزيل نسخة احتياطية</button><label class="btn" style="cursor:pointer">${ic('upload')}استعادة من نسخة<input type="file" id="restoreFile" accept="application/json" hidden></label></div>
@@ -2666,9 +2669,13 @@ async function saveProfile(role){
 function resizeImage(file, max){
   return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ let w=img.width,h=img.height; if(w>h){ if(w>max){ h=Math.round(h*max/w); w=max; } } else if(h>max){ w=Math.round(w*max/h); h=max; } const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); res(cv.toDataURL('image/png')); }; img.onerror=rej; img.src=r.result; }; r.onerror=rej; r.readAsDataURL(file); });
 }
-function exportBackup(){
+function backupPayload(){
   const archived=[]; archivePeriods().forEach(per=>(raw['ar:'+per]||[]).forEach(x=>archived.push(x)));
   const payload={ consultations:[...(raw.c||[]), ...archived.filter(x=>x && !(raw.c||[]).some(y=>y&&y.id===x.id))], messages:raw.m||[], audit:raw.a||[], profiles:state.profiles, logoUrl:state.settings.logoUrl, suggestions:raw.s||[], settings:raw.st||{}, snippets:state.snippets, exportedAt:nowIso(), version:3 };
+  return payload;
+}
+function exportBackup(){
+  const payload=backupPayload();
   const el=document.createElement('a'); el.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})); el.download='نسخة_احتياطية_'+todayStr()+'.json'; el.click();
   logAudit('تنزيل نسخة احتياطية');
 }
@@ -2794,12 +2801,87 @@ async function downloadDailyBackup(day){
 async function runSideTasks(){
   if(!state.user) return;
   try{ await dailyBackup(); }catch(e){ console.warn('backup', e); }
+  autoLocalBackup().catch(e=>console.warn('lb', e));
   if(isAdmin()){
     if(lsGet('aq_cleanup_day')!==todayStr()){ lsSet('aq_cleanup_day', todayStr()); cleanupBackups(); }
     if(dbUsage().pct>=50) archiveNow(true);
   }
 }
 
+
+/* ===================== نسخة تلقائية إلى مجلد على جهاز المدير =====================
+   يختار المدير المجلد مرة واحدة، وتُحفظ فيه نسخة كاملة كلما فُتح النظام (ملف لكل يوم، آخر 30 يوماً).
+   تعمل في Chrome وEdge على الكمبيوتر (File System Access API). */
+const LB_FILE_RX=/^نسخة_الاستشارات_\d{4}-\d\d-\d\d\.json$/, LB_KEEP=30;
+const lb={ folder:'', last:lsGet('aq_lb_last')||'', needsPermission:false, busy:false };
+function lbStore(mode, fn){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open('aq_local_backup',1);
+    r.onupgradeneeded=()=>r.result.createObjectStore('h');
+    r.onerror=()=>rej(r.error);
+    r.onsuccess=()=>{ const tx=r.result.transaction('h',mode); const q=fn(tx.objectStore('h')); tx.oncomplete=()=>res(q && q.result); tx.onerror=()=>rej(tx.error); };
+  });
+}
+const lbGetDir=()=> window.__lbTestDir!==undefined ? Promise.resolve(window.__lbTestDir) : lbStore('readonly', st=>st.get('dir')).catch(()=>null);   // __lbTestDir: للاختبارات الآلية فقط
+const lbSupported=()=>('showDirectoryPicker' in window) && window.isSecureContext;
+async function lbChoose(){
+  try{
+    const h=await window.showDirectoryPicker({ id:'aq-backup', mode:'readwrite', startIn:'documents' });
+    if(window.__lbTestDir!==undefined) window.__lbTestDir=h; else await lbStore('readwrite', st=>st.put(h,'dir'));
+    lb.folder=h.name; logAudit('اختيار مجلد النسخ التلقائي: '+h.name);
+    await lbWrite(h, true);
+  }catch(e){ if(e && e.name!=='AbortError'){ console.warn('lb choose', e); toast('تعذّر اختيار المجلد','err'); } }
+  softRefresh();
+}
+async function lbStop(){
+  const ok=await confirmModal({ title:'إيقاف النسخ إلى المجلد', text:'لن تُحفظ نسخ جديدة في المجلد. النسخ الموجودة فيه تبقى كما هي.', confirm:'إيقاف', icon:'folder-x' });
+  if(!ok) return;
+  if(window.__lbTestDir!==undefined) window.__lbTestDir=null; else await lbStore('readwrite', st=>st.delete('dir')).catch(()=>{});
+  lb.folder=''; lb.needsPermission=false; lbBanner(); softRefresh();
+}
+async function lbNow(){ const h=await lbGetDir(); if(!h){ return lbChoose(); } await lbWrite(h, true); softRefresh(); }
+function lbDataReady(){ return Array.isArray(raw.c) && archivePeriods().every(per=>Array.isArray(raw['ar:'+per])); }
+async function lbWrite(h, interactive){
+  if(lb.busy) return; lb.busy=true;
+  try{
+    let perm=await h.queryPermission({ mode:'readwrite' });
+    if(perm!=='granted' && interactive) perm=await h.requestPermission({ mode:'readwrite' });
+    if(perm!=='granted'){ lb.needsPermission=true; lbBanner(); return; }
+    lb.needsPermission=false; lbBanner();
+    for(let i=0;i<20 && !lbDataReady();i++) await new Promise(r=>setTimeout(r,500));
+    if(!lbDataReady()){ toast('لم تكتمل البيانات بعد — لم تُحدَّث النسخة','warn'); return; }
+    const payload=backupPayload();
+    const fh=await h.getFileHandle('نسخة_الاستشارات_'+todayStr()+'.json', { create:true });
+    const w=await fh.createWritable(); await w.write(JSON.stringify(payload,null,2)); await w.close();
+    const names=[]; for await (const [n,e] of h.entries()){ if(e.kind==='file' && LB_FILE_RX.test(n)) names.push(n); }
+    names.sort().slice(0, Math.max(0, names.length-LB_KEEP)).forEach(n=>h.removeEntry(n).catch(()=>{}));
+    lb.last=nowIso(); lsSet('aq_lb_last', lb.last);
+    toast('تم تحديث النسخة الاحتياطية بتاريخ '+fmtDateTime(lb.last)+' ('+payload.consultations.length+' استشارة)');
+  }catch(e){ console.warn('lb write', e); toast('تعذّر حفظ النسخة في المجلد'+(e && e.name ? ' ('+e.name+')' : ''),'warn'); }
+  finally{ lb.busy=false; }
+}
+async function autoLocalBackup(){
+  if(!isAdmin() || !lbSupported()) return;
+  const h=await lbGetDir(); if(!h) return;
+  lb.folder=h.name; await lbWrite(h, false);
+}
+/* إن احتاج المتصفح إذناً جديداً للمجلد: شريط صغير بزر واحد (المتصفح لا يسمح بالإذن دون ضغطة) */
+function lbBanner(){
+  let el=$('lbBanner');
+  if(!lb.needsPermission || !state.user){ if(el) el.remove(); return; }
+  if(el) return;
+  el=document.createElement('div'); el.id='lbBanner'; el.className='lb-banner no-print';
+  el.innerHTML=`${ic('folder-sync')}<span>النسخة الاحتياطية في مجلد «${esc(lb.folder)}» تحتاج موافقتك</span><button class="btn btn-sm btn-primary" data-action="lb-now">تحديث النسخة</button><button class="btn btn-ghost btn-icon btn-sm" data-action="lb-dismiss" title="لاحقاً">${ic('x')}</button>`;
+  document.body.appendChild(el); refreshIcons();
+}
+function localBackupPanel(){
+  if(!lbSupported()) return `<div class="field"><label class="lbl">نسخة تلقائية إلى مجلد على جهازك</label><div class="muted">متاحة في متصفح Chrome أو Edge على الكمبيوتر.</div></div>`;
+  return `<div class="field"><label class="lbl">نسخة تلقائية إلى مجلد على جهازك</label>
+    <div class="muted">${lb.folder ? `المجلد: <b>${esc(lb.folder)}</b> — تُحدَّث النسخة كلما فُتح النظام (ملف لكل يوم، آخر ${LB_KEEP} يوماً).${lb.last?'<br>آخر تحديث: '+fmtDateTime(lb.last):''}` : 'اختر المجلد مرة واحدة، وتُحفظ فيه نسخة كاملة تلقائياً كلما فتحت النظام.'}</div>
+    <div class="btn-row" style="margin-top:8px">${lb.folder
+      ? `<button class="btn btn-sm btn-primary" data-action="lb-now">${ic('refresh-cw')}تحديث النسخة الآن</button><button class="btn btn-sm" data-action="lb-choose">${ic('folder-open')}تغيير المجلد</button><button class="btn btn-sm btn-ghost" data-action="lb-stop">${ic('folder-x')}إيقاف</button>`
+      : `<button class="btn btn-sm btn-primary" data-action="lb-choose">${ic('folder-plus')}اختيار مجلد النسخ</button>`}</div></div>`;
+}
 /* ===================== إدراج الآيات بالمرجع ===================== */
 const SURAHS=['الفاتحة','البقرة','آل عمران','النساء','المائدة','الأنعام','الأعراف','الأنفال','التوبة','يونس','هود','يوسف','الرعد','إبراهيم','الحجر','النحل','الإسراء','الكهف','مريم','طه','الأنبياء','الحج','المؤمنون','النور','الفرقان','الشعراء','النمل','القصص','العنكبوت','الروم','لقمان','السجدة','الأحزاب','سبأ','فاطر','يس','الصافات','ص','الزمر','غافر','فصلت','الشورى','الزخرف','الدخان','الجاثية','الأحقاف','محمد','الفتح','الحجرات','ق','الذاريات','الطور','النجم','القمر','الرحمن','الواقعة','الحديد','المجادلة','الحشر','الممتحنة','الصف','الجمعة','المنافقون','التغابن','الطلاق','التحريم','الملك','القلم','الحاقة','المعارج','نوح','الجن','المزمل','المدثر','القيامة','الإنسان','المرسلات','النبأ','النازعات','عبس','التكوير','الانفطار','المطففين','الانشقاق','البروج','الطارق','الأعلى','الغاشية','الفجر','البلد','الشمس','الليل','الضحى','الشرح','التين','العلق','القدر','البينة','الزلزلة','العاديات','القارعة','التكاثر','العصر','الهمزة','الفيل','قريش','الماعون','الكوثر','الكافرون','النصر','المسد','الإخلاص','الفلق','الناس'];
 const AYAH_COUNTS=[7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
@@ -3147,7 +3229,7 @@ const ACTIONS={
   'del-snippet': async el=>{ const i=+el.dataset.idx; if(await confirmModal({ title:'حذف المقطع', text:'حذف «'+state.snippets[i].title+'»؟', confirm:'حذف', danger:true, icon:'trash-2' })){ const items=state.snippets.slice(); items.splice(i,1); saveSnippets(items); } },
   'save-settings': async ()=>{ const r=await enqueue({ k:'st', replace:{ ...(raw.st||{}), siteName:($('setSite').value||'').trim()||'شبكة إسلام ويب', unitPrice:Math.max(0,+$('setPrice').value||0) } }); afterCommit(r,'تم حفظ الإعدادات'); logAudit('تحديث الإعدادات العامة'); },
   'remove-logo': async ()=>{ const r=await enqueue({ k:'b', replace:{ logoUrl:'' } }); afterCommit(r,'تمت إزالة الشعار'); },
-  'export-backup': exportBackup,
+  'export-backup': exportBackup, 'lb-choose': lbChoose, 'lb-now': lbNow, 'lb-stop': lbStop, 'lb-dismiss': ()=>{ lb.needsPermission=false; lbBanner(); },
   'add-sug': async ()=>{ const t=($('sugInput').value||'').trim(); if(!t) return; const r=await enqueue({ k:'s', replace:[...(state.settings.suggestions||[]), t] }); afterCommit(r,'تمت الإضافة'); },
   'edit-sug': async el=>{ const i=+el.dataset.idx; const t=await promptModal({ title:'تعديل المقترح', value:state.settings.suggestions[i], required:true }); if(t){ const a=state.settings.suggestions.slice(); a[i]=t; const r=await enqueue({ k:'s', replace:a }); afterCommit(r,'تم الحفظ'); } },
   'del-sug': async el=>{ const i=+el.dataset.idx; const a=state.settings.suggestions.slice(); a.splice(i,1); const r=await enqueue({ k:'s', replace:a }); afterCommit(r,'تم الحذف'); }
