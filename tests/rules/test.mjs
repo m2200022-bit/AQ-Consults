@@ -71,7 +71,7 @@ await t('suspended consultant cannot write consultations', setDoc(doc(off, 'app_
 await t('suspended consultant cannot add audit entries', addDoc(collection(off, 'audit'), audit('off')), false);
 // المدير
 await t('admin writes settings', setDoc(doc(admin, 'app_state/settings_v1'), v), true);
-await t('admin updates a user', updateDoc(doc(admin, 'users/off'), { active: true }), true);
+await t('admin updates a user', updateDoc(doc(admin, 'users/cons'), { name: 'مستشار أول' }), true);
 await t('admin reads the vault', getDoc(doc(admin, 'vault/backup')), true);
 await t('admin reads backups', getDoc(doc(admin, 'backups/2026-11-27__c')), true);
 // سجل العمليات: إضافة فقط
