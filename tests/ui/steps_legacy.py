@@ -1,0 +1,17 @@
+def log(m): print('>>', m, flush=True)
+page.evaluate("sessionStorage.setItem('__authOff','1')") if False else None
+page.goto('http://127.0.0.1:8765/index.html'); page.evaluate("sessionStorage.setItem('__authOff','1')"); page.reload()
+page.wait_for_selector('#loginUser'); page.fill('#loginUser','admin'); page.fill('#loginPass','adm1n'); page.keyboard.press('Enter'); page.wait_for_timeout(1800)
+if page.is_visible('#modalOv'): page.locator('#modalOv button').first.click()
+log('L1 legacy login works: role=%s secure=%s authMissing=%s' % (page.evaluate("window.__aq.state.user&&window.__aq.state.user.role"), page.evaluate("window.__aq.state.secure"), page.evaluate("window.__aq.state.authMissing")))
+log('L2 dashboard banner: ' + page.locator('.notice.warn').first.inner_text()[:80])
+log('L3 lock exists=%s, passwords kept=%s' % (page.evaluate("window.__store.docs.has('security/lock')"), JSON_ := page.evaluate("JSON.parse(window.__store.docs.get('app_state/profiles_v2').value).admin.password")))
+page.locator('.nav [data-nav="settings"]').click(); page.wait_for_timeout(400); shot(page,'s06_legacy_settings')
+page.reload(); page.wait_for_timeout(2500)
+log('L4 legacy session restored: %s' % page.evaluate("window.__aq.state.user&&window.__aq.state.user.role"))
+# enable auth then re-login → should provision
+if page.is_visible('#modalOv'): page.locator('#modalOv button').first.click()
+page.evaluate("sessionStorage.removeItem('__authOff')")
+page.click('[data-action="logout"]'); page.locator('#modalOv button', has_text='خروج').click(); page.wait_for_selector('#loginUser')
+page.fill('#loginUser','admin'); page.fill('#loginPass','adm1n'); page.keyboard.press('Enter'); page.wait_for_timeout(2000)
+log('L5 after enabling: secure=%s lock=%s' % (page.evaluate("window.__aq.state.secure"), page.evaluate("window.__store.docs.has('security/lock')")))

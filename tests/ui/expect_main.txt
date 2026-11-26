@@ -1,0 +1,43 @@
+# كل سطر: رمز الخطوة ثم تعبير منتظم يجب أن يطابق ناتجها
+A1	login screen; stats boxes: 0$
+A2	wrong pw: اسم المستخدم أو كلمة المرور غير صحيحة
+A3	secure=True lock=True map=\['h_[0-9a-f]{64}', 'h_[0-9a-f]{64}'\]
+A4	passwords in DB now: admin='' consultant=''
+A5	users docs: 2$
+A6	public stats items: 4 ; sample keys=\['s', 't', 'u'\]
+A7	backups: \['backups/\d{4}-\d\d-\d\d__c', 'backups/\d{4}-\d\d-\d\d__m'\]
+A8	archive index: \{'periods': \['\d{4}-\d\d'\]\} ; c_old in main=False
+A9	archived visible in app: \['c_old@\d{4}-\d\d'\]
+A10	backups list rows: 1$
+A11	official report title: التقرير الشهري — .+ \| rows=5
+A12	import: view=add number=2579000 subject=سؤال من الموقع الرسمي
+A13	c_old back in main=True status=pending; removed from archive=True
+B1	login stats while logged out: 2 \| استشارات جديدة \| 3 \| متأخرة ومستعجلة \| 5 \| لم يُجب عنها بعد \| 1 \| بانتظار الاعتماد
+B2	unauth read consultations: permission-denied
+B3	consultant secure login: role=consultant secure=True
+B4	ayah preview: ﴿نص الآية رقم 1 \(١\) نص الآية رقم 2 \(٢\)﴾ \[البقرة: ١-٢\]
+B4b	bad format: اكتب اسم السورة ثم رقم الآية
+B4c:	﴿نص الآية رقم 1﴾ \[الإخلاص: ١\]
+B4d:	سورة البقرة عدد آياتها 286
+B5	editor has ayah=True template=True
+B6	answer search results: 2$
+B7	submitted status in DB: تمت الإجابة
+B8	consultant settings has reset field=False, change-pass=True
+C1	old consultant pw: اسم المستخدم أو كلمة المرور غير صحيحة
+C2	new consultant pw role: consultant
+C3	short self-chosen pw works: consultant
+C4	session kept after reload: consultant
+D1	username keys hashed: True
+D2	audit docs in separate collection: \d+
+D3	audit view rows: \d+
+D4	setup modal: آخر خطوة: أضف المفتاح السري في GitHub
+D5	secret decodes: \['e', 'k', 'p'\]
+D5b	secret with appcheck: 22B80256-7AE9-48DC-A35D-D49E8EFEB252
+D5c	vault appCheck: 22B80256-7AE9-48DC-A35D-D49E8EFEB252 ; appcheck init key: 6Le
+D6	vault keys=1, backup user=1
+D7	external list rows: 1
+D8	decrypted download: consultations=\['c1', 'c0'\] messages=1
+D9	outbox after refusal=0 ; later write saved=True
+D10	restored from external: main ids=\['c1', 'c0'\]
+D11	push tokens registered: \[\['push_tokens/tok-\d+', '(admin|consultant)', True\].* ; vapid passed=True
+D12	after logout tokens: .* deleted=[1-9]

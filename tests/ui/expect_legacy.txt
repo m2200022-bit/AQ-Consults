@@ -1,0 +1,5 @@
+L1	legacy login works: role=admin secure=False authMissing=True
+L2	dashboard banner: الدخول الآمن غير مفعّل بعد
+L3	lock exists=False, passwords kept=adm1n
+L4	legacy session restored: admin
+L5	after enabling: secure=True lock=True
