@@ -1,26 +1,37 @@
 rules_version = '2';
-// قواعد أمان نظام الاستشارات — الإصدار 3.2
-// تُنشر من: Firebase Console ← Firestore Database ← Rules
+// قواعد أمان نظام الاستشارات — الإصدار 3.3
 service cloud.firestore {
   match /databases/{database}/documents {
-    function signedIn() { return request.auth != null; }
-    function userDoc()  { return /databases/$(database)/documents/users/$(request.auth.uid); }
-    function active()   { return signedIn() && exists(userDoc()) && get(userDoc()).data.active == true; }
-    function isAdmin()  { return active() && get(userDoc()).data.role == 'admin'; }
-    function locked()   { return exists(/databases/$(database)/documents/security/lock); }
+    function signedIn()  { return request.auth != null; }
+    function userDoc()   { return /databases/$(database)/documents/users/$(request.auth.uid); }
+    function me()        { return get(userDoc()).data; }
+    function isUser()    { return signedIn() && exists(userDoc()) && me().active == true; }
+    function active()    { return isUser() && me().role in ['admin', 'consultant']; }
+    function isAdmin()   { return isUser() && me().role == 'admin'; }
+    function isBackup()  { return isUser() && me().role == 'backup'; }
+    function locked()    { return exists(/databases/$(database)/documents/security/lock); }
 
-    // بيانات النظام: للمستخدمين المسجّلين فقط
-    // (ملف الحسابات القديم يُقرأ مرة واحدة قبل التفعيل للتحقق من كلمة المرور، ثم يُقفل)
+    // بيانات النظام: المدير يكتب كل شيء، والمستشار يكتب فقط ما يحتاجه للإجابة
+    // حساب النسخ الخارجي يقرأ فقط ولا يكتب شيئاً
     match /app_state/{key} {
-      allow read:  if active() || (key == 'profiles_v2' && !locked());
-      allow write: if active();
+      allow read:  if active() || isBackup() || (key == 'profiles_v2' && !locked());
+      allow write: if isAdmin()
+                   || (active() && key in ['consultations_v2', 'messages_v2', 'snippets_v1', 'templates_v1']);
+    }
+    // سجل العمليات: إضافة فقط، باسم صاحب الحساب نفسه — لا تعديل ولا حذف لأحد
+    match /audit/{id} {
+      allow create: if active()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.keys().hasOnly(['ts', 'actor', 'actorRole', 'action', 'device', 'uid']);
+      allow read: if isAdmin() || isBackup();
+      allow update, delete: if false;
     }
     // أعداد صفحة الدخول فقط — لا أسماء ولا نصوص
     match /public/{id} {
       allow read: if true;
       allow write: if active();
     }
-    // ربط اسم المستخدم بالحساب، وعلامة القفل
+    // بصمات أسماء المستخدمين وعلامة القفل
     match /security/{id} {
       allow read: if true;
       allow create: if isAdmin() || (signedIn() && !locked()) || (id == 'lock' && active());
@@ -33,11 +44,15 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if false;
     }
-    // النسخ اليومية: يُنشئها أي مستخدم مسجّل، ولا يقرؤها أو يحذفها إلا المدير، ولا تُعدَّل أبداً
+    // النسخ اليومية داخل Firebase: يُنشئها أي مستخدم، ولا يقرؤها أو يحذفها إلا المدير، ولا تُعدَّل
     match /backups/{id} {
       allow create: if active();
       allow read, delete: if isAdmin();
       allow update: if false;
+    }
+    // مفتاح تشفير النسخ الخارجية: للمدير فقط
+    match /vault/{id} {
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -1,0 +1,49 @@
+name: نسخة احتياطية مشفّرة
+
+on:
+  schedule:
+    - cron: '30 21 * * *'   # 12:30 بعد منتصف الليل بتوقيت قطر
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: aq-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: src
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: أخذ النسخة وتشفيرها
+        env:
+          AQ_BACKUP: ${{ secrets.AQ_BACKUP }}
+        run: node src/scripts/backup.mjs out
+
+      - name: حفظ النسخة في فرع backups
+        run: |
+          ls out/*.enc >/dev/null 2>&1 || { echo "لا توجد نسخة لحفظها"; exit 0; }
+          git clone --depth 1 --branch backups "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" store 2>/dev/null || {
+            git init -q store && cd store && git checkout -q --orphan backups && cd ..
+            git -C store remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          }
+          mkdir -p store/data && cp out/*.enc store/data/
+          cd store
+          git config user.name "aq-backup-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          ls -1 data/*.enc | sort | head -n -90 | xargs -r git rm -q --ignore-unmatch -- || true
+          ls -1 data/*.enc | sort | head -n -90 | xargs -r rm -f || true
+          printf '%s\n' "# نسخ احتياطية مشفّرة لنظام الاستشارات" "لا يمكن قراءة هذه الملفات دون مفتاح التشفير. تُستعاد من داخل النظام: الإعدادات ← النسخ الخارجية." > README.md
+          git add -A
+          git commit -q -m "نسخة $(TZ=Asia/Qatar date +%F)" || { echo "لا تغيير"; exit 0; }
+          git push -q origin backups

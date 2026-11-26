@@ -555,7 +555,7 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
    - تعقيم كل HTML قبل عرضه أو حفظه (حماية من حقن السكربتات)
    ===================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction, getDoc, setDoc, getDocs, deleteDoc, writeBatch, collection } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction, getDoc, setDoc, getDocs, deleteDoc, writeBatch, collection, addDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { getAuth, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -876,7 +876,7 @@ function derive(k){
     state.consultations=main.concat(arch);
   }
   if(k==='m'){ state.messages=(raw.m||[]).filter(Boolean).slice().sort((a,b)=>(a.ts||'').localeCompare(b.ts||'')).slice(-300); if(state.user) computeUnseen(); }
-  if(k==='a') state.audit=(raw.a||[]).filter(Boolean).slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||'')).slice(0,500);
+  if(k==='a') mergeAudit();
   if(k==='p') applyProfiles(raw.p);
   if(k==='b') state.settings.logoUrl=(raw.b||{}).logoUrl||'';
   if(k==='s') state.settings.suggestions=Array.isArray(raw.s)?raw.s:[];
@@ -921,7 +921,15 @@ function flush(quiet){
         outbox=outbox.filter(o=>!ids.has(o.oid)); saveOutbox();
       }
       setSync(navigator.onLine===false?'offline':'synced');
-    }catch(e){ handleWriteError(e, quiet); }
+    }catch(e){
+      if(e && e.code==='permission-denied' && outbox.length && state.secure){
+        const k=outbox[0].k, dropped=outbox.filter(o=>o.k===k).length;
+        outbox=outbox.filter(o=>o.k!==k); saveOutbox(); recompute(k);
+        console.warn('dropped refused ops', k, dropped);
+        toast('تعذّر حفظ تعديل لا تملك صلاحيته، وأُلغي','err');
+        if(outbox.length) setTimeout(()=>flush(true), 500); else setSync('synced');
+      } else handleWriteError(e, quiet);
+    }
     finally{ if(flushP===p) flushP=null; }
   })();
   flushP=p;
@@ -939,6 +947,15 @@ function updateConsult(c, fields, historyAction, opts={}){
 }
 function logAudit(action){
   if(!state.user) return;
+  if(state.secure && authUid){
+    const e={ ts:nowIso(), actor:actorName(), actorRole:state.user.role, action, device:deviceLabel(), uid:authUid };
+    addDoc(collection(db,'audit'), e).catch(err=>{
+      // قبل نشر القواعد الجديدة: يُحفظ في السجل القديم مؤقتاً حتى لا تضيع العملية
+      if(err && err.code==='permission-denied'){ const { uid, ...rest }=e; enqueue({ k:'a', prepend:{ id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), ...rest }, cap:3000, silent:true, quiet:true }); }
+      else console.warn('audit', err);
+    });
+    return;
+  }
   enqueue({ k:'a', prepend:{ id:'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,5), ts:nowIso(), actor:actorName(), actorRole:state.user.role, action, device:deviceLabel() }, cap:3000, silent:true, quiet:true });
 }
 function systemMessage(text){
@@ -958,6 +975,11 @@ function current(){ return state.consultations.find(c=>c.id===state.detailId); }
 const AUTH_DOMAIN='aq-consults.local';
 const derivePw = p => 'aq·'+String(p||'').trim()+'·cs';
 const normUser = u => String(u||'').trim().toLowerCase();
+/* أسماء المستخدمين لا تُحفظ نصاً ظاهراً: يُحفظ بصمتها فقط (SHA-256) */
+async function userKey(u){
+  const d=await crypto.subtle.digest('SHA-256', new TextEncoder().encode('aq-consults|'+normUser(u)));
+  return 'h_'+[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
+}
 const secRef = id => doc(db,'security',id);
 const pubRef = doc(db,'public','stats');
 const auth = getAuth(fbApp);
@@ -978,6 +1000,7 @@ function enterApp(role, restored, extra){
   if(!state.secure) lsSet('aq_session', JSON.stringify({ role, h:hashCred(pr.username, pr.password) }));
   else lsSet('aq_session','');
   state.loginError=''; state.view='dashboard'; entryNoticeShown=false;
+  startAuditListener();
   computeUnseen();
   render();
   if(state.consultsLoaded) setTimeout(entryNotice, 400);
@@ -1008,12 +1031,19 @@ async function enterSecure(fu, restored){
 async function ensureLocked(){
   try{
     const p=server.p;
-    if(p && ((p.admin&&p.admin.password) || (p.consultant&&p.consultant.password))){
+    if(isAdmin() && p && ((p.admin&&p.admin.password) || (p.consultant&&p.consultant.password))){
       const stripped={ admin:{...(p.admin||{}), password:''}, consultant:{...(p.consultant||{}), password:''} };
       await enqueue({ k:'p', replace:stripped, silent:true, quiet:true });
     }
     const l=await getDoc(secRef('lock'));
     if(!l.exists()) await setDoc(secRef('lock'), { at:nowIso(), by:state.user?.role||'' });
+    if(isAdmin()){
+      const m=await getDoc(secRef('usernames')); const map=(m.exists()&&m.data().map)||{};
+      if(Object.keys(map).some(k=>!k.startsWith('h_'))){
+        const nm={}; for(const [k,v] of Object.entries(map)) nm[k.startsWith('h_')?k:await userKey(k)]=v;
+        await setDoc(secRef('usernames'), { map:nm, updatedAt:nowIso() });
+      }
+    }
   }catch(e){ console.warn('ensureLocked', e); }
 }
 /* أول دخول بعد التحديث: إنشاء الحسابين المحميين تلقائياً بكلمات المرور الحالية نفسها */
@@ -1031,7 +1061,7 @@ async function provision(role, pw){
     const ud=r=>({ role:r, name:P[r].name, username:P[r].username, active:true, createdAt:nowIso() });
     b.set(doc(db,'users',cred.user.uid), ud(role));
     b.set(doc(db,'users',c2.user.uid), ud(other));
-    b.set(secRef('usernames'), { map:{ [normUser(P[role].username)]:emails[role], [normUser(P[other].username)]:emails[other] }, updatedAt:nowIso() });
+    b.set(secRef('usernames'), { map:{ [await userKey(P[role].username)]:emails[role], [await userKey(P[other].username)]:emails[other] }, updatedAt:nowIso() });
     await b.commit();
     const stripped={ admin:{...P.admin, password:''}, consultant:{...P.consultant, password:''} };
     await setDoc(kref('p'), { value:JSON.stringify(stripped), updatedAt:Date.now() });
@@ -1056,7 +1086,7 @@ async function doLogin(){
     let map=null;
     try{ const m=await getDoc(secRef('usernames')); map = m.exists() ? (m.data().map||{}) : null; }catch(e){ console.warn('usernames', e); }
     if(map && Object.keys(map).length){
-      const email=map[normUser(u)];
+      const email=map[await userKey(u)] || map[normUser(u)];
       if(!email) return fail('اسم المستخدم أو كلمة المرور غير صحيحة');
       try{ bootBusy=true; const cred=await signInWithEmailAndPassword(auth, email, derivePw(p)); bootBusy=false; await enterSecure(cred.user, false); return; }
       catch(e){ bootBusy=false; if(BAD_CRED_CODES.includes(e.code)) return fail('اسم المستخدم أو كلمة المرور غير صحيحة'); if(e.code==='auth/too-many-requests') return fail('محاولات كثيرة متتالية — انتظر قليلاً ثم حاول مجدداً'); if(e.code==='auth/network-request-failed') return fail('تعذّر الاتصال — تحقق من الإنترنت'); throw e; }
@@ -1123,7 +1153,7 @@ async function resetConsultantPassword(){
     const b=writeBatch(db);
     all.docs.forEach(d=>{ if(d.data().role==='consultant' && d.data().active!==false) b.update(d.ref, { active:false }); });
     b.set(doc(db,'users',c2.user.uid), { role:'consultant', name:P.name, username:P.username, active:true, createdAt:nowIso() });
-    map[normUser(P.username)]=email;
+    delete map[normUser(P.username)]; map[await userKey(P.username)]=email;
     b.set(secRef('usernames'), { map, updatedAt:nowIso() });
     await b.commit();
     $('cpNew').value='';
@@ -1164,6 +1194,13 @@ function syncArchiveSubs(){
     archSubs.set(k, listenKey(k));
   });
 }
+function startAuditListener(){
+  if(!(state.secure && isAdmin()) || privUnsubs.auditOn) return;
+  privUnsubs.auditOn=true;
+  privUnsubs.push(onSnapshot(query(collection(db,'audit'), orderBy('ts','desc'), limit(500)), s=>{
+    auditLive=s.docs.map(d=>({ id:d.id, ...d.data() })); mergeAudit(); if(state.view==='audit') softRefresh();
+  }, e=>console.warn('audit listen', e)));
+}
 function startPrivate(){
   if(privUnsubs.length) return;
   Object.keys(KEYS).forEach(k=> privUnsubs.push(listenKey(k)));
@@ -1183,7 +1220,7 @@ function teardownPrivate(){
   archSubs.forEach(u=>{ try{u();}catch(e){} }); archSubs=new Map();
   Object.keys(server).forEach(k=>{ if(k!=='p') delete server[k]; });
   Object.keys(raw).forEach(k=>{ if(k!=='p') delete raw[k]; });
-  state.consultations=[]; state.messages=[]; state.audit=[]; state.consultsLoaded=false;
+  state.consultations=[]; state.messages=[]; state.audit=[]; auditLive=[]; state.consultsLoaded=false;
   firstC=true; firstM=true; seenMsgIds=new Set(); sideTasksDone=false; authUid=null; state.secure=false;
   prevStatusById=new Map();
 }
@@ -1349,7 +1386,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.2</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.3</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -2174,6 +2211,7 @@ async function sendNote(){
   const c=current(), inp=$('noteInput'); if(!c||!inp) return;
   const text=inp.value.trim(); if(!text) return;
   inp.value=''; inp.blur();
+  if(c._arch && !isAdmin()){ toast('هذه الاستشارة مؤرشفة — اطلب من الإدارة إعادة فتحها لإضافة ملاحظة','warn'); return; }
   unarchiveIfNeeded(c);
   const r=await enqueue({ k:'c', id:c.id, push:{ notesThread:[{ id:'n'+Date.now().toString(36), from:state.user.role, fromName:actorName(), text, ts:nowIso() }] }, set:{ updatedAt:nowIso() } });
   if(r!=='error') logAudit('ملاحظة على الاستشارة '+num(c));
@@ -2493,6 +2531,7 @@ function settingsView(){
       <div class="btn-row"><button class="btn" data-action="export-backup">${ic('download')}تنزيل نسخة احتياطية</button><label class="btn" style="cursor:pointer">${ic('upload')}استعادة من نسخة<input type="file" id="restoreFile" accept="application/json" hidden></label></div>
     </div></div>
   </div>
+  ${state.secure?externalPanelHtml():''}
   <div class="panel"><div class="panel-head"><h3>${ic('lightbulb')}المقترحات والملاحظات</h3></div><div class="panel-body">
     <div class="inline-form" style="margin-bottom:10px"><input type="text" id="sugInput" placeholder="اكتب مقترحاً جديداً…"><button class="btn btn-primary" data-action="add-sug">${ic('plus')}إضافة</button></div>
     ${(state.settings.suggestions||[]).length?`<ul class="list-plain">${state.settings.suggestions.map((s,i)=>`<li>${ic('dot')}<span class="grow">${esc(s)}</span><button class="btn btn-ghost btn-icon btn-sm" data-action="edit-sug" data-idx="${i}" title="تعديل">${ic('pencil')}</button><button class="btn btn-ghost btn-icon btn-sm" data-action="del-sug" data-idx="${i}" title="حذف">${ic('trash-2')}</button></li>`).join('')}</ul>`:emptyHtml('lightbulb','لا توجد مقترحات')}
@@ -2560,8 +2599,8 @@ async function saveProfile(role){
   if(np.username.toLowerCase()===String(other.username||'').toLowerCase()){ toast('اسم المستخدم مستخدم للحساب الآخر — اختر اسماً مختلفاً','warn'); return; }
   const next={ ...state.profiles, [role]:np };
   if(state.secure && normUser(np.username)!==normUser(old.username)){
-    try{ const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) }; const em=map[normUser(old.username)];
-      if(em){ delete map[normUser(old.username)]; map[normUser(np.username)]=em; await setDoc(secRef('usernames'), { map, updatedAt:nowIso() }); } }
+    try{ const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) }; const ok=await userKey(old.username), em=map[ok]||map[normUser(old.username)];
+      if(em){ delete map[ok]; delete map[normUser(old.username)]; map[await userKey(np.username)]=em; await setDoc(secRef('usernames'), { map, updatedAt:nowIso() }); } }
     catch(e){ toast('تعذّر تغيير اسم المستخدم ('+(e.code||'')+')','err'); return; }
   }
   const r=await enqueue({ k:'p', replace:next });
@@ -2580,18 +2619,22 @@ function exportBackup(){
 }
 async function restoreBackup(file){
   let payload; try{ payload=JSON.parse(await file.text()); }catch(e){ toast('ملف غير صالح','err'); return; }
+  return restorePayload(payload, 'ملف');
+}
+async function restorePayload(payload, label){
   const n=(payload.consultations||[]).length;
-  const ok=await confirmModal({ title:'استعادة نسخة احتياطية', text:'سيتم استبدال جميع البيانات الحالية بالنسخة المستوردة ('+n+' استشارة). هل أنت متأكد؟', confirm:'استعادة', icon:'upload', danger:true });
+  const ok=await confirmModal({ title:'استعادة نسخة احتياطية', text:'سيتم استبدال البيانات الحالية بنسخة «'+label+'» ('+n+' استشارة). يُنزَّل قبلها ملف بالبيانات الحالية على جهازك. هل أنت متأكد؟', confirm:'استعادة', icon:'upload', danger:true });
   if(!ok) return;
+  exportBackup();
   if(Array.isArray(payload.consultations)) enqueue({ k:'c', replace:payload.consultations, silent:true });
   if(Array.isArray(payload.messages)) enqueue({ k:'m', replace:payload.messages, silent:true });
-  if(Array.isArray(payload.audit)) enqueue({ k:'a', replace:payload.audit, silent:true });
+  if(Array.isArray(payload.audit) && !state.secure) enqueue({ k:'a', replace:payload.audit, silent:true });
   if(Array.isArray(payload.suggestions)) enqueue({ k:'s', replace:payload.suggestions, silent:true });
   if(payload.profiles){ const pa={...state.profiles.admin, ...(payload.profiles.admin||{})}, pc={...state.profiles.consultant, ...(payload.profiles.consultant||{})}; if(state.secure){ pa.password=''; pc.password=''; pa.username=state.profiles.admin.username; pc.username=state.profiles.consultant.username; } enqueue({ k:'p', replace:{ admin:pa, consultant:pc }, silent:true }); }
   if(payload.logoUrl!==undefined) enqueue({ k:'b', replace:{ logoUrl:payload.logoUrl||'' }, silent:true });
   if(payload.settings) enqueue({ k:'st', replace:payload.settings, silent:true });
   const r=await (Array.isArray(payload.snippets) ? enqueue({ k:'sn', replace:payload.snippets }) : flushWait('none'));
-  softRefresh(); toast('تمت الاستعادة بنجاح'); logAudit('استعادة نسخة احتياطية ('+n+' استشارة)');
+  softRefresh(); toast('تمت الاستعادة بنجاح'); logAudit('استعادة نسخة احتياطية «'+label+'» ('+n+' استشارة)');
 }
 
 /* ===================== الأرشفة الشهرية (إزالة حد الحجم) =====================
@@ -2625,6 +2668,12 @@ async function archiveNow(auto){
     if(!auto) toast(moved?('تمت أرشفة '+moved+' استشارة مغلقة'):'لا توجد استشارات مغلقة منذ أكثر من '+ARCHIVE_AFTER_DAYS+' يوماً', moved?'ok':'warn');
     return moved;
   }catch(e){ console.error('archive', e); if(!auto) toast('تعذّرت الأرشفة — تحقق من الاتصال','err'); return 0; }
+}
+/* سجل العمليات: المستند القديم (للقراءة فقط) + المجموعة الجديدة غير القابلة للتعديل أو الحذف */
+let auditLive=[];
+function mergeAudit(){
+  const all=[...auditLive, ...(raw.a||[]).filter(Boolean)];
+  state.audit=all.sort((a,b)=>(b.ts||'').localeCompare(a.ts||'')).slice(0,500);
 }
 /* أي تعديل على استشارة مؤرشفة يعيدها أولاً إلى المستند الرئيسي */
 function unarchiveIfNeeded(c){
@@ -2883,6 +2932,103 @@ function handleImportHash(){
 captureImportHash();
 window.addEventListener('hashchange', ()=>{ captureImportHash(); handleImportHash(); });
 
+/* ===================== النسخ الخارجية المشفّرة (GitHub) ===================== */
+const GH_REPO='m2200022-bit/AQ-Consults';
+const vaultRef=doc(db,'vault','backup');
+function b64(bytes){ let s=''; bytes.forEach(b=>s+=String.fromCharCode(b)); return btoa(s); }
+function unb64(str){ const s=atob(str); const a=new Uint8Array(s.length); for(let i=0;i<s.length;i++) a[i]=s.charCodeAt(i); return a; }
+function randomPass(n){ const a=crypto.getRandomValues(new Uint8Array(n)); const cs='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789'; return [...a].map(x=>cs[x%cs.length]).join(''); }
+async function setupExternalBackup(){
+  const ex=await getDoc(vaultRef).catch(()=>null);
+  if(ex && ex.exists()){
+    const ok=await confirmModal({ title:'إعادة إنشاء حساب النسخ الخارجي', text:'يوجد إعداد سابق. سيُوقف الحساب السابق ويُنشأ مفتاح جديد، ويجب تحديث المفتاح السري في GitHub. النسخ القديمة تبقى قابلة للاستعادة بمفتاحها القديم المحفوظ.', confirm:'إعادة الإنشاء', icon:'key-round' });
+    if(!ok) return;
+  }
+  try{
+    const email='backup-'+Math.random().toString(36).slice(2,9)+'@'+AUTH_DOMAIN, pass=randomPass(32);
+    const key=b64(crypto.getRandomValues(new Uint8Array(32)));
+    const sa=getSecAuth(); const c=await createUserWithEmailAndPassword(sa, email, pass); await signOut(sa).catch(()=>{});
+    const all=await getDocs(collection(db,'users'));
+    const b=writeBatch(db);
+    all.docs.forEach(d=>{ if(d.data().role==='backup' && d.data().active!==false) b.update(d.ref, { active:false }); });
+    b.set(doc(db,'users',c.user.uid), { role:'backup', name:'حساب النسخ الخارجي (قراءة فقط)', active:true, createdAt:nowIso() });
+    const old=(ex && ex.exists()) ? (ex.data().keys||[]) : [];
+    b.set(vaultRef, { key, keys:[...old, key].slice(-10), email, createdAt:nowIso() });
+    await b.commit();
+    const secret=btoa(JSON.stringify({ e:email, p:pass, k:key }));
+    logAudit('إعداد النسخ الخارجي المشفّر');
+    await openModal({ icon:'shield-check', tone:'ok', title:'آخر خطوة: أضف المفتاح السري في GitHub', wide:true,
+      body:`<ol style="line-height:2.1;padding-right:20px;margin:0 0 12px">
+        <li>انسخ هذا المفتاح (لا تشاركه مع أحد):</li></ol>
+        <textarea id="secretVal" readonly dir="ltr" style="min-height:90px;font-family:monospace;font-size:12px">${esc(secret)}</textarea>
+        <button class="btn btn-sm" id="copySecret" style="margin-top:6px">${ic('copy')}نسخ المفتاح</button>
+        <ol start="2" style="line-height:2.1;padding-right:20px;margin:12px 0 0">
+        <li>افتح <a href="https://github.com/${GH_REPO}/settings/secrets/actions/new" target="_blank" rel="noopener"><b>صفحة المفاتيح السرية في GitHub</b></a></li>
+        <li>في خانة <b>Name</b> اكتب: <span class="kbd" dir="ltr">AQ_BACKUP</span></li>
+        <li>في خانة <b>Secret</b> الصق المفتاح، ثم اضغط <b>Add secret</b>.</li>
+        <li>لتجربة أول نسخة الآن: افتح <a href="https://github.com/${GH_REPO}/actions/workflows/backup.yml" target="_blank" rel="noopener"><b>صفحة النسخ في GitHub</b></a> واضغط <b>Run workflow</b>.</li></ol>
+        <p class="muted">بعدها تُؤخذ نسخة مشفّرة تلقائياً كل ليلة الساعة 12:30، وتُحفظ آخر 90 نسخة.</p>
+        <div class="notice warn" style="margin-top:10px">${ic('triangle-alert')}<span><b>احفظ هذا المفتاح أيضاً في مكان آمن خارج النظام</b> (ملف على جهازك أو ورقة). إن تعطّل مشروع Firebase يوماً ما، فهو الطريق الوحيد لفك النسخ الخارجية.</span></div>`,
+      actions:[{ label:'تم', cls:'btn-primary' }],
+      onOpen:()=>{ $('copySecret').onclick=async()=>{ try{ await navigator.clipboard.writeText(secret); toast('تم نسخ المفتاح'); }catch(e){ $('secretVal').select(); toast('حدّد النص وانسخه يدوياً','warn'); } }; } });
+    renderContent(true);
+  }catch(e){ console.error(e); toast('تعذّر الإعداد ('+(e.code||e.message)+')','err'); }
+}
+async function listExternalBackups(){
+  const r=await fetch(`https://api.github.com/repos/${GH_REPO}/contents/data?ref=backups`, { headers:{ Accept:'application/vnd.github+json' } });
+  if(r.status===404) return [];
+  if(!r.ok) throw new Error('gh '+r.status);
+  const arr=await r.json();
+  return arr.filter(f=>f.name.endsWith('.json.enc')).map(f=>({ day:f.name.replace('.json.enc',''), size:f.size, url:f.download_url })).sort((a,b)=>b.day.localeCompare(a.day));
+}
+function keyFromPasted(t){ t=String(t||'').trim(); try{ const o=JSON.parse(atob(t)); if(o&&o.k) return o.k; }catch(e){} return t; }
+async function decryptExternal(url){
+  let keys=[];
+  try{ const v=await getDoc(vaultRef); if(v.exists()) keys=[v.data().key, ...((v.data().keys||[]).slice().reverse())]; }catch(e){}
+  const pasted=await (async()=>{ if(keys.length) return null; const t=await promptModal({ title:'مفتاح التشفير', text:'لم يُعثر على المفتاح في النظام. الصق المفتاح الذي حفظته عند إعداد النسخ الخارجي.', icon:'key-round', confirm:'فك التشفير', required:true }); if(!t) throw new Error('cancel'); return keyFromPasted(t); })();
+  if(pasted) keys=[pasted];
+  const blob=unb64((await (await fetch(url, { cache:'no-store' })).text()).trim());
+  const iv=blob.slice(0,12), ct=blob.slice(12);
+  for(const k of [...new Set(keys)]){
+    try{ const ck=await crypto.subtle.importKey('raw', unb64(k), 'AES-GCM', false, ['decrypt']);
+      const pt=await crypto.subtle.decrypt({ name:'AES-GCM', iv }, ck, ct);
+      return JSON.parse(new TextDecoder().decode(pt)); }catch(e){}
+  }
+  throw new Error('badkey');
+}
+function externalToPayload(x){
+  const a=x.appState||{};
+  let cons=(a.consultations_v2||[]).slice(); const ids=new Set(cons.map(c=>c&&c.id));
+  Object.keys(a).filter(k=>k.startsWith('archive_') && k!=='archive_index').forEach(k=>(a[k]||[]).forEach(c=>{ if(c && !ids.has(c.id)){ ids.add(c.id); cons.push(c); } }));
+  return { consultations:cons, messages:a.messages_v2, suggestions:a.suggestions_v1, settings:a.settings_v1, snippets:a.snippets_v1, logoUrl:(a.branding_v1||{}).logoUrl, profiles:a.profiles_v2, audit:x.audit, exportedAt:x.exportedAt };
+}
+async function renderExternalList(){
+  const box=$('extList'); if(!box) return;
+  box.innerHTML='<span class="muted">جارٍ التحميل من GitHub…</span>';
+  try{
+    const list=await listExternalBackups();
+    box.innerHTML = list.length ? `<ul class="list-plain">${list.slice(0,15).map(f=>`<li>${ic('lock','ico-sm')}<span class="grow"><b>${esc(f.day)}</b><div class="muted">${Math.round(f.size/1024)} ك.ب — مشفّرة</div></span><button class="btn btn-ghost btn-sm" data-action="ext-download" data-url="${esc(f.url)}" data-day="${esc(f.day)}">${ic('download','ico-sm')}تنزيل</button><button class="btn btn-sm btn-outline" data-action="ext-restore" data-url="${esc(f.url)}" data-day="${esc(f.day)}">${ic('rotate-ccw','ico-sm')}استعادة</button></li>`).join('')}</ul>`
+      : '<span class="muted">لا توجد نسخ خارجية بعد — تأكد من إضافة المفتاح السري وتشغيل أول نسخة.</span>';
+    refreshIcons();
+  }catch(e){ box.innerHTML='<span class="muted" style="color:var(--danger)">تعذّر الاتصال بـ GitHub</span>'; }
+}
+async function extDownload(url, day){
+  try{ const x=await decryptExternal(url); const p=externalToPayload(x);
+    const el=document.createElement('a'); el.href=URL.createObjectURL(new Blob([JSON.stringify({ version:3, ...p },null,2)],{type:'application/json'})); el.download='نسخة_خارجية_'+day+'.json'; el.click(); }
+  catch(e){ if(e.message!=='cancel') toast(e.message==='badkey'?'مفتاح التشفير لا يطابق هذه النسخة':'تعذّر التنزيل','err'); }
+}
+async function extRestore(url, day){
+  try{ const x=await decryptExternal(url); await restorePayload(externalToPayload(x), 'النسخة الخارجية '+day); }
+  catch(e){ if(e.message!=='cancel') toast(e.message==='badkey'?'مفتاح التشفير لا يطابق هذه النسخة':'تعذّرت الاستعادة','err'); }
+}
+function externalPanelHtml(){
+  return `<div class="panel"><div class="panel-head"><h3>${ic('cloud-upload')}النسخ الخارجية المشفّرة (GitHub)</h3><span class="muted">خارج Firebase — تبقى حتى لو تعطّل المشروع</span></div><div class="panel-body">
+    <p class="muted" style="margin-top:0">كل ليلة تُؤخذ نسخة كاملة، تُشفَّر بمفتاح لا يملكه إلا النظام، وتُحفظ في GitHub. لا يستطيع أحد قراءتها دون المفتاح.</p>
+    <div class="btn-row" style="margin-bottom:12px"><button class="btn btn-primary btn-sm" data-action="ext-setup">${ic('key-round')}إعداد النسخ الخارجي</button><button class="btn btn-sm" data-action="ext-list">${ic('history')}عرض النسخ الخارجية</button></div>
+    <div id="extList"></div>
+  </div></div>`;
+}
+
 /* ===================== EVENT DELEGATION ===================== */
 let deferredInstall=null;
 window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredInstall=e; });
@@ -2894,6 +3040,8 @@ const ACTIONS={
   'restore-day': el=> restoreDailyBackup(el.dataset.day), 'download-day': el=> downloadDailyBackup(el.dataset.day),
   'copy-bookmarklet': async ()=>{ try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('تم نسخ الكود'); }catch(e){ toast('تعذّر النسخ','warn'); } },
   'save-template': async ()=>{ const cat=$('tplCat').value; const txt=$('tplText').value; const r=await enqueue({ k:'t', replace:{ ...(raw.t||{}), [cat]:txt } }); afterCommit(r,'تم حفظ القالب'); },
+  'ext-setup': setupExternalBackup, 'ext-list': renderExternalList,
+  'ext-download': el=> extDownload(el.dataset.url, el.dataset.day), 'ext-restore': el=> extRestore(el.dataset.url, el.dataset.day),
   'login': doLogin, 'logout': logout, 'save-profile': el=>saveProfile(el.dataset.role), 'flush-now': ()=>{ flush(false).then(()=>renderContent(true)); },
   'toggle-pass': el=>{ const i=$(el.dataset.for); if(i){ i.type=i.type==='password'?'text':'password'; el.innerHTML=ic(i.type==='password'?'eye':'eye-off'); refreshIcons(); } },
   'toggle-sidebar': ()=>{ state.sidebarOpen=!state.sidebarOpen; $('sidebar')?.classList.toggle('open', state.sidebarOpen); document.querySelector('.scrim')?.classList.toggle('on', state.sidebarOpen); },
