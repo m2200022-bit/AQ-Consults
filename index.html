@@ -801,7 +801,7 @@ function setSync(s){ state.sync=s; updateSyncIndicator(); }
 function updateSyncIndicator(){
   const d=$('syncDot'), l=$('syncLabel'); if(!d||!l) return;
   d.className='sync-dot'+(state.sync==='synced'?'':state.sync==='error'?' error':' pending');
-  l.textContent = state.sync==='synced'?'متصل ومتزامن':state.sync==='offline'?'غير متصل — يُحفظ محلياً':state.sync==='error'?'خطأ في المزامنة':'جارٍ المزامنة…';
+  l.textContent = state.sync==='synced'?'متصل':state.sync==='offline'?'غير متصل — يُحفظ محلياً':state.sync==='error'?'خطأ في المزامنة':'جارٍ المزامنة…';
 }
 const REAL_ERR=['permission-denied','invalid-argument','unauthenticated'];
 function handleWriteError(e, quiet){
@@ -1349,12 +1349,11 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.2</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
         <button class="side-btn collapse-btn" data-action="toggle-collapse" title="طي/توسيع القائمة">${ic('panel-right-close','collapse-ic')}</button>
-        <span class="hide-c" style="font-size:11px;opacity:.6">الإصدار 3.2</span>
       </div>
     </aside>
     <div class="scrim ${state.sidebarOpen?'on':''}" data-action="toggle-sidebar"></div>
