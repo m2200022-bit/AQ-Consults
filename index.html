@@ -555,7 +555,8 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
    - تعقيم كل HTML قبل عرضه أو حفظه (حماية من حقن السكربتات)
    ===================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
-import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction, getDoc, setDoc, getDocs, deleteDoc, writeBatch, collection } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { getAuth, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDUDzOYvFnChyU3QU81RapJ7wG5VtzG0tU",
@@ -599,7 +600,7 @@ const state = {
   snippets:[], snippetsLoaded:false,
   filters:{ q:'', stage:'', flag:'' }, closedQ:'', closedLimit:50,
   report:{ from:'', to:'', type:'period', month:'' },
-  sidebarOpen:false, sidebarCollapsed: lsGet('aq_sidebar')==='1',
+  sidebarOpen:false, sidebarCollapsed: lsGet('aq_sidebar')==='1', secure:false, authMissing:false, pubStats:null, pubLoaded:false,
   sync:'synced', unseen:0, pendingRefresh:false, replyTo:null, expandedSim:{}
 };
 let entryNoticeShown = false;
@@ -818,14 +819,14 @@ function handleWriteError(e, quiet){
    ويبقى النظام القديم والجديد متوافقين لو فُتح أحدهما على جهاز آخر.
    كل تعديل يُسجَّل في «صندوق صادر» محفوظ على الجهاز، ويُطبَّق على السجل المعني فقط داخل معاملة
    ذرّية — فلا يمحو جهازٌ تعديلات جهاز آخر، ولا يضيع شيء مع انقطاع الإنترنت أو إغلاق المتصفح. */
-const KEYS = { c:'consultations_v2', m:'messages_v2', a:'audit_v2', p:'profiles_v2', b:'branding_v1', s:'suggestions_v1', sn:'snippets_v1', st:'settings_v1' };
-const DEFAULTS = { c:[], m:[], a:[], p:null, b:{logoUrl:''}, s:[], sn:null, st:{} };
+const KEYS = { c:'consultations_v2', m:'messages_v2', a:'audit_v2', p:'profiles_v2', b:'branding_v1', s:'suggestions_v1', sn:'snippets_v1', st:'settings_v1', ai:'archive_index', t:'templates_v1' };
+const DEFAULTS = { c:[], m:[], a:[], p:null, b:{logoUrl:''}, s:[], sn:null, st:{}, ai:{periods:[]}, t:{} };
 const DEFAULT_PROFILES = {
   admin: { name:'الإدارة', email:'', phone:'', username:'admin', password:'admin123' },
   consultant: { name:'د. عقيل محمد المقطري', email:'', phone:'', username:'aqeel', password:'aqeel123' }
 };
 const LEGACY_OUT = { pending:'تحت الإجابة', answered:'تمت الإجابة', to_publish:'معتمدة', published:'مؤرشفة', declined:'اعتذار' };
-const kref = k => doc(db,'app_state',KEYS[k]);
+const kref = k => doc(db,'app_state', k.startsWith('ar:') ? 'archive_'+k.slice(3) : KEYS[k]);
 const server = {}, raw = {}, loaded = {};
 const clone = v => v==null ? v : JSON.parse(JSON.stringify(v));
 function parseVal(snap){ try{ return snap && snap.exists() ? JSON.parse(snap.data().value||'null') : null; }catch(e){ return null; } }
@@ -869,7 +870,11 @@ function recompute(k){
   raw[k]=v; derive(k);
 }
 function derive(k){
-  if(k==='c') state.consultations=(raw.c||[]).filter(x=>x && x.id).map(normalize);
+  if(k==='c' || k.startsWith('ar:')){
+    const main=(raw.c||[]).filter(x=>x && x.id).map(normalize), ids=new Set(main.map(x=>x.id));
+    const arch=[]; archivePeriods().forEach(per=>{ (raw['ar:'+per]||[]).forEach(x=>{ if(x && x.id && !ids.has(x.id)){ ids.add(x.id); arch.push({ ...normalize(x), _arch:per }); } }); });
+    state.consultations=main.concat(arch);
+  }
   if(k==='m'){ state.messages=(raw.m||[]).filter(Boolean).slice().sort((a,b)=>(a.ts||'').localeCompare(b.ts||'')).slice(-300); if(state.user) computeUnseen(); }
   if(k==='a') state.audit=(raw.a||[]).filter(Boolean).slice().sort((a,b)=>(b.ts||'').localeCompare(a.ts||'')).slice(0,500);
   if(k==='p') applyProfiles(raw.p);
@@ -901,7 +906,8 @@ async function flushWait(oid, quiet){
 }
 function flush(quiet){
   if(flushP) return flushP;
-  flushP=(async()=>{
+  const p=(async()=>{
+    await Promise.resolve();
     try{
       while(outbox.length){
         const k=outbox[0].k;
@@ -916,9 +922,10 @@ function flush(quiet){
       }
       setSync(navigator.onLine===false?'offline':'synced');
     }catch(e){ handleWriteError(e, quiet); }
-    finally{ flushP=null; }
+    finally{ if(flushP===p) flushP=null; }
   })();
-  return flushP;
+  flushP=p;
+  return p;
 }
 setInterval(()=>{ if(outbox.length) flush(true); }, 15000);
 window.addEventListener('online', ()=>{ setSync('syncing'); flush(true); });
@@ -927,6 +934,7 @@ window.addEventListener('beforeunload', e=>{ if(outbox.length && !$('answerEdito
 
 function hist(action){ return { ts: nowIso(), actor: actorName(), action }; }
 function updateConsult(c, fields, historyAction, opts={}){
+  unarchiveIfNeeded(c);
   return enqueue({ k:'c', id:c.id, set: legacyFields({ ...fields, updatedAt: nowIso() }), push: historyAction ? { history:[hist(historyAction)] } : undefined, guard: opts.guard, quiet: opts.quiet });
 }
 function logAudit(action){
@@ -943,80 +951,276 @@ function afterCommit(r, okMsg){
 }
 function current(){ return state.consultations.find(c=>c.id===state.detailId); }
 
-/* ===================== تسجيل الدخول (نفس أسماء المستخدمين وكلمات المرور السابقة) ===================== */
+/* ===================== الأمان وتسجيل الدخول =====================
+   يكتب المستخدم اسم المستخدم وكلمة المرور نفسها كما كان سابقاً.
+   خلف الكواليس: حساب محمي في Firebase Authentication لكل دور، يُنشأ تلقائياً عند أول دخول،
+   ثم تُحذف كلمات المرور المكشوفة من قاعدة البيانات وتُقفل القاعدة بقواعد الأمان. */
+const AUTH_DOMAIN='aq-consults.local';
+const derivePw = p => 'aq·'+String(p||'').trim()+'·cs';
+const normUser = u => String(u||'').trim().toLowerCase();
+const secRef = id => doc(db,'security',id);
+const pubRef = doc(db,'public','stats');
+const auth = getAuth(fbApp);
+let secAuth=null, bootBusy=false, authUid=null, privUnsubs=[];
+function getSecAuth(){ if(!secAuth){ const app2=initializeApp(firebaseConfig,'secondary'); secAuth=initializeAuth(app2,{ persistence: inMemoryPersistence }); } return secAuth; }
+const AUTH_OFF_CODES=['auth/operation-not-allowed','auth/configuration-not-found','auth/admin-restricted-operation'];
+const BAD_CRED_CODES=['auth/invalid-credential','auth/wrong-password','auth/user-not-found','auth/invalid-login-credentials','auth/invalid-email'];
+
 function hashCred(u,p){ let h=5381; const s=String(u)+'|'+String(p); for(let i=0;i<s.length;i++){ h=((h<<5)+h+s.charCodeAt(i))|0; } return String(h>>>0); }
 function matchRole(u,p){
-  u=String(u||'').trim().toLowerCase(); p=String(p||'').trim();
-  for(const role of ['admin','consultant']){ const pr=state.profiles[role]; if(u && p && u===String(pr.username||'').trim().toLowerCase() && p===String(pr.password||'').trim()) return role; }
+  u=normUser(u); p=String(p||'').trim();
+  for(const role of ['admin','consultant']){ const pr=state.profiles[role]; if(u && p && u===normUser(pr.username) && p===String(pr.password||'').trim()) return role; }
   return null;
 }
-function enterApp(role, restored){
-  const pr=state.profiles[role];
-  state.user={ uid:role, role, name:pr.name, username:pr.username };
-  lsSet('aq_session', JSON.stringify({ role, h:hashCred(pr.username, pr.password) }));
+function enterApp(role, restored, extra){
+  const pr=state.profiles[role]||{};
+  state.user={ uid:role, role, name:pr.name||(extra&&extra.name)||'', username:pr.username||(extra&&extra.username)||'' };
+  if(!state.secure) lsSet('aq_session', JSON.stringify({ role, h:hashCred(pr.username, pr.password) }));
+  else lsSet('aq_session','');
   state.loginError=''; state.view='dashboard'; entryNoticeShown=false;
   computeUnseen();
   render();
   if(state.consultsLoaded) setTimeout(entryNotice, 400);
   const k='aq_last_login_log_'+role, last=+lsGet(k)||0;
   if(!restored || Date.now()-last > 30*60*1000){ lsSet(k, String(Date.now())); logAudit(role==='consultant'?'تسجيل دخول المستشار':'تسجيل دخول الإدارة'); }
+  setTimeout(handleImportHash, 600);
 }
-function tryRestoreSession(){
+async function enterSecure(fu, restored){
   try{
-    const s=JSON.parse(lsGet('aq_session')||'null'); if(!s || !state.profiles[s.role]) return false;
-    const pr=state.profiles[s.role];
-    if(hashCred(pr.username, pr.password)!==s.h) return false;
-    enterApp(s.role, true); return true;
-  }catch(e){ return false; }
+    const s=await getDoc(doc(db,'users',fu.uid));
+    if(!s.exists() || s.data().active===false){
+      state.loginError = s.exists() ? 'تم تغيير بيانات الدخول — سجّل الدخول بكلمة المرور الجديدة' : 'هذا الحساب غير مسجّل في النظام';
+      bootBusy=true; await signOut(auth).catch(()=>{}); bootBusy=false;
+      state.authReady=true; render(); return;
+    }
+    const d=s.data(); authUid=fu.uid; state.secure=true; state.authMissing=false;
+    try{ const ps=await getDoc(kref('p')); server.p=parseVal(ps); recompute('p'); }catch(e){}
+    startPrivate();
+    state.authReady=true;
+    enterApp(d.role, restored, d);
+    ensureLocked();
+  }catch(e){
+    console.error('enterSecure', e);
+    state.loginError='تعذّر تحميل الحساب — تحقق من الاتصال'; state.authReady=true; render();
+  }
 }
-function doLogin(){
+/* إكمال القفل إن انقطع أول تفعيل في منتصفه */
+async function ensureLocked(){
+  try{
+    const p=server.p;
+    if(p && ((p.admin&&p.admin.password) || (p.consultant&&p.consultant.password))){
+      const stripped={ admin:{...(p.admin||{}), password:''}, consultant:{...(p.consultant||{}), password:''} };
+      await enqueue({ k:'p', replace:stripped, silent:true, quiet:true });
+    }
+    const l=await getDoc(secRef('lock'));
+    if(!l.exists()) await setDoc(secRef('lock'), { at:nowIso(), by:state.user?.role||'' });
+  }catch(e){ console.warn('ensureLocked', e); }
+}
+/* أول دخول بعد التحديث: إنشاء الحسابين المحميين تلقائياً بكلمات المرور الحالية نفسها */
+async function provision(role, pw){
+  const P=state.profiles, other= role==='admin'?'consultant':'admin';
+  const mk = r => r+'-'+Math.random().toString(36).slice(2,9)+'@'+AUTH_DOMAIN;
+  const emails={ [role]:mk(role), [other]:mk(other) };
+  bootBusy=true;
+  try{
+    const cred=await createUserWithEmailAndPassword(auth, emails[role], derivePw(pw));
+    const sa=getSecAuth();
+    const c2=await createUserWithEmailAndPassword(sa, emails[other], derivePw(P[other].password));
+    await signOut(sa).catch(()=>{});
+    const b=writeBatch(db);
+    const ud=r=>({ role:r, name:P[r].name, username:P[r].username, active:true, createdAt:nowIso() });
+    b.set(doc(db,'users',cred.user.uid), ud(role));
+    b.set(doc(db,'users',c2.user.uid), ud(other));
+    b.set(secRef('usernames'), { map:{ [normUser(P[role].username)]:emails[role], [normUser(P[other].username)]:emails[other] }, updatedAt:nowIso() });
+    await b.commit();
+    const stripped={ admin:{...P.admin, password:''}, consultant:{...P.consultant, password:''} };
+    await setDoc(kref('p'), { value:JSON.stringify(stripped), updatedAt:Date.now() });
+    await setDoc(secRef('lock'), { at:nowIso(), by:role });
+    bootBusy=false;
+    await enterSecure(cred.user, false);
+    logAudit('تفعيل الدخول الآمن وحذف كلمات المرور المكشوفة من قاعدة البيانات');
+    return true;
+  }catch(e){
+    bootBusy=false;
+    if(AUTH_OFF_CODES.includes(e.code)) state.authMissing=true; else console.error('provision failed', e);
+    bootBusy=true; await signOut(auth).catch(()=>{}); bootBusy=false;
+    return false;
+  }
+}
+async function doLogin(){
   const u=$('loginUser')?.value||'', p=$('loginPass')?.value||'';
   if(!u.trim()||!p.trim()){ state.loginError='أدخل اسم المستخدم وكلمة المرور'; render(); return; }
-  const role=matchRole(u,p);
-  if(!role){ state.loginError='اسم المستخدم أو كلمة المرور غير صحيحة'; render(); setTimeout(()=>{ const x=$('loginUser'); if(x) x.value=u; $('loginPass')?.focus(); },0); return; }
-  enterApp(role, false);
+  const btn=$('loginBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner" style="width:16px;height:16px;border-width:2px;margin:0"></span> جارٍ الدخول…'; }
+  const fail=(msg)=>{ state.loginError=msg; render(); setTimeout(()=>{ const x=$('loginUser'); if(x) x.value=u; $('loginPass')?.focus(); },0); };
+  try{
+    let map=null;
+    try{ const m=await getDoc(secRef('usernames')); map = m.exists() ? (m.data().map||{}) : null; }catch(e){ console.warn('usernames', e); }
+    if(map && Object.keys(map).length){
+      const email=map[normUser(u)];
+      if(!email) return fail('اسم المستخدم أو كلمة المرور غير صحيحة');
+      try{ bootBusy=true; const cred=await signInWithEmailAndPassword(auth, email, derivePw(p)); bootBusy=false; await enterSecure(cred.user, false); return; }
+      catch(e){ bootBusy=false; if(BAD_CRED_CODES.includes(e.code)) return fail('اسم المستخدم أو كلمة المرور غير صحيحة'); if(e.code==='auth/too-many-requests') return fail('محاولات كثيرة متتالية — انتظر قليلاً ثم حاول مجدداً'); if(e.code==='auth/network-request-failed') return fail('تعذّر الاتصال — تحقق من الإنترنت'); throw e; }
+    }
+    // لم يُفعَّل الدخول الآمن بعد: التحقق بالطريقة السابقة ثم التفعيل تلقائياً
+    let ps; try{ ps=await getDoc(kref('p')); }catch(e){ return fail('تعذّر الاتصال بقاعدة البيانات'); }
+    server.p=parseVal(ps); recompute('p');
+    const role=matchRole(u,p);
+    if(!role) return fail('اسم المستخدم أو كلمة المرور غير صحيحة');
+    if(await provision(role, p)) return;
+    state.secure=false;
+    startPrivate(); state.authReady=true;
+    enterApp(role, false);
+  }catch(e){ console.error('login', e); fail('حدث خطأ أثناء الدخول'+(e&&e.code?' ('+e.code+')':'')); }
+}
+async function tryRestoreLegacy(){
+  try{
+    const s=JSON.parse(lsGet('aq_session')||'null'); if(!s || !s.role) return false;
+    const [l,m]=await Promise.all([getDoc(secRef('lock')).catch(()=>null), getDoc(secRef('usernames')).catch(()=>null)]);
+    if((l&&l.exists()) || (m&&m.exists())){ lsSet('aq_session',''); return false; } // أصبح الدخول آمناً: يُطلب الدخول مجدداً مرة واحدة
+    const ps=await getDoc(kref('p')); server.p=parseVal(ps); recompute('p');
+    const pr=state.profiles[s.role]; if(!pr || hashCred(pr.username, pr.password)!==s.h) return false;
+    await getDoc(kref('c')); // إن كانت القاعدة مقفلة يُرفض هذا ويُطلب الدخول من جديد
+    state.secure=false; startPrivate(); state.authReady=true; enterApp(s.role, true); return true;
+  }catch(e){ lsSet('aq_session',''); return false; }
 }
 async function logout(){
   const ok=await confirmModal({title:'تسجيل الخروج', text:'هل تريد تسجيل الخروج من النظام؟', confirm:'خروج', icon:'log-out'});
   if(!ok) return;
   if($('answerEditor') && editorDirty()) await autosaveNow();
   stopAutosave();
-  lsSet('aq_session',''); state.user=null; state.view='dashboard'; render();
+  await flush(true).catch(()=>{});
+  await writePublicStats().catch(()=>{});
+  lsSet('aq_session','');
+  const wasSecure=state.secure;
+  teardownPrivate();
+  if(wasSecure){ bootBusy=true; await signOut(auth).catch(()=>{}); bootBusy=false; }
+  state.user=null; state.view='dashboard'; render();
+}
+async function changeMyPassword(){
+  const cur=$('pwCur').value, n1=$('pwNew').value, n2=$('pwNew2').value;
+  if(!cur.trim()||!n1.trim()){ toast('أدخل كلمة المرور الحالية والجديدة','warn'); return; }
+  if(n1.trim()!==n2.trim()){ toast('كلمتا المرور الجديدتان غير متطابقتين','warn'); return; }
+  try{
+    const u=auth.currentUser;
+    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, derivePw(cur)));
+    await updatePassword(u, derivePw(n1));
+    ['pwCur','pwNew','pwNew2'].forEach(id=>$(id).value='');
+    toast('تم تغيير كلمة المرور'); logAudit('تغيير كلمة المرور');
+  }catch(e){ toast(BAD_CRED_CODES.includes(e.code)?'كلمة المرور الحالية غير صحيحة':'تعذّر التغيير ('+(e.code||'')+')','err'); }
+}
+/* المدير يعيّن كلمة مرور جديدة للمستشار دون معرفة القديمة */
+async function resetConsultantPassword(){
+  const n1=($('cpNew').value||'').trim();
+  if(!n1){ toast('اكتب كلمة المرور الجديدة','warn'); return; }
+  const ok=await confirmModal({ title:'تعيين كلمة مرور جديدة للمستشار', text:'ستتوقف كلمة المرور الحالية للمستشار فوراً، ويُطلب منه الدخول بالجديدة على كل أجهزته.', confirm:'تعيين', icon:'key-round' });
+  if(!ok) return;
+  try{
+    const email='consultant-'+Math.random().toString(36).slice(2,9)+'@'+AUTH_DOMAIN;
+    const sa=getSecAuth(); const c2=await createUserWithEmailAndPassword(sa, email, derivePw(n1)); await signOut(sa).catch(()=>{});
+    const all=await getDocs(collection(db,'users'));
+    const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) };
+    const P=state.profiles.consultant;
+    const b=writeBatch(db);
+    all.docs.forEach(d=>{ if(d.data().role==='consultant' && d.data().active!==false) b.update(d.ref, { active:false }); });
+    b.set(doc(db,'users',c2.user.uid), { role:'consultant', name:P.name, username:P.username, active:true, createdAt:nowIso() });
+    map[normUser(P.username)]=email;
+    b.set(secRef('usernames'), { map, updatedAt:nowIso() });
+    await b.commit();
+    $('cpNew').value='';
+    toast('تم تعيين كلمة المرور الجديدة للمستشار'); logAudit('تعيين كلمة مرور جديدة للمستشار');
+  }catch(e){ console.error(e); toast('تعذّر التعيين ('+(e.code||e.message)+')','err'); }
 }
 
 /* ===================== المزامنة المباشرة ===================== */
-let firstC=true, firstM=true, seenMsgIds=new Set();
-function startSync(){
-  Object.keys(KEYS).forEach(k=>{
-    onSnapshot(kref(k), snap=>{
-      server[k]=parseVal(snap);
-      const fromServer=!snap.metadata.fromCache;
-      if(k==='c'){
-        const before=prevStatusById;
-        recompute('c');
-        state.consultsLoaded=true;
-        if(!firstC && state.user) notifyConsultChanges(before);
-        prevStatusById=new Map(state.consultations.map(c=>[c.id,c.status]));
-        if(firstC){ firstC=false; if(state.user) setTimeout(entryNotice,400); }
-        if(!state.user) updateLoginStats();
-      } else if(k==='m'){
-        recompute('m');
-        if(!firstM && state.user) state.messages.forEach(m=>{ if(!seenMsgIds.has(m.id) && !isMyMessage(m)) notify('رسالة جديدة', (m.fromName?m.fromName+': ':'')+(m.text||'').slice(0,90)); });
-        state.messages.forEach(m=>seenMsgIds.add(m.id)); firstM=false;
-        if(state.view==='messages' && state.user) markMessagesSeen();
-      } else recompute(k);
-      if(k==='p'){
-        if(fromServer && server.p==null && !loaded.pSeeded){ loaded.pSeeded=true; enqueue({ k:'p', replace:DEFAULT_PROFILES, silent:true, quiet:true }); }
-        if(!state.authReady){ state.authReady=true; if(!tryRestoreSession()) render(); return; }
-      }
-      if(fromServer && !snap.metadata.hasPendingWrites && !outbox.length) setSync('synced');
-      if(state.user) softRefresh(k==='b'||k==='st'||k==='s'||k==='p');
-    }, err=>{ console.error('listener', k, err); if(err && err.code==='permission-denied') setSync('error'); });
+let firstC=true, firstM=true, seenMsgIds=new Set(), archSubs=new Map(), sideTasksDone=false;
+function listenKey(k){
+  return onSnapshot(kref(k), snap=>{
+    server[k]=parseVal(snap);
+    const fromServer=!snap.metadata.fromCache;
+    if(k==='c'){
+      const before=prevStatusById;
+      recompute('c');
+      state.consultsLoaded=true;
+      if(!firstC && state.user) notifyConsultChanges(before);
+      prevStatusById=new Map(state.consultations.map(c=>[c.id,c.status]));
+      if(firstC){ firstC=false; if(state.user) setTimeout(entryNotice,400); }
+      schedulePublicStats();
+      if(fromServer && !sideTasksDone){ sideTasksDone=true; setTimeout(runSideTasks, 2500); }
+    } else if(k==='m'){
+      recompute('m');
+      if(!firstM && state.user) state.messages.forEach(m=>{ if(!seenMsgIds.has(m.id) && !isMyMessage(m)) notify('رسالة جديدة', (m.fromName?m.fromName+': ':'')+(m.text||'').slice(0,90)); });
+      state.messages.forEach(m=>seenMsgIds.add(m.id)); firstM=false;
+      if(state.view==='messages' && state.user) markMessagesSeen();
+    } else if(k==='ai'){
+      recompute('ai'); syncArchiveSubs();
+    } else recompute(k);
+    if(fromServer && !snap.metadata.hasPendingWrites && !outbox.length) setSync('synced');
+    if(state.user) softRefresh(k==='b'||k==='st'||k==='s'||k==='p');
+  }, err=>{ console.error('listener', k, err); if(err && err.code==='permission-denied') setSync('error'); });
+}
+function syncArchiveSubs(){
+  (archivePeriods()).forEach(per=>{
+    const k='ar:'+per; if(archSubs.has(k)) return;
+    archSubs.set(k, listenKey(k));
   });
-  // في حال تعذّر الوصول للخادم أول مرة إطلاقاً: نعرض شاشة الدخول بعد مهلة قصيرة
-  setTimeout(()=>{ if(!state.authReady){ applyProfiles(null); state.authReady=true; if(!tryRestoreSession()) render(); } }, 7000);
+}
+function startPrivate(){
+  if(privUnsubs.length) return;
+  Object.keys(KEYS).forEach(k=> privUnsubs.push(listenKey(k)));
+  if(state.secure && authUid){
+    privUnsubs.push(onSnapshot(doc(db,'users',authUid), s=>{
+      if(s.exists() && s.data().active===false && state.user){
+        state.loginError='تم تغيير بيانات الدخول — سجّل الدخول بكلمة المرور الجديدة';
+        teardownPrivate(); state.user=null;
+        bootBusy=true; signOut(auth).catch(()=>{}).finally(()=>{ bootBusy=false; render(); });
+      }
+    }, ()=>{}));
+  }
   if(outbox.length) flush(true);
 }
+function teardownPrivate(){
+  privUnsubs.forEach(u=>{ try{u();}catch(e){} }); privUnsubs=[];
+  archSubs.forEach(u=>{ try{u();}catch(e){} }); archSubs=new Map();
+  Object.keys(server).forEach(k=>{ if(k!=='p') delete server[k]; });
+  Object.keys(raw).forEach(k=>{ if(k!=='p') delete raw[k]; });
+  state.consultations=[]; state.messages=[]; state.audit=[]; state.consultsLoaded=false;
+  firstC=true; firstM=true; seenMsgIds=new Set(); sideTasksDone=false; authUid=null; state.secure=false;
+  prevStatusById=new Map();
+}
+/* إحصائيات صفحة الدخول: مستند عام يحوي أعداداً وتواريخ فقط — دون أي اسم أو نص */
+let pubTimer=null, lastPubJson='';
+function publicItems(){
+  return state.consultations.filter(c=>!c.deleted && !c._arch && (c.status==='pending'||c.status==='answered'))
+    .map(c=>({ s:c.status==='pending'?'p':'a', t:c.assignedAt||c.createdAt||'', u:c.priority==='مستعجل'?1:0 }))
+    .sort((a,b)=>(a.t>b.t?1:-1));
+}
+function schedulePublicStats(){
+  if(!state.user) return;
+  clearTimeout(pubTimer);
+  pubTimer=setTimeout(writePublicStats, 2500);
+}
+async function writePublicStats(){
+  clearTimeout(pubTimer);
+  if(!state.user || !state.consultsLoaded) return;
+  const items=publicItems(), j=JSON.stringify(items);
+  if(j===lastPubJson || j===JSON.stringify((state.pubStats||{}).items||[])) { lastPubJson=j; return; }
+  lastPubJson=j;
+  try{ await setDoc(pubRef, { items, updatedAt:nowIso() }); }catch(e){ console.warn('pub stats', e); }
+}
+function startPublic(){
+  onSnapshot(pubRef, s=>{ state.pubStats=s.exists()?s.data():{ items:[] }; state.pubLoaded=true; updateLoginStats(); }, ()=>{ state.pubLoaded=true; });
+}
+function boot(){
+  startPublic();
+  onAuthStateChanged(auth, async fu=>{
+    if(bootBusy) return;
+    if(fu){ if(!state.user) await enterSecure(fu, true); return; }
+    if(state.user && state.secure){ teardownPrivate(); state.user=null; render(); return; }
+    if(!state.authReady){ if(!(await tryRestoreLegacy())){ state.authReady=true; render(); } }
+  });
+  setTimeout(()=>{ if(!state.authReady){ state.authReady=true; render(); } }, 9000);
+}
+
 function isBusy(){
   if(state.view==='add') return true;
   if($('answerEditor')) return true;
@@ -1150,7 +1354,7 @@ function shellHtml(){
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
         <button class="side-btn collapse-btn" data-action="toggle-collapse" title="طي/توسيع القائمة">${ic('panel-right-close','collapse-ic')}</button>
-        <span class="hide-c" style="font-size:11px;opacity:.6">الإصدار 3.0</span>
+        <span class="hide-c" style="font-size:11px;opacity:.6">الإصدار 3.2</span>
       </div>
     </aside>
     <div class="scrim ${state.sidebarOpen?'on':''}" data-action="toggle-sidebar"></div>
@@ -1227,12 +1431,11 @@ function authSide(){
     </div></div>`;
 }
 function loginStatsHtml(){
-  const all=state.consultations.filter(c=>!c.deleted);
-  const pend=all.filter(c=>c.status==='pending');
-  const hot=pend.filter(c=>{ const f=flags(c); return f.late||f.urgent; }).length;
-  const fresh=pend.length-hot;
-  const waiting=all.filter(c=>c.status==='answered').length;
-  if(!state.consultsLoaded) return '';
+  if(!state.pubLoaded) return '';
+  const items=(state.pubStats&&state.pubStats.items)||[];
+  const pend=items.filter(x=>x.s==='p');
+  const hot=pend.filter(x=> x.u || hoursSince(x.t)>=SLA.lateH).length;
+  const fresh=pend.length-hot, waiting=items.filter(x=>x.s==='a').length;
   const box=(icon,v,l,cls='')=> v>0 ? `<div class="login-stat ${cls}"><span class="ls-ic">${ic(icon)}</span><span><div class="ls-n">${v}</div><div class="ls-l">${l}</div></span></div>` : '';
   return box('inbox',fresh,'استشارات جديدة')+box('flame',hot,'متأخرة ومستعجلة',hot?'alert':'')+box('user-pen',pend.length,'لم يُجب عنها بعد','tone-slate')+box('circle-check',waiting,'بانتظار الاعتماد','tone-gold');
 }
@@ -1321,7 +1524,7 @@ function adminDashboard(){
   const pubMonth=all.filter(c=>c.status==='published' && (c.publishedAt||c.closedAt) && monthKey(c.publishedAt||c.closedAt)===mk).length;
   const p=perfStats(all);
   const months=lastMonths(6);
-  return `
+  return `${!state.secure?`<div class="notice warn">${ic('shield-alert')}<span><b>الدخول الآمن غير مفعّل بعد.</b> ${state.authMissing?'يحتاج تفعيل خدمة الدخول في Firebase — التفاصيل في صفحة الإعدادات.':'سجّل الخروج والدخول مرة واحدة لتفعيله.'}</span></div>`:''}
     <div class="kpis">
       ${kpi('inbox','لدى المستشار',pend.length,'لم يُجب عنها بعد','primary','list','')}
       ${kpi('alarm-clock','متأخرة',late.length,'تجاوزت '+SLA.lateH+' ساعة','warn','list','late')}
@@ -1762,7 +1965,10 @@ function editorHtml(c){
         <button class="tb-btn" data-cmd="justifyCenter" title="توسيط">${ic('align-center')}</button>
         <button class="tb-btn" data-cmd="justifyFull" title="ضبط">${ic('align-justify')}</button>
         <span class="tb-sep"></span>
+        <button class="tb-btn" data-action="insert-ayah" title="إدراج آية بالمرجع">${ic('book-open-text')}<span>آية</span></button>
         <button class="tb-btn" data-action="snippets" id="snipBtn" title="إدراج مقطع جاهز">${ic('quote')}<span>المقاطع</span></button>
+        <button class="tb-btn" data-action="insert-template" title="إدراج قالب حسب تصنيف الاستشارة">${ic('layout-list')}<span>قالب</span></button>
+        <button class="tb-btn" data-action="answer-search" title="البحث في الإجابات السابقة">${ic('search')}<span>بحث</span></button>
         <button class="tb-btn" data-action="format-painter" id="painterBtn" title="نسخ التنسيق">${ic('paintbrush')}</button>
         <button class="tb-btn" data-action="voice" id="voiceBtn" title="إملاء صوتي">${ic('mic')}</button>
         <button class="tb-btn" data-action="refresh-greeting" title="إعادة إدراج المقدمة حسب بيانات السائل">${ic('refresh-cw')}<span>المقدمة</span></button>
@@ -1962,13 +2168,14 @@ async function restoreConsult(c){
 async function permaDelete(c){
   const ok=await confirmModal({ title:'حذف نهائي', text:'سيتم حذف الاستشارة رقم '+num(c)+' نهائياً ولا يمكن التراجع عن ذلك.', confirm:'حذف نهائي', icon:'triangle-alert', danger:true });
   if(!ok) return;
-  const r=await enqueue({ k:'c', remove:c.id });
+  const r=await enqueue({ k: c._arch ? 'ar:'+c._arch : 'c', remove:c.id });
   afterCommit(r,'تم الحذف النهائي'); logAudit('حذف نهائي لاستشارة '+num(c));
 }
 async function sendNote(){
   const c=current(), inp=$('noteInput'); if(!c||!inp) return;
   const text=inp.value.trim(); if(!text) return;
   inp.value=''; inp.blur();
+  unarchiveIfNeeded(c);
   const r=await enqueue({ k:'c', id:c.id, push:{ notesThread:[{ id:'n'+Date.now().toString(36), from:state.user.role, fromName:actorName(), text, ts:nowIso() }] }, set:{ updatedAt:nowIso() } });
   if(r!=='error') logAudit('ملاحظة على الاستشارة '+num(c));
 }
@@ -2141,7 +2348,7 @@ function monthlyPanel(all){
   const done=list.filter(c=>['answered','to_publish','published'].includes(c.status)).length;
   return `<div class="panel"><div class="panel-head"><h3>${ic('calendar-range')}التقرير الشهري</h3><span class="spacer"></span>
     <select id="rMonth" class="tb-select" style="max-width:180px">${months.length?months.map(m=>`<option value="${m}" ${m===sel?'selected':''}>${monthLabel(m)}</option>`).join(''):'<option>لا توجد بيانات</option>'}</select>
-    <button class="btn btn-sm no-print" data-action="export-month">${ic('sheet')}تصدير</button></div>
+    <button class="btn btn-sm no-print" data-action="export-month">${ic('sheet')}تصدير</button><button class="btn btn-sm btn-primary no-print" data-action="official-report">${ic('printer')}تقرير رسمي</button></div>
     <div class="panel-body"><div class="kpis" style="margin-bottom:0">
       <div class="kpi" style="cursor:default"><span class="kpi-ic">${ic('inbox')}</span><span><div class="kpi-num">${list.length}</div><div class="kpi-lbl">رصيد الشهر</div></span></div>
       <div class="kpi tone-ok" style="cursor:default"><span class="kpi-ic">${ic('check')}</span><span><div class="kpi-num">${done}</div><div class="kpi-lbl">المنجزة</div></span></div>
@@ -2246,11 +2453,12 @@ function settingsView(){
       </div>
       <div class="form-grid">
         <div class="field"><label class="lbl">اسم المستخدم</label><input type="text" id="pf_${role}_username" value="${esc(P[role].username)}" dir="ltr" autocapitalize="off"></div>
-        <div class="field"><label class="lbl">كلمة المرور</label><div class="pass-wrap"><input type="password" id="pf_${role}_password" value="${esc(P[role].password)}" dir="ltr"><button type="button" data-action="toggle-pass" data-for="pf_${role}_password" aria-label="إظهار">${ic('eye')}</button></div></div>
+        ${state.secure?'':`<div class="field"><label class="lbl">كلمة المرور</label><div class="pass-wrap"><input type="password" id="pf_${role}_password" value="${esc(P[role].password)}" dir="ltr"><button type="button" data-action="toggle-pass" data-for="pf_${role}_password" aria-label="إظهار">${ic('eye')}</button></div></div>`}
       </div>
       <button class="btn btn-primary" data-action="save-profile" data-role="${role}">${ic('save')}حفظ</button>
     </div></div>`;
   return `
+  ${securityPanel()}
   ${admin?`<div class="grid-2">${profBlock('admin','بيانات المدير')}${profBlock('consultant','بيانات المستشار')}</div>`:`
   <div class="panel"><div class="panel-head"><h3>${ic('user-round')}حسابي</h3><span class="spacer"></span><span class="role-tag consultant">مستشار</span></div><div class="panel-body"><div class="kv-list">
     <div class="kv-row"><span class="k">الاسم</span><span class="v">${esc(P.consultant.name)}</span></div>
@@ -2265,6 +2473,8 @@ function settingsView(){
     </ul>
   </div></div>
   ${snippetsPanel()}
+  ${templatesPanel()}
+  ${admin?bookmarkletPanel():''}
   ${admin?`<div class="grid-2">
     <div class="panel"><div class="panel-head"><h3>${ic('palette')}الهوية والإعدادات العامة</h3></div><div class="panel-body">
       <div class="field"><label class="lbl">شعار البرنامج</label><div class="btn-row">${state.settings.logoUrl?`<img src="${esc(state.settings.logoUrl)}" style="width:52px;height:52px;border-radius:12px;object-fit:cover;border:1px solid var(--border)">`:''}<label class="btn btn-sm" style="cursor:pointer">${ic('upload')}رفع شعار<input type="file" id="logoFile" accept="image/*" hidden></label>${state.settings.logoUrl?`<button class="btn btn-sm btn-ghost" data-action="remove-logo">${ic('x')}إزالة</button>`:''}</div></div>
@@ -2275,8 +2485,12 @@ function settingsView(){
     <div class="panel"><div class="panel-head"><h3>${ic('database')}البيانات والنسخ الاحتياطي</h3></div><div class="panel-body">
       <div class="field"><label class="lbl">سعة مستند الاستشارات (${(u.bytes/1024).toFixed(0)} ك.ب من 1024)</label>
         <div class="sla-track" style="margin:4px 0"><div class="sla-fill" style="width:${u.pct}%;background:${u.pct>80?'var(--danger)':u.pct>60?'var(--warn)':'var(--ok)'}"></div></div>
-        <div class="muted">${u.pct}% مستخدمة${u.pct>70?' — يُنصح بتنزيل نسخة احتياطية وأرشفة الاستشارات القديمة قريباً':''}</div></div>
-      <p class="muted">النسخة الاحتياطية متوافقة مع النظام السابق ويمكن استعادتها في أي منهما.</p>
+        <div class="muted">${u.pct}% مستخدمة — الأرشفة تعمل تلقائياً عند تجاوز 50%</div></div>
+      <div class="field"><label class="lbl">الأرشيف الشهري</label>
+        <div class="muted">${archivePeriods().length?`${state.consultations.filter(c=>c._arch).length} استشارة مؤرشفة في ${archivePeriods().length} شهراً — تظهر في النظام كالمعتاد`:'لا توجد استشارات مؤرشفة بعد'}</div>
+        <button class="btn btn-sm" data-action="archive-now" style="margin-top:8px">${ic('archive')}أرشفة المغلقة منذ أكثر من ${ARCHIVE_AFTER_DAYS} يوماً</button></div>
+      <div class="field"><label class="lbl">النسخ اليومية التلقائية (آخر ${BACKUP_KEEP_DAYS} يوماً)</label>
+        <div id="backupsList"><button class="btn btn-sm" data-action="load-backups">${ic('history')}عرض النسخ اليومية</button></div></div>
       <div class="btn-row"><button class="btn" data-action="export-backup">${ic('download')}تنزيل نسخة احتياطية</button><label class="btn" style="cursor:pointer">${ic('upload')}استعادة من نسخة<input type="file" id="restoreFile" accept="application/json" hidden></label></div>
     </div></div>
   </div>
@@ -2284,6 +2498,49 @@ function settingsView(){
     <div class="inline-form" style="margin-bottom:10px"><input type="text" id="sugInput" placeholder="اكتب مقترحاً جديداً…"><button class="btn btn-primary" data-action="add-sug">${ic('plus')}إضافة</button></div>
     ${(state.settings.suggestions||[]).length?`<ul class="list-plain">${state.settings.suggestions.map((s,i)=>`<li>${ic('dot')}<span class="grow">${esc(s)}</span><button class="btn btn-ghost btn-icon btn-sm" data-action="edit-sug" data-idx="${i}" title="تعديل">${ic('pencil')}</button><button class="btn btn-ghost btn-icon btn-sm" data-action="del-sug" data-idx="${i}" title="حذف">${ic('trash-2')}</button></li>`).join('')}</ul>`:emptyHtml('lightbulb','لا توجد مقترحات')}
   </div></div>`:''}`;
+}
+function securityPanel(){
+  if(state.secure){
+    return `<div class="panel"><div class="panel-head"><h3>${ic('shield-check')}الأمان</h3><span class="spacer"></span><span class="chip st-published">${ic('lock','ico-sm')}الدخول الآمن مفعّل</span></div><div class="panel-body">
+      <p class="muted" style="margin-top:0">كلمات المرور محفوظة مشفّرة لدى Google ولا تظهر في قاعدة البيانات.</p>
+      <div class="section-title">${ic('key-round','ico-sm')}تغيير كلمة مروري</div>
+      <div class="form-grid"><div class="field"><label class="lbl">الحالية</label><input type="password" id="pwCur" dir="ltr"></div><div class="field"><label class="lbl">الجديدة</label><input type="password" id="pwNew" dir="ltr"></div><div class="field"><label class="lbl">تأكيد الجديدة</label><input type="password" id="pwNew2" dir="ltr"></div></div>
+      <button class="btn btn-primary" data-action="change-my-pass">${ic('key-round')}تغيير كلمة المرور</button>
+      ${isAdmin()?`<div class="section-title" style="margin-top:20px">${ic('user-cog','ico-sm')}تعيين كلمة مرور جديدة للمستشار</div>
+      <div class="inline-form"><input type="text" id="cpNew" dir="ltr" placeholder="كلمة المرور الجديدة للمستشار"><button class="btn" data-action="reset-consultant-pass">${ic('key-round')}تعيين</button></div>
+      <p class="muted">استخدمها إن نسي المستشار كلمة مروره. تتوقف القديمة فوراً.</p>`:''}
+    </div></div>`;
+  }
+  if(!isAdmin()) return '';
+  return `<div class="notice warn" style="flex-direction:column;gap:6px">${ic('shield-alert')}<b>الدخول الآمن غير مفعّل بعد</b>
+    <span>${state.authMissing?'خدمة تسجيل الدخول في Firebase غير مفعّلة. فعّلها من الرابط ثم سجّل الخروج والدخول مرة واحدة، وسيتم التأمين تلقائياً:<br><a href="https://console.firebase.google.com/project/aq-consults/authentication/providers" target="_blank" rel="noopener"><b>تفعيل Email/Password في Firebase</b></a>':'سجّل الخروج ثم الدخول مرة واحدة لتفعيله تلقائياً.'}</span></div>`;
+}
+function templatesPanel(){
+  const T=templates(); const cats=['_',...CATEGORIES];
+  return `<div class="panel"><div class="panel-head"><h3>${ic('layout-list')}قوالب الإجابة حسب التصنيف</h3><span class="muted">تُدرج من زر «قالب» في المحرر</span></div><div class="panel-body">
+    <div class="field"><label class="lbl">التصنيف</label><select id="tplCat">${cats.map(c=>`<option value="${esc(c)}">${c==='_'?'القالب العام (بدون تصنيف)':esc(c)}</option>`).join('')}</select></div>
+    <div class="field"><textarea id="tplText" style="min-height:150px;font-family:var(--font-text);font-size:17px">${esc(T['_'])}</textarea></div>
+    <button class="btn btn-primary" data-action="save-template">${ic('save')}حفظ القالب</button>
+  </div></div>`;
+}
+function bookmarkletPanel(){
+  return `<div class="panel"><div class="panel-head"><h3>${ic('bookmark-plus')}زر «إرسال للنظام»</h3><span class="muted">ينقل الاستشارة من الموقع الرسمي بنقرة</span></div><div class="panel-body">
+    <ol style="margin:0 0 12px;padding-right:20px;line-height:2">
+      <li>أظهر شريط المفضلة في المتصفح (<span class="kbd" dir="ltr">Ctrl+Shift+B</span>).</li>
+      <li>اسحب هذا الزر وأفلته في شريط المفضلة: <a class="btn btn-gold btn-sm" href="${esc(bookmarkletCode())}" onclick="event.preventDefault();" draggable="true" title="اسحبني إلى شريط المفضلة">${ic('send')}إرسال للنظام</a></li>
+      <li>افتح صفحة الاستشارة في الموقع الرسمي واضغط الزر من شريط المفضلة، فتُفتح صفحة الإضافة هنا والحقول معبّأة. يمكنك تحديد نص الاستشارة أولاً لنتيجة أدق.</li>
+    </ol>
+    <button class="btn btn-sm btn-ghost" data-action="copy-bookmarklet">${ic('copy')}أو انسخ الكود لإضافته يدوياً</button>
+  </div></div>`;
+}
+async function renderBackupsList(){
+  const box=$('backupsList'); if(!box) return;
+  box.innerHTML='<span class="muted">جارٍ التحميل…</span>';
+  try{
+    const list=await listBackups();
+    box.innerHTML = list.length ? `<ul class="list-plain">${list.map(d=>`<li>${ic('calendar','ico-sm')}<span class="grow"><b>${esc(d.day)}</b><div class="muted">${Math.round(d.parts.reduce((s,p)=>s+p.size,0)/1024)} ك.ب</div></span><button class="btn btn-ghost btn-sm" data-action="download-day" data-day="${esc(d.day)}">${ic('download','ico-sm')}تنزيل</button><button class="btn btn-sm btn-outline" data-action="restore-day" data-day="${esc(d.day)}">${ic('rotate-ccw','ico-sm')}استعادة</button></li>`).join('')}</ul>` : '<span class="muted">لا توجد نسخ يومية بعد — تُنشأ تلقائياً مع أول دخول كل يوم</span>';
+    refreshIcons();
+  }catch(e){ box.innerHTML='<span class="muted" style="color:var(--danger)">تعذّر تحميل القائمة</span>'; }
 }
 function snippetsPanel(){
   return `<div class="panel"><div class="panel-head"><h3>${ic('quote')}مكتبة المقاطع الجاهزة</h3><span class="muted">آيات وأدعية وعبارات متكررة تُدرج في الإجابة بنقرة</span></div><div class="panel-body">
@@ -2299,20 +2556,26 @@ async function saveSnippets(items){ const r=await enqueue({ k:'sn', replace:item
 async function saveProfile(role){
   const g=f=>($('pf_'+role+'_'+f)?.value||'').trim();
   const old=state.profiles[role];
-  const np={ name:g('name')||old.name, email:g('email'), phone:g('phone'), username:g('username')||old.username, password:g('password')||old.password };
+  const np={ name:g('name')||old.name, email:g('email'), phone:g('phone'), username:g('username')||old.username, password: state.secure ? '' : (g('password')||old.password) };
   const other=state.profiles[role==='admin'?'consultant':'admin'];
   if(np.username.toLowerCase()===String(other.username||'').toLowerCase()){ toast('اسم المستخدم مستخدم للحساب الآخر — اختر اسماً مختلفاً','warn'); return; }
   const next={ ...state.profiles, [role]:np };
+  if(state.secure && normUser(np.username)!==normUser(old.username)){
+    try{ const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) }; const em=map[normUser(old.username)];
+      if(em){ delete map[normUser(old.username)]; map[normUser(np.username)]=em; await setDoc(secRef('usernames'), { map, updatedAt:nowIso() }); } }
+    catch(e){ toast('تعذّر تغيير اسم المستخدم ('+(e.code||'')+')','err'); return; }
+  }
   const r=await enqueue({ k:'p', replace:next });
   if(role==='consultant' && np.name!==old.name) enqueue({ k:'c', rename:{ from:old.name, to:np.name }, silent:true });
-  if(role===state.user.role) lsSet('aq_session', JSON.stringify({ role, h:hashCred(np.username, np.password) }));
+  if(role===state.user.role && !state.secure) lsSet('aq_session', JSON.stringify({ role, h:hashCred(np.username, np.password) }));
   afterCommit(r,'تم الحفظ'); logAudit('تحديث بيانات '+(role==='admin'?'المدير':'المستشار'));
 }
 function resizeImage(file, max){
   return new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>{ const img=new Image(); img.onload=()=>{ let w=img.width,h=img.height; if(w>h){ if(w>max){ h=Math.round(h*max/w); w=max; } } else if(h>max){ w=Math.round(w*max/h); h=max; } const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h); res(cv.toDataURL('image/png')); }; img.onerror=rej; img.src=r.result; }; r.onerror=rej; r.readAsDataURL(file); });
 }
 function exportBackup(){
-  const payload={ consultations:raw.c||[], messages:raw.m||[], audit:raw.a||[], profiles:state.profiles, logoUrl:state.settings.logoUrl, suggestions:raw.s||[], settings:raw.st||{}, snippets:state.snippets, exportedAt:nowIso(), version:3 };
+  const archived=[]; archivePeriods().forEach(per=>(raw['ar:'+per]||[]).forEach(x=>archived.push(x)));
+  const payload={ consultations:[...(raw.c||[]), ...archived.filter(x=>x && !(raw.c||[]).some(y=>y&&y.id===x.id))], messages:raw.m||[], audit:raw.a||[], profiles:state.profiles, logoUrl:state.settings.logoUrl, suggestions:raw.s||[], settings:raw.st||{}, snippets:state.snippets, exportedAt:nowIso(), version:3 };
   const el=document.createElement('a'); el.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})); el.download='نسخة_احتياطية_'+todayStr()+'.json'; el.click();
   logAudit('تنزيل نسخة احتياطية');
 }
@@ -2325,17 +2588,313 @@ async function restoreBackup(file){
   if(Array.isArray(payload.messages)) enqueue({ k:'m', replace:payload.messages, silent:true });
   if(Array.isArray(payload.audit)) enqueue({ k:'a', replace:payload.audit, silent:true });
   if(Array.isArray(payload.suggestions)) enqueue({ k:'s', replace:payload.suggestions, silent:true });
-  if(payload.profiles) enqueue({ k:'p', replace:{ admin:{...state.profiles.admin, ...(payload.profiles.admin||{})}, consultant:{...state.profiles.consultant, ...(payload.profiles.consultant||{})} }, silent:true });
+  if(payload.profiles){ const pa={...state.profiles.admin, ...(payload.profiles.admin||{})}, pc={...state.profiles.consultant, ...(payload.profiles.consultant||{})}; if(state.secure){ pa.password=''; pc.password=''; pa.username=state.profiles.admin.username; pc.username=state.profiles.consultant.username; } enqueue({ k:'p', replace:{ admin:pa, consultant:pc }, silent:true }); }
   if(payload.logoUrl!==undefined) enqueue({ k:'b', replace:{ logoUrl:payload.logoUrl||'' }, silent:true });
   if(payload.settings) enqueue({ k:'st', replace:payload.settings, silent:true });
   const r=await (Array.isArray(payload.snippets) ? enqueue({ k:'sn', replace:payload.snippets }) : flushWait('none'));
   softRefresh(); toast('تمت الاستعادة بنجاح'); logAudit('استعادة نسخة احتياطية ('+n+' استشارة)');
 }
 
+/* ===================== الأرشفة الشهرية (إزالة حد الحجم) =====================
+   الاستشارات المغلقة منذ أكثر من 60 يوماً تُنقل إلى مستندات أرشيف شهرية مستقلة،
+   فيبقى مستند الاستشارات الرئيسي خفيفاً مهما زاد العدد. تظهر في النظام كأنها في مكان واحد. */
+const ARCHIVE_AFTER_DAYS=60;
+function archivePeriods(){ const v=raw.ai||server.ai||{}; return Array.isArray(v.periods)?v.periods:[]; }
+function closedTime(n){ return new Date(n.closedAt||n.publishedAt||n.archivedAt||0).getTime(); }
+async function archiveNow(auto){
+  if(!isAdmin()) return 0;
+  await flush(true).catch(()=>{});
+  const cutoff=Date.now()-ARCHIVE_AFTER_DAYS*864e5;
+  try{
+    const moved=await runTransaction(db, async tx=>{
+      const arr=parseVal(await tx.get(kref('c')))||[];
+      const idx=parseVal(await tx.get(kref('ai')))||{ periods:[] };
+      const move=arr.filter(x=>{ if(!x||x.deleted) return false; const n=normalize(x); return isClosed(n) && closedTime(n)>0 && closedTime(n)<cutoff; });
+      if(!move.length) return 0;
+      const by={};
+      move.forEach(x=>{ const d=new Date(closedTime(normalize(x))); const per=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); (by[per]=by[per]||[]).push(x); });
+      const cur={};
+      for(const per of Object.keys(by)) cur[per]=parseVal(await tx.get(kref('ar:'+per)))||[];
+      const ids=new Set(move.map(x=>x.id));
+      tx.set(kref('c'), { value:JSON.stringify(arr.filter(x=>!x||!ids.has(x.id))), updatedAt:Date.now() });
+      for(const per of Object.keys(by)){ const ex=new Set(cur[per].map(x=>x.id)); tx.set(kref('ar:'+per), { value:JSON.stringify([...cur[per], ...by[per].filter(x=>!ex.has(x.id))]), updatedAt:Date.now() }); }
+      const periods=[...new Set([...(idx.periods||[]), ...Object.keys(by)])].sort();
+      tx.set(kref('ai'), { value:JSON.stringify({ periods }), updatedAt:Date.now() });
+      return move.length;
+    });
+    if(moved){ logAudit('أرشفة '+moved+' استشارة مغلقة'+(auto?' (تلقائياً)':'')); }
+    if(!auto) toast(moved?('تمت أرشفة '+moved+' استشارة مغلقة'):'لا توجد استشارات مغلقة منذ أكثر من '+ARCHIVE_AFTER_DAYS+' يوماً', moved?'ok':'warn');
+    return moved;
+  }catch(e){ console.error('archive', e); if(!auto) toast('تعذّرت الأرشفة — تحقق من الاتصال','err'); return 0; }
+}
+/* أي تعديل على استشارة مؤرشفة يعيدها أولاً إلى المستند الرئيسي */
+function unarchiveIfNeeded(c){
+  if(!c || !c._arch) return;
+  const k='ar:'+c._arch, rec=(raw[k]||[]).find(x=>x && x.id===c.id);
+  if(!rec) return;
+  enqueue({ k:'c', create:rec, silent:true, quiet:true });
+  enqueue({ k, remove:c.id, silent:true, quiet:true });
+}
+
+/* ===================== النسخ الاحتياطي اليومي التلقائي =====================
+   أول دخول في كل يوم (من أي جهاز) يحفظ لقطة كاملة داخل قاعدة البيانات. تُحفظ آخر 30 يوماً. */
+const BACKUP_KEEP_DAYS=30;
+async function dailyBackup(){
+  const day=todayStr();
+  if(lsGet('aq_backup_day')===day) return;
+  const parts={ c:server.c, m:server.m };
+  archivePeriods().forEach(per=>{ if(server['ar:'+per]!=null) parts['ar_'+per]=server['ar:'+per]; });
+  let wrote=0;
+  for(const [key,val] of Object.entries(parts)){
+    if(val==null) continue;
+    try{ await setDoc(doc(db,'backups',day+'__'+key), { day, key, value:JSON.stringify(val), at:nowIso(), by:state.user.role }); wrote++; }
+    catch(e){ /* موجودة مسبقاً لهذا اليوم (القواعد تمنع الاستبدال) */ }
+  }
+  lsSet('aq_backup_day', day);
+  if(wrote && isAdmin()) logAudit('نسخة احتياطية يومية تلقائية');
+}
+async function listBackups(){
+  const s=await getDocs(collection(db,'backups'));
+  const days={};
+  s.docs.forEach(d=>{ const x=d.data(); (days[x.day]=days[x.day]||[]).push({ id:d.id, key:x.key, size:(x.value||'').length, at:x.at }); });
+  return Object.entries(days).sort((a,b)=>b[0].localeCompare(a[0])).map(([day,parts])=>({ day, parts }));
+}
+async function cleanupBackups(){
+  try{
+    const list=await listBackups();
+    const old=list.slice(BACKUP_KEEP_DAYS);
+    for(const d of old) for(const p of d.parts) await deleteDoc(doc(db,'backups',p.id)).catch(()=>{});
+  }catch(e){ console.warn('cleanup', e); }
+}
+async function restoreDailyBackup(day){
+  const ok=await confirmModal({ title:'استعادة نسخة '+day, text:'سيتم استبدال الاستشارات والرسائل الحالية بنسخة يوم '+day+'. يُحفظ قبلها تلقائياً ملف بالبيانات الحالية على جهازك.', confirm:'استعادة', icon:'rotate-ccw', danger:true });
+  if(!ok) return;
+  exportBackup();
+  const s=await getDocs(collection(db,'backups'));
+  let n=0;
+  s.docs.forEach(d=>{ const x=d.data(); if(x.day!==day) return; let v; try{ v=JSON.parse(x.value); }catch(e){ return; }
+    if(x.key==='c'){ enqueue({ k:'c', replace:v, silent:true }); n=v.length; }
+    else if(x.key==='m') enqueue({ k:'m', replace:v, silent:true });
+    else if(x.key.startsWith('ar_')) enqueue({ k:'ar:'+x.key.slice(3), replace:v, silent:true });
+  });
+  await flushWait('none'); softRefresh();
+  toast('تمت استعادة نسخة '+day+' ('+n+' استشارة)'); logAudit('استعادة النسخة اليومية '+day);
+}
+async function downloadDailyBackup(day){
+  const s=await getDocs(collection(db,'backups'));
+  const payload={ version:3, exportedAt:nowIso(), day };
+  s.docs.forEach(d=>{ const x=d.data(); if(x.day!==day) return; let v; try{ v=JSON.parse(x.value); }catch(e){ return; }
+    if(x.key==='c') payload.consultations=v; else if(x.key==='m') payload.messages=v; else (payload.archives=payload.archives||{})[x.key.slice(3)]=v; });
+  if(payload.archives) payload.consultations=[...(payload.consultations||[]), ...Object.values(payload.archives).flat()];
+  const el=document.createElement('a'); el.href=URL.createObjectURL(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'})); el.download='نسخة_'+day+'.json'; el.click();
+}
+async function runSideTasks(){
+  if(!state.user) return;
+  try{ await dailyBackup(); }catch(e){ console.warn('backup', e); }
+  if(isAdmin()){
+    if(lsGet('aq_cleanup_day')!==todayStr()){ lsSet('aq_cleanup_day', todayStr()); cleanupBackups(); }
+    if(dbUsage().pct>=50) archiveNow(true);
+  }
+}
+
+/* ===================== إدراج الآيات بالمرجع ===================== */
+const SURAHS=['الفاتحة','البقرة','آل عمران','النساء','المائدة','الأنعام','الأعراف','الأنفال','التوبة','يونس','هود','يوسف','الرعد','إبراهيم','الحجر','النحل','الإسراء','الكهف','مريم','طه','الأنبياء','الحج','المؤمنون','النور','الفرقان','الشعراء','النمل','القصص','العنكبوت','الروم','لقمان','السجدة','الأحزاب','سبأ','فاطر','يس','الصافات','ص','الزمر','غافر','فصلت','الشورى','الزخرف','الدخان','الجاثية','الأحقاف','محمد','الفتح','الحجرات','ق','الذاريات','الطور','النجم','القمر','الرحمن','الواقعة','الحديد','المجادلة','الحشر','الممتحنة','الصف','الجمعة','المنافقون','التغابن','الطلاق','التحريم','الملك','القلم','الحاقة','المعارج','نوح','الجن','المزمل','المدثر','القيامة','الإنسان','المرسلات','النبأ','النازعات','عبس','التكوير','الانفطار','المطففين','الانشقاق','البروج','الطارق','الأعلى','الغاشية','الفجر','البلد','الشمس','الليل','الضحى','الشرح','التين','العلق','القدر','البينة','الزلزلة','العاديات','القارعة','التكاثر','العصر','الهمزة','الفيل','قريش','الماعون','الكوثر','الكافرون','النصر','المسد','الإخلاص','الفلق','الناس'];
+const AYAH_COUNTS=[7,286,200,176,120,165,206,75,129,109,123,111,43,52,99,128,111,110,98,135,112,78,118,64,77,227,93,88,69,60,34,30,73,54,45,83,182,88,75,85,54,53,89,59,37,35,38,29,18,45,60,49,62,55,78,96,29,22,24,13,14,11,11,18,12,12,30,52,52,44,28,28,20,56,40,31,50,40,46,42,29,19,36,25,22,17,19,26,30,20,15,21,11,8,8,19,5,8,8,11,11,8,3,9,5,4,7,3,6,3,5,4,5,6];
+const SURAH_ALIASES={ 'بني اسرائيل':17,'براءه':9,'المومن':40,'حم السجده':41,'القتال':47,'الدهر':76,'التوحيد':112,'الانشراح':94,'اقرا':96,'تبارك':67,'عم':78,'المعوذتين':113,'تبت':111,'اللهب':111,'الحمد':1,'ام الكتاب':1 };
+function surahKey(s){ return normAr(s).replace(/^سوره\s+/,'').replace(/\s+/g,' ').trim(); }
+function findSurah(name){
+  const k=surahKey(name); if(!k) return 0;
+  if(/^\d+$/.test(k)){ const n=+k; return n>=1&&n<=114?n:0; }
+  const strip=x=>x.replace(/^ال/,'');
+  for(let i=0;i<114;i++){ const s=surahKey(SURAHS[i]); if(s===k || strip(s)===strip(k)) return i+1; }
+  for(const [a,n] of Object.entries(SURAH_ALIASES)) if(strip(normAr(a))===strip(k)) return n;
+  return 0;
+}
+function parseAyahRef(input){
+  let t=normAr(normDigits(String(input||''))).replace(/[\[\]()﴿﴾]/g,' ').replace(/[،,]/g,' ');
+  t=t.replace(/(^|\s)(الايات|الايه|ايات|ايه)(?=\s|$)/g,' ').replace(/\s+/g,' ').trim();
+  const m=t.match(/^(.*?)[\s:：]+(\d+)(?:\s*(?:-|–|—|الي)\s*(\d+))?\s*$/);
+  if(!m) return null;
+  const s=findSurah(m[1]); if(!s) return { error:'لم أتعرف على اسم السورة «'+m[1].trim()+'»' };
+  let a=+m[2], b=m[3]?+m[3]:a; if(b<a) [a,b]=[b,a];
+  if(a<1 || b>AYAH_COUNTS[s-1]) return { error:'سورة '+SURAHS[s-1]+' عدد آياتها '+AYAH_COUNTS[s-1] };
+  if(b-a>19) return { error:'الحد الأقصى 20 آية في المرة الواحدة' };
+  return { s, a, b };
+}
+const ayahCache=new Map();
+async function fetchAyahs(ref){
+  const key=ref.s+':'+ref.a+'-'+ref.b;
+  if(ayahCache.has(key)) return ayahCache.get(key);
+  const r=await fetch(`https://api.alquran.cloud/v1/surah/${ref.s}/quran-simple?offset=${ref.a-1}&limit=${ref.b-ref.a+1}`);
+  const j=await r.json();
+  if(!j || j.code!==200) throw new Error('api');
+  const out=j.data.ayahs.map(x=>{
+    let t=x.text;
+    if(x.numberInSurah===1 && ref.s!==1 && ref.s!==9 && normAr(t).startsWith('بسم الله الرحمن الرحيم')) t=t.split(' ').slice(4).join(' ');
+    return { n:x.numberInSurah, t:t.trim() };
+  });
+  ayahCache.set(key,out); return out;
+}
+function toArabicDigits(n){ return String(n).replace(/\d/g,d=>'٠١٢٣٤٥٦٧٨٩'[d]); }
+function ayahHtml(ref, ayahs){
+  const body = ayahs.length===1 ? esc(ayahs[0].t) : ayahs.map(x=>esc(x.t)+' ('+toArabicDigits(x.n)+')').join(' ');
+  const cite = SURAHS[ref.s-1]+': '+toArabicDigits(ref.a)+(ref.b!==ref.a?'-'+toArabicDigits(ref.b):'');
+  return `<b>﴿${body}﴾</b> [${cite}]`;
+}
+async function openAyahDialog(){
+  let found=null;
+  openModal({ icon:'book-open-text', title:'إدراج آية', text:'اكتب اسم السورة ورقم الآية، مثل: البقرة 286 — أو البقرة 285-286 — أو 2:286', wide:true,
+    body:`<input type="text" id="ayahRef" placeholder="البقرة 286"><div id="ayahPrev" class="answer-view" style="margin-top:12px;min-height:60px;border:1px dashed var(--border);border-radius:10px;padding:12px;font-size:21px"></div>`,
+    actions:[{ label:'إدراج في الإجابة', cls:'btn-primary', icon:'plus', value:()=> found ? found : undefined },{ label:'إلغاء', result:null }],
+    onOpen:()=>{
+      const inp=$('ayahRef'), pv=$('ayahPrev'); let timer=null, seq=0;
+      const run=async()=>{
+        const my=++seq; found=null;
+        const ref=parseAyahRef(inp.value);
+        if(!inp.value.trim()){ pv.innerHTML=''; return; }
+        if(!ref){ pv.innerHTML='<span class="muted">اكتب اسم السورة ثم رقم الآية</span>'; return; }
+        if(ref.error){ pv.innerHTML='<span class="muted" style="color:var(--danger)">'+esc(ref.error)+'</span>'; return; }
+        pv.innerHTML='<span class="muted">جارٍ جلب الآية…</span>';
+        try{ const ay=await fetchAyahs(ref); if(my!==seq) return; found=ayahHtml(ref, ay); pv.innerHTML=found; }
+        catch(e){ if(my===seq) pv.innerHTML='<span class="muted" style="color:var(--danger)">تعذّر جلب الآية — تحقق من الإنترنت</span>'; }
+      };
+      inp.addEventListener('input', ()=>{ clearTimeout(timer); timer=setTimeout(run,350); });
+      inp.addEventListener('keydown', ev=>{ if(ev.key==='Enter' && found){ ev.preventDefault(); closeModal(found); } });
+    }
+  }).then(html=>{ if(html){ restoreRange(); document.execCommand('insertHTML', false, html+'&nbsp;'); onEditorInput(); } });
+}
+
+/* ===================== قوالب الإجابة حسب التصنيف ===================== */
+const DEFAULT_TEMPLATES={
+  '_':'أولاً: \n\nثانياً: \n\nثالثاً: \n\nوفي الختام: ',
+  'أسرية وزوجية':'أولاً: فهم أصل المشكلة\n\nثانياً: الحقوق والواجبات الشرعية\n\nثالثاً: خطوات عملية للإصلاح\n\nرابعاً: وصايا ختامية',
+  'نفسية واجتماعية':'أولاً: تفهّم المشاعر وطمأنة السائل\n\nثانياً: الأسباب المحتملة\n\nثالثاً: العلاج الشرعي (الذكر، الدعاء، الرقية)\n\nرابعاً: الخطوات العملية والسلوكية\n\nخامساً: متى تراجع مختصاً',
+  'تربوية':'أولاً: فهم المرحلة العمرية\n\nثانياً: الأسلوب التربوي المناسب\n\nثالثاً: خطوات عملية\n\nرابعاً: وصايا للوالدين',
+  'عبادات':'أولاً: الحكم الشرعي\n\nثانياً: الدليل\n\nثالثاً: التطبيق على حالتك',
+  'معاملات':'أولاً: تكييف المسألة\n\nثانياً: الحكم الشرعي ودليله\n\nثالثاً: البديل المشروع'
+};
+function templates(){ return { ...DEFAULT_TEMPLATES, ...(raw.t||{}) }; }
+function insertTemplate(){
+  const c=current(); const T=templates(); const cat=(c&&c.category)||'';
+  const txt=T[cat]||T['_'];
+  insertTextAtCursor(txt);
+  toast(cat&&T[cat]?'أُدرج قالب «'+cat+'»':'أُدرج القالب العام'+(cat?'':' — حدّد تصنيف الاستشارة ليُدرج قالبها الخاص'));
+}
+
+/* ===================== البحث في الإجابات السابقة ===================== */
+const plainCache=new Map();
+function plainOf(c){ const k=c.id+'|'+(c.updatedAt||''); if(!plainCache.has(k)) plainCache.set(k, htmlToPlainText(c.answer||'')); return plainCache.get(k); }
+function searchAnswers(q){
+  const nq=normAr(q.trim()); if(nq.length<2) return [];
+  const words=nq.split(/\s+/).filter(Boolean);
+  const out=[];
+  state.consultations.forEach(c=>{
+    if(c.deleted || !c.answer) return;
+    const p=plainOf(c), np=normAr(p), ns=normAr(c.subject||'');
+    if(!words.every(w=>np.includes(w)||ns.includes(w))) return;
+    const score=words.reduce((s,w)=>s+(ns.includes(w)?3:0)+(np.split(w).length-1),0);
+    // مقتطف حول أول تطابق (المواضع متطابقة لأن التطبيع يحذف التشكيل فقط)
+    const raw0=p.replace(/[\u064B-\u065F\u0670\u0640]/g,'');
+    const i=Math.max(0, normAr(raw0).indexOf(words[0]));
+    const snip=(i>60?'… ':'')+raw0.slice(Math.max(0,i-60), i+140)+'…';
+    out.push({ c, score, snip });
+  });
+  return out.sort((a,b)=>b.score-a.score).slice(0,30);
+}
+function markWords(text, q){
+  let h=esc(text);
+  normAr(q).split(/\s+/).filter(w=>w.length>1).forEach(w=>{ try{ h=h.replace(new RegExp('('+w.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','g'),'<mark>$1</mark>'); }catch(e){} });
+  return h;
+}
+function openAnswerSearch(){
+  openModal({ icon:'search', title:'البحث في الإجابات السابقة', wide:true,
+    body:`<input type="search" id="ansQ" placeholder="مثال: الوسواس في الطهارة"><div id="ansRes" style="margin-top:12px;max-height:58vh;overflow:auto"></div>`,
+    actions:[{ label:'إغلاق', result:null }],
+    onOpen:()=>{
+      const inp=$('ansQ'), box=$('ansRes'); let t=null;
+      const show=()=>{ const q=inp.value; const res=searchAnswers(q);
+        box.innerHTML = q.trim().length<2 ? '<div class="muted">اكتب كلمتين أو أكثر من موضوع الإجابة</div>' : res.length ? res.map(r=>`<div class="sim-item" style="cursor:pointer" data-ans="${r.c.id}"><div class="sim-head"><span class="num-badge">${esc(r.c.number)||'—'}</span><span class="t">${esc(r.c.subject)||'بدون عنوان'}</span></div><div class="muted" style="margin-top:6px;font-size:13px;line-height:1.8">${markWords(r.snip,q)}</div></div>`).join('') : '<div class="muted">لا توجد نتائج</div>';
+      };
+      inp.addEventListener('input', ()=>{ clearTimeout(t); t=setTimeout(show,200); });
+      box.addEventListener('click', ev=>{ const it=ev.target.closest('[data-ans]'); if(!it) return; const c=state.consultations.find(x=>x.id===it.dataset.ans); if(!c) return;
+        box.innerHTML=`<button class="btn btn-ghost btn-sm" id="ansBack">${ic('arrow-right')}رجوع للنتائج</button> <button class="btn btn-sm" id="ansCopy">${ic('copy')}نسخ الإجابة</button>
+          <h4 style="margin:12px 0 6px">${esc(c.number)} — ${esc(c.subject)}</h4><div class="answer-view" style="font-size:18px">${sanitizeHtml(c.answer)}</div>`;
+        refreshIcons();
+        $('ansBack').onclick=show; $('ansCopy').onclick=async()=>{ const ok=await copyRich(sanitizeHtml(c.answer)); toast(ok?'تم النسخ':'تعذّر النسخ', ok?'ok':'warn'); };
+      });
+      show();
+    } });
+}
+
+/* ===================== التقرير الشهري الرسمي ===================== */
+function officialMonthlyReport(){
+  const all=live(); const months=[...new Set(all.map(c=>monthKey(c.createdAt||cDate(c))))].sort().reverse();
+  const sel=months.includes(state.report.month)?state.report.month:months[0];
+  if(!sel){ toast('لا توجد بيانات','warn'); return; }
+  const list=all.filter(c=>monthKey(c.createdAt||cDate(c))===sel).sort((a,b)=>cDate(a).localeCompare(cDate(b)));
+  const done=list.filter(c=>['answered','to_publish','published'].includes(c.status));
+  const pub=list.filter(c=>c.status==='published').length, dec=list.filter(c=>c.status==='declined').length, open=list.filter(c=>c.status==='pending').length;
+  const p=perfStats(list), unit=+state.settings.unitPrice||0, billable=list.filter(c=>c.status!=='declined').length;
+  const logo=state.settings.logoUrl?`<img src="${esc(state.settings.logoUrl)}" style="height:70px">`:'';
+  const html=`<!DOCTYPE html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>التقرير الشهري — ${monthLabel(sel)}</title>
+  <style>@page{size:A4;margin:16mm}body{font-family:'Sakkal Majalla','Traditional Arabic','Amiri',serif;color:#1c1414;font-size:16pt;margin:0}
+  .hd{display:flex;align-items:center;gap:16px;border-bottom:3px double #7A1F2E;padding-bottom:10px;margin-bottom:16px}.hd h1{margin:0;font-size:22pt;color:#7A1F2E}.hd p{margin:2px 0 0;font-size:13pt;color:#555}
+  h2{font-size:17pt;color:#7A1F2E;margin:18px 0 8px}table{width:100%;border-collapse:collapse;font-size:13pt}th,td{border:1px solid #bbb;padding:5px 8px;text-align:center}th{background:#7A1F2E;color:#fff}
+  .k td:first-child{background:#F6EDDA;font-weight:bold;width:45%}.sig{display:flex;justify-content:space-between;margin-top:50px;font-size:15pt}.sig div{text-align:center;width:40%}.sig span{display:block;margin-top:46px;border-top:1px solid #333}
+  .meta{font-size:12pt;color:#666;margin-top:14px}</style></head><body>
+  <div class="hd">${logo}<div><h1>مكتب الدكتور عقيل محمد المقطري</h1><p>التقرير الشهري للاستشارات — ${monthLabel(sel)}</p></div></div>
+  <h2>أولاً: ملخص الأداء</h2>
+  <table class="k"><tr><td>إجمالي الاستشارات الواردة</td><td>${list.length}</td></tr><tr><td>المُجاب عنها</td><td>${done.length} (${list.length?Math.round(done.length/list.length*100):0}%)</td></tr>
+  <tr><td>المنشورة</td><td>${pub}</td></tr><tr><td>قيد الإجابة</td><td>${open}</td></tr><tr><td>الاعتذارات</td><td>${dec}</td></tr>
+  <tr><td>متوسط زمن الإجابة</td><td>${p.avgH!=null?fmtDur(p.avgH):'—'}</td></tr><tr><td>الالتزام بالمهلة (${SLA.lateH} ساعة)</td><td>${p.compliance!=null?p.compliance+'%':'—'}</td></tr></table>
+  <h2>ثانياً: تفاصيل الاستشارات</h2>
+  <table><tr><th>م</th><th>رقم الاستشارة</th><th>التاريخ</th><th>العنوان</th><th>التصنيف</th><th>الحالة</th><th>زمن الإجابة</th></tr>
+  ${list.map((c,i)=>`<tr><td>${i+1}</td><td>${esc(c.number)||'—'}</td><td>${esc(cDate(c))}</td><td style="text-align:right">${esc(c.subject)||'—'}</td><td>${esc(c.category)||'—'}</td><td>${esc(stageLabel(c))}</td><td>${c.answeredAt&&c.status!=='declined'?fmtDur(hoursBetween(c.assignedAt||c.createdAt,c.answeredAt)):'—'}</td></tr>`).join('')}</table>
+  <h2>ثالثاً: المستحقات المالية</h2>
+  <table class="k"><tr><td>عدد الاستشارات المحتسبة (دون الاعتذارات)</td><td>${billable}</td></tr><tr><td>قيمة الاستشارة</td><td>${unit} ر.ق</td></tr><tr><td>الإجمالي المستحق</td><td><b>${billable*unit} ر.ق</b></td></tr></table>
+  <div class="sig"><div>المستشار<span>${esc(state.profiles.consultant.name)}</span></div><div>الإدارة<span>${esc(state.profiles.admin.name)}</span></div></div>
+  <p class="meta">صدر بتاريخ ${fmtDate(nowIso())}</p>
+  <script>window.onload=function(){setTimeout(function(){window.print()},400)}<\/script></body></html>`;
+  const w=window.open('', '_blank');
+  if(!w){ toast('اسمح بالنوافذ المنبثقة لهذا الموقع لطباعة التقرير','warn'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  logAudit('طباعة التقرير الشهري الرسمي '+sel);
+}
+
+/* ===================== زر «إرسال للنظام» من الموقع الرسمي ===================== */
+function systemBaseUrl(){ return location.href.split('#')[0].split('?')[0]; }
+function bookmarkletCode(){
+  const base=systemBaseUrl();
+  return "javascript:(function(){var s=String(window.getSelection()||'').trim();var t=s.length>40?s:document.body.innerText;window.open("+JSON.stringify(base)+"+'#import='+encodeURIComponent(t.slice(0,30000)),'_blank');})();";
+}
+function captureImportHash(){
+  if(location.hash.startsWith('#import=')){
+    try{ sessionStorage.setItem('aq_import', decodeURIComponent(location.hash.slice(8))); }catch(e){}
+    history.replaceState(null,'',location.pathname+location.search);
+  }
+}
+function handleImportHash(){
+  let t=null; try{ t=sessionStorage.getItem('aq_import'); }catch(e){}
+  if(!t || !state.user) return;
+  try{ sessionStorage.removeItem('aq_import'); }catch(e){}
+  if(!isAdmin()){ toast('إضافة الاستشارات من صلاحية الإدارة فقط','warn'); return; }
+  setView('add');
+  setTimeout(()=>{ const r=$('f_rawpaste'); if(r){ r.value=t; applyPastedData(); } }, 100);
+}
+captureImportHash();
+window.addEventListener('hashchange', ()=>{ captureImportHash(); handleImportHash(); });
+
 /* ===================== EVENT DELEGATION ===================== */
 let deferredInstall=null;
 window.addEventListener('beforeinstallprompt', e=>{ e.preventDefault(); deferredInstall=e; });
 const ACTIONS={
+  'insert-ayah': openAyahDialog, 'insert-template': insertTemplate, 'answer-search': openAnswerSearch, 'official-report': officialMonthlyReport,
+  'change-my-pass': changeMyPassword, 'reset-consultant-pass': resetConsultantPassword,
+  'archive-now': async ()=>{ await archiveNow(false); renderContent(true); },
+  'load-backups': ()=> renderBackupsList(),
+  'restore-day': el=> restoreDailyBackup(el.dataset.day), 'download-day': el=> downloadDailyBackup(el.dataset.day),
+  'copy-bookmarklet': async ()=>{ try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('تم نسخ الكود'); }catch(e){ toast('تعذّر النسخ','warn'); } },
+  'save-template': async ()=>{ const cat=$('tplCat').value; const txt=$('tplText').value; const r=await enqueue({ k:'t', replace:{ ...(raw.t||{}), [cat]:txt } }); afterCommit(r,'تم حفظ القالب'); },
   'login': doLogin, 'logout': logout, 'save-profile': el=>saveProfile(el.dataset.role), 'flush-now': ()=>{ flush(false).then(()=>renderContent(true)); },
   'toggle-pass': el=>{ const i=$(el.dataset.for); if(i){ i.type=i.type==='password'?'text':'password'; el.innerHTML=ic(i.type==='password'?'eye':'eye-off'); refreshIcons(); } },
   'toggle-sidebar': ()=>{ state.sidebarOpen=!state.sidebarOpen; $('sidebar')?.classList.toggle('open', state.sidebarOpen); document.querySelector('.scrim')?.classList.toggle('on', state.sidebarOpen); },
@@ -2406,6 +2965,7 @@ const INPUTS={
 };
 document.addEventListener('input', e=>{ const id=e.target.id || (e.target.closest && e.target.closest('#answerEditor') ? 'answerEditor' : ''); if(INPUTS[id]) INPUTS[id](e.target, e); });
 const CHANGES={
+  tplCat: el=>{ const t=$('tplText'); if(t) t.value=templates()[el.value]||''; },
   fstage: el=>{ state.filters.stage=el.value; refreshListBody(); },
   fflag: el=>{ state.filters.flag=el.value; refreshListBody(); },
   rFrom: el=>{ state.report.from=el.value; el.blur(); renderContent(true); },
@@ -2424,7 +2984,6 @@ document.addEventListener('keydown', e=>{
   const id=e.target.id;
   if(e.key==='Enter' && !e.shiftKey){
     if(id==='loginUser'||id==='loginPass'){ e.preventDefault(); doLogin(); return; }
-    if(['bsName','bsUser','bsPass','bsPass2'].includes(id)){ e.preventDefault(); doBootstrap(); return; }
     if(id==='msgInput'){ e.preventDefault(); sendMsg(); return; }
     if(id==='noteInput'){ e.preventDefault(); sendNote(); return; }
     if(id==='sugInput'){ e.preventDefault(); ACTIONS['add-sug'](); return; }
@@ -2450,8 +3009,8 @@ document.addEventListener('visibilitychange', ()=>{ if(!document.hidden && state
 
 /* ===================== PWA ===================== */
 /* التثبيت كتطبيق يتم عبر بيانات manifest المضمّنة أعلى الصفحة */
-window.__aq = { state, sanitizeHtml, parseConsultationPaste, similarTo, flags, slaInfo, raw, get outbox(){ return outbox; } };
-startSync();
+window.__aq = { state, sanitizeHtml, parseConsultationPaste, similarTo, flags, slaInfo, raw, server, parseAyahRef, archiveNow, searchAnswers, get outbox(){ return outbox; }, get flushing(){ return !!flushP; }, flush };
+boot();
 </script>
 </body>
 </html>
