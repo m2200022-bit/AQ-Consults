@@ -556,6 +556,7 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
    ===================================================================== */
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction, getDoc, setDoc, getDocs, deleteDoc, writeBatch, collection, addDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js";
 import { getAuth, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -569,6 +570,10 @@ const firebaseConfig = {
   measurementId: "G-4RCC6TWBNX"
 };
 const fbApp = initializeApp(firebaseConfig);
+// App Check: يثبت أن الطلبات قادمة من موقع النظام نفسه (reCAPTCHA Enterprise، غير مرئي للمستخدم)
+const APPCHECK_SITE_KEY = '6LeQDDQuAAAAAP33CfEqRyFD4x1_curIzCU-beVn';
+try{ initializeAppCheck(fbApp, { provider: new ReCaptchaEnterpriseProvider(APPCHECK_SITE_KEY), isTokenAutoRefreshEnabled: true }); }
+catch(e){ console.warn('App Check unavailable', e); }
 let db;
 try{ db = initializeFirestore(fbApp, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }); }
 catch(e){ console.warn('offline persistence unavailable', e); db = getFirestore(fbApp); }
@@ -1386,7 +1391,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.3</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.4</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -2953,16 +2958,20 @@ async function setupExternalBackup(){
     all.docs.forEach(d=>{ if(d.data().role==='backup' && d.data().active!==false) b.update(d.ref, { active:false }); });
     b.set(doc(db,'users',c.user.uid), { role:'backup', name:'حساب النسخ الخارجي (قراءة فقط)', active:true, createdAt:nowIso() });
     const old=(ex && ex.exists()) ? (ex.data().keys||[]) : [];
-    b.set(vaultRef, { key, keys:[...old, key].slice(-10), email, createdAt:nowIso() });
+    b.set(vaultRef, { key, keys:[...old, key].slice(-10), email, createdAt:nowIso(), ...((ex && ex.exists() && ex.data().appCheck) ? { appCheck:ex.data().appCheck } : {}) });
     await b.commit();
-    const secret=btoa(JSON.stringify({ e:email, p:pass, k:key }));
+    const prevA=(ex && ex.exists()) ? (ex.data().appCheck||'') : '';
+    const mkSecret=a=>btoa(JSON.stringify(a ? { e:email, p:pass, k:key, a } : { e:email, p:pass, k:key }));
+    let secret=mkSecret(prevA);
     logAudit('إعداد النسخ الخارجي المشفّر');
     await openModal({ icon:'shield-check', tone:'ok', title:'آخر خطوة: أضف المفتاح السري في GitHub', wide:true,
       body:`<ol style="line-height:2.1;padding-right:20px;margin:0 0 12px">
-        <li>انسخ هذا المفتاح (لا تشاركه مع أحد):</li></ol>
+        <li>إن كان لديك <b>رمز App Check</b> الخاص بالنسخ الاحتياطي فالصقه هنا (اختياري):</li></ol>
+        <input id="appCheckTok" dir="ltr" placeholder="00000000-0000-4000-A000-000000000000" value="${esc(prevA)}" style="font-family:monospace;margin-bottom:10px">
+        <ol start="2" style="line-height:2.1;padding-right:20px;margin:0 0 12px"><li>انسخ هذا المفتاح (لا تشاركه مع أحد):</li></ol>
         <textarea id="secretVal" readonly dir="ltr" style="min-height:90px;font-family:monospace;font-size:12px">${esc(secret)}</textarea>
         <button class="btn btn-sm" id="copySecret" style="margin-top:6px">${ic('copy')}نسخ المفتاح</button>
-        <ol start="2" style="line-height:2.1;padding-right:20px;margin:12px 0 0">
+        <ol start="3" style="line-height:2.1;padding-right:20px;margin:12px 0 0">
         <li>افتح <a href="https://github.com/${GH_REPO}/settings/secrets/actions/new" target="_blank" rel="noopener"><b>صفحة المفاتيح السرية في GitHub</b></a></li>
         <li>في خانة <b>Name</b> اكتب: <span class="kbd" dir="ltr">AQ_BACKUP</span></li>
         <li>في خانة <b>Secret</b> الصق المفتاح، ثم اضغط <b>Add secret</b>.</li>
@@ -2970,7 +2979,7 @@ async function setupExternalBackup(){
         <p class="muted">بعدها تُؤخذ نسخة مشفّرة تلقائياً كل ليلة الساعة 12:30، وتُحفظ آخر 90 نسخة.</p>
         <div class="notice warn" style="margin-top:10px">${ic('triangle-alert')}<span><b>احفظ هذا المفتاح أيضاً في مكان آمن خارج النظام</b> (ملف على جهازك أو ورقة). إن تعطّل مشروع Firebase يوماً ما، فهو الطريق الوحيد لفك النسخ الخارجية.</span></div>`,
       actions:[{ label:'تم', cls:'btn-primary' }],
-      onOpen:()=>{ $('copySecret').onclick=async()=>{ try{ await navigator.clipboard.writeText(secret); toast('تم نسخ المفتاح'); }catch(e){ $('secretVal').select(); toast('حدّد النص وانسخه يدوياً','warn'); } }; } });
+      onOpen:()=>{ $('appCheckTok').oninput=e=>{ const a=e.target.value.trim(); secret=mkSecret(/^[0-9a-f-]{36}$/i.test(a)?a:''); $('secretVal').value=secret; if(/^[0-9a-f-]{36}$/i.test(a)) setDoc(vaultRef,{ appCheck:a },{ merge:true }).catch(()=>{}); }; $('copySecret').onclick=async()=>{ try{ await navigator.clipboard.writeText(secret); toast('تم نسخ المفتاح'); }catch(e){ $('secretVal').select(); toast('حدّد النص وانسخه يدوياً','warn'); } }; } });
     renderContent(true);
   }catch(e){ console.error(e); toast('تعذّر الإعداد ('+(e.code||e.message)+')','err'); }
 }

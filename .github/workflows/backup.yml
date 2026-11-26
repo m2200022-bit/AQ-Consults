@@ -28,6 +28,7 @@ jobs:
       - name: أخذ النسخة وتشفيرها
         env:
           AQ_BACKUP: ${{ secrets.AQ_BACKUP }}
+          AQ_APPCHECK: ${{ secrets.AQ_APPCHECK }}
         run: node src/scripts/backup.mjs out
 
       - name: حفظ النسخة في فرع backups

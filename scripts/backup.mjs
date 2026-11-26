@@ -23,6 +23,15 @@ const login = await j(`https://identitytoolkit.googleapis.com/v1/accounts:signIn
   body: JSON.stringify({ email: cfg.e, password: cfg.p, returnSecureToken: true })
 });
 const H = { Authorization: 'Bearer ' + login.idToken };
+// App Check: عند تفعيل الحماية يجب أن يحمل كل طلب رمزاً صالحاً — نحصل عليه من «رمز التطوير» المسجّل في Firebase
+const APP_ID = '1:1006318779836:web:d73eacdb83dea69e1abfb9';
+const debugTok = cfg.a || process.env.AQ_APPCHECK || '';
+if (debugTok) {
+  const ac = await j(`https://firebaseappcheck.googleapis.com/v1/projects/${PROJECT}/apps/${APP_ID}:exchangeDebugToken?key=${API_KEY}`, {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ debugToken: debugTok })
+  });
+  H['X-Firebase-AppCheck'] = ac.token;
+}
 
 function plain(v) {
   if (!v) return null;
