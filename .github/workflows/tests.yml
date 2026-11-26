@@ -46,6 +46,7 @@ jobs:
       - name: اختبار القواعد على محاكي Firestore
         run: |
           set -o pipefail
+          cp ../../firestore.rules .
           npx firebase emulators:exec --only firestore --project demo-aq "node test.mjs" 2>&1 | tee rules.log || {
             grep -E "FAIL|Error|error" rules.log | head -25 | sed 's/^/::error::/'
             exit 1
