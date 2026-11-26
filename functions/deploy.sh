@@ -27,7 +27,7 @@ gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:service-$PN
   --role=roles/iam.serviceAccountTokenCreator --condition=None --quiet >/dev/null || true
 
 echo "== نشر الدالة (قد يستغرق 3-5 دقائق)"
-gcloud functions deploy aq-notify --gen2 --runtime=nodejs20 --region="$REG" --source="$SRC" --entry-point=notify \
+gcloud functions deploy aq-notify --gen2 --runtime=nodejs22 --region="$REG" --source="$SRC" --entry-point=notify \
   --trigger-event-filters=type=google.cloud.firestore.document.v1.written \
   --trigger-event-filters=database='(default)' \
   --trigger-event-filters-path-pattern=document='app_state/{key}' \
