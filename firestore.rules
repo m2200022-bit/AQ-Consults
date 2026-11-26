@@ -1,5 +1,5 @@
 rules_version = '2';
-// قواعد أمان نظام الاستشارات — الإصدار 3.3
+// قواعد أمان نظام الاستشارات — الإصدار 3.5
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn()  { return request.auth != null; }
@@ -49,6 +49,15 @@ service cloud.firestore {
       allow create: if active();
       allow read, delete: if isAdmin();
       allow update: if false;
+    }
+    // رموز أجهزة الإشعارات: كل مستخدم يسجّل جهازه باسمه ودوره فقط، ولا يقرؤها أحد (تقرؤها الدالة السحابية)
+    match /push_tokens/{t} {
+      allow create, update: if active()
+                            && request.resource.data.uid == request.auth.uid
+                            && request.resource.data.role == me().role
+                            && request.resource.data.keys().hasOnly(['uid', 'role', 'device', 'ts']);
+      allow delete: if signedIn() && resource.data.uid == request.auth.uid;
+      allow read: if false;
     }
     // مفتاح تشفير النسخ الخارجية: للمدير فقط
     match /vault/{id} {

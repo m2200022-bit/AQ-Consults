@@ -557,6 +557,7 @@ table.rtable{width:100%;border-collapse:collapse;font-size:14px}
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js";
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction, getDoc, setDoc, getDocs, deleteDoc, writeBatch, collection, addDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js";
+import { getMessaging, getToken, deleteToken, isSupported as messagingSupported } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
 import { getAuth, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const firebaseConfig = {
@@ -1006,6 +1007,7 @@ function enterApp(role, restored, extra){
   else lsSet('aq_session','');
   state.loginError=''; state.view='dashboard'; entryNoticeShown=false;
   startAuditListener();
+  registerPush();
   computeUnseen();
   render();
   if(state.consultsLoaded) setTimeout(entryNotice, 400);
@@ -1127,6 +1129,7 @@ async function logout(){
   await writePublicStats().catch(()=>{});
   lsSet('aq_session','');
   const wasSecure=state.secure;
+  await unregisterPush();
   teardownPrivate();
   if(wasSecure){ bootBusy=true; await signOut(auth).catch(()=>{}); bootBusy=false; }
   state.user=null; state.view='dashboard'; render();
@@ -1303,10 +1306,35 @@ function notifyConsultChanges(prevMap){
     }
   });
 }
+/* إشعارات تصل والتطبيق مغلق (Firebase Cloud Messaging): يُسجَّل رمز الجهاز، وترسل الدالة السحابية التنبيه */
+const VAPID_KEY='BIH68ZKSDFaUfF4I9DQiusyERHtvqFGoDJgmbd2r5dBZsCEg1_EHRR3Dl2OGFIJoMqprAKgzFVNHUkgHDRlecSA';
+let swRegP=null, pushToken='';
+function getSwReg(){
+  if(!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return Promise.resolve(null);
+  if(!swRegP) swRegP=navigator.serviceWorker.register('firebase-messaging-sw.js', { scope:'./' }).catch(e=>{ console.warn('sw', e); swRegP=null; return null; });
+  return swRegP;
+}
+async function registerPush(){
+  if(!state.secure || !authUid || !state.user || !('Notification' in window) || Notification.permission!=='granted') return;
+  try{
+    if(!(await messagingSupported())) return;
+    const reg=await getSwReg(); if(!reg) return;
+    const t=await getToken(getMessaging(fbApp), { vapidKey:VAPID_KEY, serviceWorkerRegistration:reg });
+    if(!t) return;
+    pushToken=t;
+    await setDoc(doc(db,'push_tokens',t), { uid:authUid, role:state.user.role, device:deviceLabel(), ts:nowIso() });
+  }catch(e){ console.warn('push', e && (e.code||e.message)); }
+}
+async function unregisterPush(){
+  if(!pushToken) return;
+  const t=pushToken; pushToken='';
+  await deleteDoc(doc(db,'push_tokens',t)).catch(()=>{});
+  try{ await deleteToken(getMessaging(fbApp)); }catch(e){}
+}
 async function enableNotifications(){
   if(!('Notification' in window)){ toast('متصفحك لا يدعم الإشعارات','warn'); return; }
   const p=await Notification.requestPermission();
-  if(p==='granted'){ toast('تم تفعيل الإشعارات على هذا الجهاز'); notify('تم تفعيل الإشعارات','ستصلك تنبيهات الاستشارات والرسائل الجديدة'); }
+  if(p==='granted'){ registerPush(); toast('تم تفعيل الإشعارات على هذا الجهاز'); notify('تم تفعيل الإشعارات','ستصلك تنبيهات الاستشارات والرسائل الجديدة'); }
   else toast('لم يُمنح إذن الإشعارات — يمكنك تفعيله من إعدادات المتصفح','warn');
   renderContent();
 }
@@ -1391,7 +1419,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.4</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.5</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -2509,7 +2537,7 @@ function settingsView(){
   <div class="panel"><div class="panel-head"><h3>${ic('monitor-smartphone')}هذا الجهاز</h3></div><div class="panel-body">
     <ul class="list-plain">
       <li>${ic('download')}<span class="grow"><b>تثبيت كتطبيق</b><div class="muted">${deferredInstall?'اضغط «تثبيت» ليظهر النظام كتطبيق على الشاشة الرئيسية':'من قائمة المتصفح اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية» (في آيفون: زر المشاركة ← إضافة إلى الشاشة الرئيسية)'}</div></span>${deferredInstall?`<button class="btn btn-sm btn-primary" data-action="install-app">تثبيت</button>`:''}</li>
-      <li>${ic('bell')}<span class="grow"><b>إشعارات المتصفح</b><div class="muted">${notif==='granted'?'مفعّلة — تصلك تنبيهات الاستشارات والرسائل الجديدة':notif==='denied'?'محظورة — فعّلها من إعدادات المتصفح':notif==='unsupported'?'غير مدعومة في هذا المتصفح':'غير مفعّلة'}</div></span>${notif==='default'?`<button class="btn btn-sm btn-primary" data-action="enable-notif">تفعيل</button>`:''}</li>
+      <li>${ic('bell')}<span class="grow"><b>إشعارات المتصفح</b><div class="muted">${notif==='granted'?'مفعّلة — تصلك تنبيهات الاستشارات والرسائل الجديدة حتى والنظام مغلق':notif==='denied'?'محظورة — فعّلها من إعدادات المتصفح':notif==='unsupported'?'غير مدعومة في هذا المتصفح':'غير مفعّلة'}</div></span>${notif==='default'?`<button class="btn btn-sm btn-primary" data-action="enable-notif">تفعيل</button>`:''}</li>
       <li>${ic('moon')}<span class="grow"><b>المظهر</b><div class="muted">الوضع الحالي: ${themeNow()==='dark'?'ليلي':'نهاري'}</div></span><button class="btn btn-sm" data-action="toggle-theme">تبديل</button></li>
       <li>${ic('refresh-cw')}<span class="grow"><b>المزامنة</b><div class="muted">${outbox.length?outbox.length+' تعديل محفوظ على الجهاز بانتظار الإرسال':'كل التعديلات متزامنة مع قاعدة البيانات'}</div></span>${outbox.length?`<button class="btn btn-sm" data-action="flush-now">إرسال الآن</button>`:''}</li>
     </ul>
