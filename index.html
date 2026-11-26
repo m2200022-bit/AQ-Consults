@@ -1308,28 +1308,45 @@ function notifyConsultChanges(prevMap){
 }
 /* إشعارات تصل والتطبيق مغلق (Firebase Cloud Messaging): يُسجَّل رمز الجهاز، وترسل الدالة السحابية التنبيه */
 const VAPID_KEY='BIH68ZKSDFaUfF4I9DQiusyERHtvqFGoDJgmbd2r5dBZsCEg1_EHRR3Dl2OGFIJoMqprAKgzFVNHUkgHDRlecSA';
-let swRegP=null, pushToken='';
+let swRegP=null, pushToken='', pushState='', pushErr='';
 function getSwReg(){
   if(!('serviceWorker' in navigator) || !/^https?:$/.test(location.protocol)) return Promise.resolve(null);
   if(!swRegP) swRegP=navigator.serviceWorker.register('firebase-messaging-sw.js', { scope:'./' }).catch(e=>{ console.warn('sw', e); swRegP=null; return null; });
   return swRegP;
 }
 async function registerPush(){
-  if(!state.secure || !authUid || !state.user || !('Notification' in window) || Notification.permission!=='granted') return;
+  const done=(st,err)=>{ pushState=st; pushErr=err||''; if(state.view==='settings') softRefresh(); };
+  if(!state.user) return;
+  if(!state.secure || !authUid) return done('legacy');
+  if(!('Notification' in window)) return done('unsupported');
+  if(Notification.permission!=='granted') return done('noperm');
+  pushState='working';
   try{
-    if(!(await messagingSupported())) return;
-    const reg=await getSwReg(); if(!reg) return;
+    if(!(await messagingSupported())) return done('unsupported', /iPhone|iPad/.test(navigator.userAgent)?'ios-not-installed':'');
+    const reg=await getSwReg(); if(!reg) return done('error','sw');
     const t=await getToken(getMessaging(fbApp), { vapidKey:VAPID_KEY, serviceWorkerRegistration:reg });
-    if(!t) return;
+    if(!t) return done('error','no-token');
     pushToken=t;
     await setDoc(doc(db,'push_tokens',t), { uid:authUid, role:state.user.role, device:deviceLabel(), ts:nowIso() });
-  }catch(e){ console.warn('push', e && (e.code||e.message)); }
+    done('ok');
+  }catch(e){ console.warn('push', e && (e.code||e.message)); done('error', (e && (e.code||e.message))||'unknown'); }
 }
 async function unregisterPush(){
   if(!pushToken) return;
   const t=pushToken; pushToken='';
   await deleteDoc(doc(db,'push_tokens',t)).catch(()=>{});
   try{ await deleteToken(getMessaging(fbApp)); }catch(e){}
+}
+function pushStatusRow(){
+  if(!state.secure || !('Notification' in window) || Notification.permission!=='granted') return '';
+  const reasons={ 'sw':'تعذّر تشغيل خدمة الإشعارات في هذا المتصفح', 'no-token':'لم يُصدر Firebase رمزاً لهذا الجهاز', 'ios-not-installed':'على الآيفون: ثبّت النظام على الشاشة الرئيسية وافتحه من هناك', 'permission-denied':'قواعد الأمان رفضت تسجيل الجهاز' };
+  const msg = pushState==='ok' ? 'هذا الجهاز مسجّل — تصله التنبيهات حتى والنظام مغلق'
+    : pushState==='working' ? 'جارٍ تسجيل الجهاز…'
+    : pushState==='unsupported' ? (reasons[pushErr]||'هذا المتصفح لا يدعم الإشعارات والنظام مغلق')
+    : pushState==='error' ? 'لم يُسجَّل الجهاز: '+esc(reasons[pushErr]||pushErr)
+    : 'لم يُسجَّل الجهاز بعد';
+  const ok=pushState==='ok';
+  return `<li>${ic(ok?'bell-ring':'bell-off')}<span class="grow"><b>الإشعارات والنظام مغلق</b><div class="muted">${msg}</div></span>${ok||pushState==='working'?'':`<button class="btn btn-sm" data-action="push-retry">${ic('refresh-cw')}إعادة المحاولة</button>`}</li>`;
 }
 async function enableNotifications(){
   if(!('Notification' in window)){ toast('متصفحك لا يدعم الإشعارات','warn'); return; }
@@ -1419,7 +1436,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.5</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.6</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -2537,7 +2554,7 @@ function settingsView(){
   <div class="panel"><div class="panel-head"><h3>${ic('monitor-smartphone')}هذا الجهاز</h3></div><div class="panel-body">
     <ul class="list-plain">
       <li>${ic('download')}<span class="grow"><b>تثبيت كتطبيق</b><div class="muted">${deferredInstall?'اضغط «تثبيت» ليظهر النظام كتطبيق على الشاشة الرئيسية':'من قائمة المتصفح اختر «تثبيت التطبيق» أو «إضافة إلى الشاشة الرئيسية» (في آيفون: زر المشاركة ← إضافة إلى الشاشة الرئيسية)'}</div></span>${deferredInstall?`<button class="btn btn-sm btn-primary" data-action="install-app">تثبيت</button>`:''}</li>
-      <li>${ic('bell')}<span class="grow"><b>إشعارات المتصفح</b><div class="muted">${notif==='granted'?'مفعّلة — تصلك تنبيهات الاستشارات والرسائل الجديدة حتى والنظام مغلق':notif==='denied'?'محظورة — فعّلها من إعدادات المتصفح':notif==='unsupported'?'غير مدعومة في هذا المتصفح':'غير مفعّلة'}</div></span>${notif==='default'?`<button class="btn btn-sm btn-primary" data-action="enable-notif">تفعيل</button>`:''}</li>
+      <li>${ic('bell')}<span class="grow"><b>إشعارات المتصفح</b><div class="muted">${notif==='granted'?'مفعّلة — تصلك تنبيهات الاستشارات والرسائل الجديدة حتى والنظام مغلق':notif==='denied'?'محظورة — فعّلها من إعدادات المتصفح':notif==='unsupported'?'غير مدعومة في هذا المتصفح':'غير مفعّلة'}</div></span>${notif==='default'?`<button class="btn btn-sm btn-primary" data-action="enable-notif">تفعيل</button>`:''}</li>${pushStatusRow()}
       <li>${ic('moon')}<span class="grow"><b>المظهر</b><div class="muted">الوضع الحالي: ${themeNow()==='dark'?'ليلي':'نهاري'}</div></span><button class="btn btn-sm" data-action="toggle-theme">تبديل</button></li>
       <li>${ic('refresh-cw')}<span class="grow"><b>المزامنة</b><div class="muted">${outbox.length?outbox.length+' تعديل محفوظ على الجهاز بانتظار الإرسال':'كل التعديلات متزامنة مع قاعدة البيانات'}</div></span>${outbox.length?`<button class="btn btn-sm" data-action="flush-now">إرسال الآن</button>`:''}</li>
     </ul>
@@ -3077,6 +3094,7 @@ const ACTIONS={
   'restore-day': el=> restoreDailyBackup(el.dataset.day), 'download-day': el=> downloadDailyBackup(el.dataset.day),
   'copy-bookmarklet': async ()=>{ try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('تم نسخ الكود'); }catch(e){ toast('تعذّر النسخ','warn'); } },
   'save-template': async ()=>{ const cat=$('tplCat').value; const txt=$('tplText').value; const r=await enqueue({ k:'t', replace:{ ...(raw.t||{}), [cat]:txt } }); afterCommit(r,'تم حفظ القالب'); },
+  'enable-notif': enableNotifications, 'push-retry': ()=>{ pushState='working'; softRefresh(); registerPush(); },
   'ext-setup': setupExternalBackup, 'ext-list': renderExternalList,
   'ext-download': el=> extDownload(el.dataset.url, el.dataset.day), 'ext-restore': el=> extRestore(el.dataset.url, el.dataset.day),
   'login': doLogin, 'logout': logout, 'save-profile': el=>saveProfile(el.dataset.role), 'flush-now': ()=>{ flush(false).then(()=>renderContent(true)); },

@@ -21,6 +21,8 @@ jobs:
       - name: تثبيت مكتبات الدالة
         run: npm install --no-audit --no-fund
         working-directory: functions
+      - name: كل زر مربوط بإجراء
+        run: python3 tests/static/check_actions.py
       - name: اختبار دالة الإشعارات
         run: node tests/fn/test.js
         env:

@@ -33,6 +33,8 @@ shot(page,'s07_settings_ext')
 
 pt=page.evaluate("[...window.__store.docs.entries()].filter(([k])=>k.startsWith('push_tokens/')).map(([k,v])=>[k,v.role,!!v.uid])")
 log('D11 push tokens registered: %s ; vapid passed=%s' % (pt, page.evaluate("!!(window.__pushOpts&&window.__pushOpts.vapidKey&&window.__pushOpts.serviceWorkerRegistration)")))
+nav('settings'); page.wait_for_timeout(800)
+log('D11b push status row: %s' % page.locator('li', has_text='الإشعارات والنظام مغلق').first.inner_text().replace('\n',' | '))
 page.click('[data-action="logout"]'); page.wait_for_timeout(500)
 if page.is_visible('#modalOv'): page.locator('#modalOv .btn-primary, #modalOv .btn-danger').last.click(); page.wait_for_timeout(1500)
 pt2=page.evaluate("[...window.__store.docs.entries()].filter(([k,v])=>k.startsWith('push_tokens/') && v!==undefined).map(([k])=>k)")

@@ -40,4 +40,5 @@ D8	decrypted download: consultations=\['c1', 'c0'\] messages=1
 D9	outbox after refusal=0 ; later write saved=True
 D10	restored from external: main ids=\['c1', 'c0'\]
 D11	push tokens registered: \[\['push_tokens/tok-\d+', '(admin|consultant)', True\].* ; vapid passed=True
+D11b	الإشعارات والنظام مغلق \| هذا الجهاز مسجّل
 D12	after logout tokens: .* deleted=[1-9]
