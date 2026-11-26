@@ -22,16 +22,25 @@ for R in roles/eventarc.eventReceiver roles/run.invoker roles/datastore.user \
          roles/artifactregistry.writer; do
   gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:$SA" --role="$R" --condition=None --quiet >/dev/null
 done
+# إنشاء وكلاء الخدمة (Eventarc وPub/Sub) ومنحهم أدوارهم
+gcloud beta services identity create --service=eventarc.googleapis.com --quiet >/dev/null 2>&1 || true
+gcloud beta services identity create --service=pubsub.googleapis.com --quiet >/dev/null 2>&1 || true
+gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:service-$PN@gcp-sa-eventarc.iam.gserviceaccount.com" \
+  --role=roles/eventarc.serviceAgent --condition=None --quiet >/dev/null || true
 # وكيل Pub/Sub يحتاج إنشاء رموز الهوية لتوصيل أحداث Eventarc
 gcloud projects add-iam-policy-binding "$P" --member="serviceAccount:service-$PN@gcp-sa-pubsub.iam.gserviceaccount.com" \
   --role=roles/iam.serviceAccountTokenCreator --condition=None --quiet >/dev/null || true
 
 echo "== نشر الدالة (قد يستغرق 3-5 دقائق)"
+for i in 1 2 3 4; do
 gcloud functions deploy aq-notify --gen2 --runtime=nodejs22 --region="$REG" --source="$SRC" --entry-point=notify \
   --trigger-event-filters=type=google.cloud.firestore.document.v1.written \
   --trigger-event-filters=database='(default)' \
   --trigger-event-filters-path-pattern=document='app_state/{key}' \
   --trigger-location="$LOC" --trigger-service-account="$SA" --service-account="$SA" \
-  --memory=256Mi --max-instances=3 --quiet
+  --memory=256Mi --max-instances=3 --quiet && break
+  echo "== إعادة المحاولة بعد دقيقة (انتظار تفعيل الصلاحيات)"; sleep 60
+done
+gcloud functions describe aq-notify --gen2 --region="$REG" --format="value(state)"
 
 echo "== AQ-NOTIFY-DEPLOYED-OK"
