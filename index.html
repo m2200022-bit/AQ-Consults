@@ -1009,6 +1009,7 @@ function enterApp(role, restored, extra){
   state.loginError=''; state.view='dashboard'; entryNoticeShown=false;
   startAuditListener();
   registerPush();
+  setTimeout(()=>pushBanner(true), 4000);
   if(isAdmin() && lbSupported()) lbGetDir().then(h=>{ if(h){ lb.folder=h.name; } });
   computeUnseen();
   render();
@@ -1139,7 +1140,7 @@ async function logout(){
   await unregisterPush();
   teardownPrivate();
   if(wasSecure){ bootBusy=true; await signOut(auth).catch(()=>{}); bootBusy=false; }
-  state.user=null; state.view='dashboard'; lb.needsPermission=false; lbBanner(); render();
+  state.user=null; state.view='dashboard'; lb.needsPermission=false; lbBanner(); pushBanner(false); render();
 }
 async function changeMyPassword(){
   const cur=$('pwCur').value, n1=$('pwNew').value, n2=$('pwNew2').value;
@@ -1360,7 +1361,17 @@ async function enableNotifications(){
   const p=await Notification.requestPermission();
   if(p==='granted'){ registerPush(); toast('تم تفعيل الإشعارات على هذا الجهاز'); notify('تم تفعيل الإشعارات','ستصلك تنبيهات الاستشارات والرسائل الجديدة'); }
   else toast('لم يُمنح إذن الإشعارات — يمكنك تفعيله من إعدادات المتصفح','warn');
-  renderContent();
+  pushBanner(false); renderContent();
+}
+/* دعوة لمرة واحدة لتفعيل الإشعارات على الأجهزة التي لم تُفعَّل فيها */
+function pushBanner(show){
+  let el=$('pushBanner');
+  const want=show && state.user && state.secure && ('Notification' in window) && Notification.permission==='default' && lsGet('aq_push_dismiss')!=='1';
+  if(!want){ if(el) el.remove(); return; }
+  if(el) return;
+  el=document.createElement('div'); el.id='pushBanner'; el.className='lb-banner no-print'; el.style.bottom='74px';
+  el.innerHTML=`${ic('bell-ring')}<span>فعّل الإشعارات لتصلك التنبيهات حتى والنظام مغلق</span><button class="btn btn-sm btn-primary" data-action="enable-notif">تفعيل</button><button class="btn btn-ghost btn-icon btn-sm" data-action="push-dismiss" title="لاحقاً">${ic('x')}</button>`;
+  document.body.appendChild(el); refreshIcons();
 }
 function isMyMessage(m){ if(!state.user) return false; return (m.from||m.fromRole)===state.user.role; }
 function computeUnseen(){
@@ -1443,7 +1454,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.7</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.8</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -2802,6 +2813,7 @@ async function runSideTasks(){
   if(!state.user) return;
   try{ await dailyBackup(); }catch(e){ console.warn('backup', e); }
   autoLocalBackup().catch(e=>console.warn('lb', e));
+  checkExternalFreshness().catch(()=>{});
   if(isAdmin()){
     if(lsGet('aq_cleanup_day')!==todayStr()){ lsSet('aq_cleanup_day', todayStr()); cleanupBackups(); }
     if(dbUsage().pct>=50) archiveNow(true);
@@ -3115,6 +3127,17 @@ async function setupExternalBackup(){
     renderContent(true);
   }catch(e){ console.error(e); toast('تعذّر الإعداد ('+(e.code||e.message)+')','err'); }
 }
+async function checkExternalFreshness(){
+  // مرة يومياً للمدير: إن تأخرت النسخة الخارجية أكثر من يومين يظهر تنبيه
+  if(!isAdmin() || !state.secure || lsGet('aq_ext_check')===todayStr()) return;
+  lsSet('aq_ext_check', todayStr());
+  let v; try{ v=await getDoc(vaultRef); }catch(e){ return; }
+  if(!v || !v.exists()) return;   // النسخ الخارجي غير مُعدّ
+  let list; try{ list=await listExternalBackups(); }catch(e){ return; }
+  const last=list[0] && list[0].day;
+  const age=last ? Math.floor((new Date(todayStr())-new Date(last))/864e5) : 99;
+  if(age>2) toast('تنبيه: آخر نسخة خارجية على GitHub '+(last?'بتاريخ '+last:'غير موجودة')+' — راجع إعداد النسخ الخارجي','warn');
+}
 async function listExternalBackups(){
   const r=await fetch(`https://api.github.com/repos/${GH_REPO}/contents/data?ref=backups`, { headers:{ Accept:'application/vnd.github+json' } });
   if(r.status===404) return [];
@@ -3181,7 +3204,7 @@ const ACTIONS={
   'restore-day': el=> restoreDailyBackup(el.dataset.day), 'download-day': el=> downloadDailyBackup(el.dataset.day),
   'copy-bookmarklet': async ()=>{ try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('تم نسخ الكود'); }catch(e){ toast('تعذّر النسخ','warn'); } },
   'save-template': async ()=>{ const cat=$('tplCat').value; const txt=$('tplText').value; const r=await enqueue({ k:'t', replace:{ ...(raw.t||{}), [cat]:txt } }); afterCommit(r,'تم حفظ القالب'); },
-  'enable-notif': enableNotifications, 'push-retry': ()=>{ pushState='working'; softRefresh(); registerPush(); },
+  'enable-notif': enableNotifications, 'push-dismiss': ()=>{ lsSet('aq_push_dismiss','1'); pushBanner(false); }, 'push-retry': ()=>{ pushState='working'; softRefresh(); registerPush(); },
   'ext-setup': setupExternalBackup, 'ext-list': renderExternalList,
   'ext-download': el=> extDownload(el.dataset.url, el.dataset.day), 'ext-restore': el=> extRestore(el.dataset.url, el.dataset.day),
   'login': doLogin, 'logout': logout, 'save-profile': el=>saveProfile(el.dataset.role), 'flush-now': ()=>{ flush(false).then(()=>renderContent(true)); },
