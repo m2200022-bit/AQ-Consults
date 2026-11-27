@@ -68,7 +68,9 @@ jobs:
           pip install playwright
           python -m playwright install --with-deps chromium
       - name: تنزيل مكتبة الأيقونات (نفس نسخة الموقع)
-        run: curl -sSL https://unpkg.com/lucide@latest/dist/umd/lucide.min.js -o tests/ui/lucide.js
+        run: |
+          U=$(grep -o 'https://unpkg.com/lucide@[^"]*' index.html | head -1)
+          curl -sSL "$U" -o tests/ui/lucide.js
       - name: اختبار الواجهة كاملة
         run: |
           set -o pipefail
