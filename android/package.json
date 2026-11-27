@@ -1,0 +1,5 @@
+{
+  "private": true,
+  "type": "module",
+  "dependencies": { "@bubblewrap/core": "1.28.0" }
+}

@@ -1,0 +1,72 @@
+name: تطبيق أندرويد
+
+# يبني تطبيق أندرويد (Trusted Web Activity) يفتح النظام بملء الشاشة داخل Chrome:
+# ملف APK للتنزيل المباشر، وملف AAB لرفعه إلى متجر Google Play. يُنشران في «إصدار» على GitHub.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['android/**', 'manifest.webmanifest', 'icon-*.png', '.github/workflows/android.yml']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: مفتاح التوقيع
+        env:
+          ANDROID_SIGNING: ${{ secrets.ANDROID_SIGNING }}
+        run: |
+          if [ -z "$ANDROID_SIGNING" ]; then echo "::warning::لا يوجد المفتاح السري ANDROID_SIGNING بعد — يُبنى التطبيق للتحقق فقط دون توقيع أو نشر"; echo "UNSIGNED=1" >> $GITHUB_ENV; exit 0; fi
+          mkdir -p android/build
+          node -e "const j=JSON.parse(Buffer.from(process.env.ANDROID_SIGNING,'base64').toString()); require('fs').writeFileSync('android/build/upload.jks', Buffer.from(j.ks,'base64')); require('fs').appendFileSync(process.env.GITHUB_ENV, 'KS_PASS='+j.pass+'\n');"
+          echo "::add-mask::$(node -e "console.log(JSON.parse(Buffer.from(process.env.ANDROID_SIGNING,'base64').toString()).pass)")"
+      - name: توليد مشروع أندرويد
+        working-directory: android
+        run: |
+          npm install --no-audit --no-fund
+          V=$(node -p "require('./app.json').versionName")
+          echo "VERSION_NAME=$V.${{ github.run_number }}" >> $GITHUB_ENV
+          VERSION_CODE=$(( 100 + ${{ github.run_number }} )) VERSION_NAME="$V.${{ github.run_number }}" node generate.mjs build/project
+      - name: البناء
+        working-directory: android/build/project
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon assembleRelease bundleRelease
+          ls -la app/build/outputs/apk/release/ app/build/outputs/bundle/release/
+      - name: التوقيع
+        if: env.UNSIGNED != '1'
+        working-directory: android/build/project
+        run: |
+          BT=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -1)
+          APK=$(ls app/build/outputs/apk/release/*.apk | head -1)
+          "$BT/zipalign" -f -p 4 "$APK" aligned.apk
+          "$BT/apksigner" sign --ks ../upload.jks --ks-pass env:KS_PASS --ks-key-alias aq-consults --out ../../aq-consults.apk aligned.apk
+          "$BT/apksigner" verify --print-certs ../../aq-consults.apk | grep -i "SHA-256" | head -1
+          cp app/build/outputs/bundle/release/app-release.aab ../../aq-consults.aab
+          jarsigner -keystore ../upload.jks -storepass "$KS_PASS" -sigalg SHA256withRSA -digestalg SHA-256 ../../aq-consults.aab aq-consults
+          ls -la ../../aq-consults.apk ../../aq-consults.aab
+      - name: النشر في إصدار على GitHub
+        if: env.UNSIGNED != '1'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="android-v${VERSION_NAME}"
+          gh release create "$TAG" android/aq-consults.apk android/aq-consults.aab \
+            --title "تطبيق أندرويد — الإصدار ${VERSION_NAME}" \
+            --notes "ملف APK للتثبيت المباشر على الجوال، وملف AAB لرفعه إلى متجر Google Play." \
+            --latest

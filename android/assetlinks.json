@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.github.m2200022bit.aqconsults",
+      "sha256_cert_fingerprints": [
+        "A3:AA:BB:38:EB:F1:D9:E8:2A:13:D1:28:60:8C:ED:07:65:2B:F7:EF:23:CD:43:63:C1:7D:44:6B:ED:AE:C1:ED"
+      ]
+    }
+  }
+]
