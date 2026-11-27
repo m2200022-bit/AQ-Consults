@@ -54,3 +54,5 @@ R5	after confirming: login works=admin ; login_ids email=m2200022\+aq-boss@gmail
 R6	login by email: admin
 R7	unknown user: True
 R8	consultant still logs in: consultant ; consultant email=m2200022\+aq-aqeel(-[a-z0-9]{4})?@gmail\.com
+I1	install banner: before_event=False after_event=True text_ok=True prompt_called=True gone_after=True remembered=True
+I2	manifest: \['manifest\.webmanifest', 'الاستشارات', '192x192:any,512x512:any,512x512:maskable', 'standalone'\]

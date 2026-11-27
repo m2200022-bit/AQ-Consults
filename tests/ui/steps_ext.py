@@ -92,3 +92,13 @@ logout(); t=forgot('nobody-here')
 log('R7 unknown user: %s' % ('لا يوجد بريد استرجاع' in t))
 login('aqeel','abc'); dismiss()
 log('R8 consultant still logs in: %s ; consultant email=%s' % (page.evaluate("window.__aq.state.user&&window.__aq.state.user.role"), page.evaluate("(()=>{ const h=[...window.__store.docs.entries()].find(([k,v])=>k.startsWith('login_ids/')&&v.role==='consultant'); return h&&h[1].email; })()")))
+# --- دعوة المستشار لتثبيت النظام كتطبيق ---
+page.wait_for_timeout(3000)
+before=page.is_visible('#installBanner')
+page.evaluate("(()=>{ const e=new Event('beforeinstallprompt'); e.prompt=()=>{ window.__promptShown=true; }; e.userChoice=Promise.resolve({outcome:'accepted'}); window.dispatchEvent(e); })()")
+page.wait_for_timeout(500)
+shown=page.is_visible('#installBanner'); txt=page.locator('#installBanner').inner_text() if shown else ''
+page.click('#installBanner [data-action="install-app"]'); page.wait_for_timeout(800)
+log('I1 install banner: before_event=%s after_event=%s text_ok=%s prompt_called=%s gone_after=%s remembered=%s' % (before, shown, 'ثبّت النظام كتطبيق' in txt, page.evaluate("!!window.__promptShown"), not page.is_visible('#installBanner'), page.evaluate("localStorage.getItem('aq_installed')")=='1'))
+man=page.evaluate("(async()=>{ const l=document.querySelector('link[rel=manifest]'); const r=await fetch(l.href); const j=await r.json(); return [l.getAttribute('href'), j.short_name, j.icons.map(i=>i.sizes+':'+(i.purpose||'any')).join(','), j.display]; })()")
+log('I2 manifest: %s' % man)
