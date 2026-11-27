@@ -41,12 +41,14 @@ jobs:
           npm install --no-audit --no-fund
           V=$(node -p "require('./app.json').versionName")
           echo "VERSION_NAME=$V.${{ github.run_number }}" >> $GITHUB_ENV
-          VERSION_CODE=$(( 100 + ${{ github.run_number }} )) VERSION_NAME="$V.${{ github.run_number }}" node generate.mjs build/project
+          set -o pipefail
+          VERSION_CODE=$(( 100 + ${{ github.run_number }} )) VERSION_NAME="$V.${{ github.run_number }}" node generate.mjs build/project 2>&1 | tee gen.log || { grep -iE "error|fail" gen.log | head -15 | sed 's/^/::error::/'; exit 1; }
       - name: البناء
         working-directory: android/build/project
         run: |
           chmod +x gradlew
-          ./gradlew --no-daemon assembleRelease bundleRelease
+          set -o pipefail
+          ./gradlew --no-daemon assembleRelease bundleRelease 2>&1 | tee build.log || { grep -E "^e: |error:|What went wrong|FAILURE|> " build.log | head -25 | sed 's/^/::error::/'; exit 1; }
           ls -la app/build/outputs/apk/release/ app/build/outputs/bundle/release/
       - name: التوقيع
         if: env.UNSIGNED != '1'
