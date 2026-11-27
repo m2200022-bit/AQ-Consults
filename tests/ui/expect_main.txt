@@ -1,7 +1,7 @@
 # كل سطر: رمز الخطوة ثم تعبير منتظم يجب أن يطابق ناتجها
 A1	login screen; stats boxes: 0$
 A2	wrong pw: اسم المستخدم أو كلمة المرور غير صحيحة
-A3	secure=True lock=True map=\['h_[0-9a-f]{64}', 'h_[0-9a-f]{64}'\]
+A3	secure=True lock=True login_ids=\[\['h_', 'm2200022\+aq-admin@gmail\.com', 'admin'\], \['h_', 'm2200022\+aq-aqeel@gmail\.com', 'consultant'\]\] map=\[\]
 A4	passwords in DB now: admin='' consultant=''
 A5	users docs: 2$
 A6	public stats items: 4 ; sample keys=\['s', 't', 'u'\]
@@ -27,7 +27,7 @@ C1	old consultant pw: اسم المستخدم أو كلمة المرور غير 
 C2	new consultant pw role: consultant
 C3	short self-chosen pw works: consultant
 C4	session kept after reload: consultant
-D1	username keys hashed: True
+D1	login ids keyed by hash only: True \(2\)
 D2	audit docs in separate collection: \d+
 D3	audit view rows: \d+
 D4	setup modal: آخر خطوة: أضف المفتاح السري في GitHub
@@ -46,3 +46,11 @@ D15	permission banner=True no write before click=True ; after click writes=1 ban
 D16	kept dated files=30 ; other files untouched=True
 D11b	الإشعارات والنظام مغلق \| هذا الجهاز مسجّل
 D12	after logout tokens: .* deleted=[1-9]
+R1	forgot by username: sent=\["m2200022\+aq-admin@gmail\.com"\] masked_shown=True full_hidden=True
+R2	login with raw reset password: role=admin normalized=True
+R3	settings recovery fields: mine=m2200022\+aq-admin@gmail\.com consultant=m2200022\+aq-aqeel(-[a-z0-9]{4})?@gmail\.com
+R4	email change: verify sent=\["m2200022\+aq-boss@gmail\.com"\] pending=m2200022\+aq-boss@gmail\.com email kept=m2200022\+aq-admin@gmail\.com
+R5	after confirming: login works=admin ; login_ids email=m2200022\+aq-boss@gmail\.com pending=None
+R6	login by email: admin
+R7	unknown user: True
+R8	consultant still logs in: consultant ; consultant email=m2200022\+aq-aqeel(-[a-z0-9]{4})?@gmail\.com

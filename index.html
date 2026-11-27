@@ -559,7 +559,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.1/fireba
 import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, onSnapshot, runTransaction, getDoc, setDoc, getDocs, deleteDoc, writeBatch, collection, addDoc, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-app-check.js";
 import { getMessaging, getToken, deleteToken, isSupported as messagingSupported } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-messaging.js";
-import { getAuth, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
+import { getAuth, initializeAuth, inMemoryPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, updatePassword, EmailAuthProvider, reauthenticateWithCredential, sendPasswordResetEmail, verifyBeforeUpdateEmail } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyDUDzOYvFnChyU3QU81RapJ7wG5VtzG0tU",
@@ -988,6 +988,56 @@ async function userKey(u){
   return 'h_'+[...new Uint8Array(d)].map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 const secRef = id => doc(db,'security',id);
+/* ===== استرجاع كلمة المرور بالبريد =====
+   كل الحسابات تستخدم بريد المالك مع إضافة + قبل @ ليكون لكل حساب عنوان فريد، وكلها تصل إلى صندوق Gmail نفسه.
+   اسم المستخدم ← البريد: مستند لكل مستخدم في login_ids/<بصمة اسم المستخدم> يُقرأ بـ get فقط (لا يمكن استعراض القائمة). */
+const RECOVERY_BASE='m2200022', RECOVERY_DOMAIN='gmail.com', SYS_CODE='aq';
+const slugUser=(u,role)=> normUser(u).replace(/[^a-z0-9._-]/g,'') || role;
+const recoveryEmail=(u,role)=> `${RECOVERY_BASE}+${SYS_CODE}-${slugUser(u,role)}@${RECOVERY_DOMAIN}`;
+const isInternalEmail=e=> /@aq-consults\.local$/i.test(String(e||''));
+async function loginIdRef(u){ return doc(db,'login_ids', await userKey(u)); }
+async function lookupLogin(u){
+  u=String(u||'').trim();
+  if(u.includes('@')) return { email:u.toLowerCase() };
+  try{ const d=await getDoc(await loginIdRef(u)); if(d.exists() && d.data().email) return d.data(); }catch(e){ console.warn('login_ids', e); }
+  try{ const m=await getDoc(secRef('usernames')); const map=(m.exists()&&m.data().map)||{}; const em=map[await userKey(u)]||map[normUser(u)]; return em ? { email:em } : null; }catch(e){ return null; }
+}
+async function setLoginId(username, email, role, pending){
+  const data={ email, role, updatedAt:nowIso() }; if(pending) data.pending=pending;
+  await setDoc(await loginIdRef(username), data);
+}
+function maskEmail(e){
+  const [l,d]=String(e||'').split('@'); if(!d) return e||'';
+  const ml = l.length<=4 ? l[0]+'***' : l.slice(0,2)+'*'.repeat(Math.min(10,l.length-4))+l.slice(-2);
+  const parts=d.split('.'); const dn=parts.shift();
+  return ml+'@'+dn[0]+'*'.repeat(Math.max(2,dn.length-1))+(parts.length?'.'+parts.join('.'):'');
+}
+/* الدخول: الصيغة المعتادة أولاً، ثم كلمة المرور كما كُتبت (صفحة الاسترجاع في Firebase تحفظها خاماً)، ثم تُعاد للصيغة المعتادة */
+async function signInFlexible(a, email, p){
+  try{ return await signInWithEmailAndPassword(a, email, derivePw(p)); }
+  catch(e){
+    if(!BAD_CRED_CODES.includes(e.code) || String(p).length<6) throw e;
+    const cred=await signInWithEmailAndPassword(a, email, p);
+    updatePassword(cred.user, derivePw(p)).catch(()=>{});
+    return cred;
+  }
+}
+async function reauthFlexible(user, p){
+  try{ await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, derivePw(p))); }
+  catch(e){ if(!BAD_CRED_CODES.includes(e.code) || String(p).length<6) throw e; await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, p)); }
+}
+async function forgotPassword(){
+  const v=await promptModal({ title:'نسيت كلمة المرور؟', text:'اكتب اسم المستخدم أو البريد الإلكتروني، وسيصلك رابط لتعيين كلمة مرور جديدة.', placeholder:'اسم المستخدم أو البريد', confirm:'إرسال الرابط', icon:'mail', required:true, value:$('loginUser')?.value||'', multiline:false });
+  if(!v || !v.trim()) return;
+  const info=await lookupLogin(v);
+  const email=info && (info.pending || info.email);
+  if(!email || isInternalEmail(email)){ await confirmModal({ title:'لا يوجد بريد استرجاع', text:'لا يوجد بريد استرجاع مرتبط بهذا الحساب. تواصل مع إدارة النظام.', confirm:'حسناً', icon:'mail-x' }); return; }
+  try{
+    auth.languageCode='ar';
+    await sendPasswordResetEmail(auth, email);
+    await confirmModal({ title:'تم إرسال الرابط', text:'أُرسل رابط تعيين كلمة مرور جديدة إلى '+maskEmail(email)+'. افتح الرسالة (وتحقق من البريد غير المرغوب فيه)، وعيّن كلمة المرور، ثم ادخل بها هنا.', confirm:'حسناً', icon:'mail-check' });
+  }catch(e){ toast('تعذّر إرسال الرابط'+(e.code?' ('+e.code+')':''),'err'); }
+}
 const pubRef = doc(db,'public','stats');
 const auth = getAuth(fbApp);
 let secAuth=null, bootBusy=false, authUid=null, privUnsubs=[];
@@ -1032,6 +1082,7 @@ async function enterSecure(fu, restored, attempt){
     state.authReady=true;
     enterApp(d.role, restored, d);
     ensureLocked();
+    syncLoginId(fu, d).catch(e=>console.warn('login_ids sync', e));
   }catch(e){
     console.error('enterSecure', e);
     const code=(e && (e.code||e.name||'')) || '';
@@ -1041,6 +1092,15 @@ async function enterSecure(fu, restored, attempt){
     if(state.user) return;   // الدخول تمّ وفشل جزء ثانوي بعده — لا نُخرج المستخدم
     state.loginError='تعذّر تحميل الحساب — تحقق من الاتصال'+(code||e&&e.message?' ('+(code||String(e.message).slice(0,60))+')':''); state.authReady=true; render();
   }
+}
+/* بعد كل دخول: مستند login_ids لهذا المستخدم يطابق بريد حسابه الفعلي (مثلاً بعد تأكيد تغيير البريد) */
+async function syncLoginId(fu, d){
+  const uname=(state.profiles[d.role]||{}).username || d.username; if(!uname || !fu.email) return;
+  const cur=await getDoc(await loginIdRef(uname)).catch(()=>null);
+  const data=cur && cur.exists() ? cur.data() : null;
+  if(data && data.email===fu.email && !data.pending) return;
+  if(data && data.pending && data.pending!==fu.email) return;   // تغيير بريد ينتظر التأكيد
+  await setLoginId(uname, fu.email, d.role);
 }
 /* إكمال القفل إن انقطع أول تفعيل في منتصفه */
 async function ensureLocked(){
@@ -1064,8 +1124,7 @@ async function ensureLocked(){
 /* أول دخول بعد التحديث: إنشاء الحسابين المحميين تلقائياً بكلمات المرور الحالية نفسها */
 async function provision(role, pw){
   const P=state.profiles, other= role==='admin'?'consultant':'admin';
-  const mk = r => r+'-'+Math.random().toString(36).slice(2,9)+'@'+AUTH_DOMAIN;
-  const emails={ [role]:mk(role), [other]:mk(other) };
+  const emails={ [role]:recoveryEmail(P[role].username, role), [other]:recoveryEmail(P[other].username, other) };
   bootBusy=true;
   try{
     const cred=await createUserWithEmailAndPassword(auth, emails[role], derivePw(pw));
@@ -1076,7 +1135,7 @@ async function provision(role, pw){
     const ud=r=>({ role:r, name:P[r].name, username:P[r].username, active:true, createdAt:nowIso() });
     b.set(doc(db,'users',cred.user.uid), ud(role));
     b.set(doc(db,'users',c2.user.uid), ud(other));
-    b.set(secRef('usernames'), { map:{ [await userKey(P[role].username)]:emails[role], [await userKey(P[other].username)]:emails[other] }, updatedAt:nowIso() });
+    for(const r of [role, other]) b.set(await loginIdRef(P[r].username), { email:emails[r], role:r, updatedAt:nowIso() });
     await b.commit();
     const stripped={ admin:{...P.admin, password:''}, consultant:{...P.consultant, password:''} };
     await setDoc(kref('p'), { value:JSON.stringify(stripped), updatedAt:Date.now() });
@@ -1098,14 +1157,22 @@ async function doLogin(){
   const btn=$('loginBtn'); if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner" style="width:16px;height:16px;border-width:2px;margin:0"></span> جارٍ الدخول…'; }
   const fail=(msg)=>{ state.loginError=msg; render(); setTimeout(()=>{ const x=$('loginUser'); if(x) x.value=u; $('loginPass')?.focus(); },0); };
   try{
-    let map=null;
-    try{ const m=await getDoc(secRef('usernames')); map = m.exists() ? (m.data().map||{}) : null; }catch(e){ console.warn('usernames', e); }
-    if(map && Object.keys(map).length){
-      const email=map[await userKey(u)] || map[normUser(u)];
-      if(!email) return fail('اسم المستخدم أو كلمة المرور غير صحيحة');
-      try{ bootBusy=true; const cred=await signInWithEmailAndPassword(auth, email, derivePw(p)); bootBusy=false; await enterSecure(cred.user, false); return; }
-      catch(e){ bootBusy=false; if(BAD_CRED_CODES.includes(e.code)) return fail('اسم المستخدم أو كلمة المرور غير صحيحة'); if(e.code==='auth/too-many-requests') return fail('محاولات كثيرة متتالية — انتظر قليلاً ثم حاول مجدداً'); if(e.code==='auth/network-request-failed') return fail('تعذّر الاتصال — تحقق من الإنترنت'); throw e; }
+    const info=await lookupLogin(u);
+    if(info && info.email){
+      const tries=[info.email, info.pending].filter((x,i,a)=>x && a.indexOf(x)===i);
+      let lastErr=null;
+      for(const email of tries){
+        try{ bootBusy=true; const cred=await signInFlexible(auth, email, p); bootBusy=false; await enterSecure(cred.user, false); return; }
+        catch(e){ bootBusy=false; lastErr=e; if(!BAD_CRED_CODES.includes(e.code)) break; }
+      }
+      const e=lastErr||{};
+      if(BAD_CRED_CODES.includes(e.code)) return fail('اسم المستخدم أو كلمة المرور غير صحيحة');
+      if(e.code==='auth/too-many-requests') return fail('محاولات كثيرة متتالية — انتظر قليلاً ثم حاول مجدداً');
+      if(e.code==='auth/network-request-failed') return fail('تعذّر الاتصال — تحقق من الإنترنت');
+      throw e;
     }
+    let locked=false; try{ locked=(await getDoc(secRef('lock'))).exists(); }catch(e){}
+    if(locked) return fail('اسم المستخدم أو كلمة المرور غير صحيحة');
     // لم يُفعَّل الدخول الآمن بعد: التحقق بالطريقة السابقة ثم التفعيل تلقائياً
     let ps; try{ ps=await getDoc(kref('p')); }catch(e){ return fail('تعذّر الاتصال بقاعدة البيانات'); }
     server.p=parseVal(ps); recompute('p');
@@ -1148,7 +1215,7 @@ async function changeMyPassword(){
   if(n1.trim()!==n2.trim()){ toast('كلمتا المرور الجديدتان غير متطابقتين','warn'); return; }
   try{
     const u=auth.currentUser;
-    await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, derivePw(cur)));
+    await reauthFlexible(u, cur);
     await updatePassword(u, derivePw(n1));
     ['pwCur','pwNew','pwNew2'].forEach(id=>$(id).value='');
     toast('تم تغيير كلمة المرور'); logAudit('تغيير كلمة المرور');
@@ -1161,19 +1228,27 @@ async function resetConsultantPassword(){
   const ok=await confirmModal({ title:'تعيين كلمة مرور جديدة للمستشار', text:'ستتوقف كلمة المرور الحالية للمستشار فوراً، ويُطلب منه الدخول بالجديدة على كل أجهزته.', confirm:'تعيين', icon:'key-round' });
   if(!ok) return;
   try{
-    const email='consultant-'+Math.random().toString(36).slice(2,9)+'@'+AUTH_DOMAIN;
-    const sa=getSecAuth(); const c2=await createUserWithEmailAndPassword(sa, email, derivePw(n1)); await signOut(sa).catch(()=>{});
+    const P=state.profiles.consultant;
+    const wanted=(($('cpEmail')?.value)||'').trim().toLowerCase() || recoveryEmail(P.username,'consultant');
+    if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(wanted)){ toast('البريد غير صحيح','warn'); return; }
+    const sa=getSecAuth(); let c2, email=wanted;
+    try{ c2=await createUserWithEmailAndPassword(sa, email, derivePw(n1)); }
+    catch(e){ if(e.code!=='auth/email-already-in-use') throw e;
+      // البريد مستخدم للحساب السابق نفسه: عنوان فريد آخر يصل للصندوق نفسه
+      const [l,d]=wanted.split('@'); email=l+'-'+Math.random().toString(36).slice(2,6)+'@'+d;
+      c2=await createUserWithEmailAndPassword(sa, email, derivePw(n1)); }
+    await signOut(sa).catch(()=>{});
     const all=await getDocs(collection(db,'users'));
     const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) };
-    const P=state.profiles.consultant;
     const b=writeBatch(db);
     all.docs.forEach(d=>{ if(d.data().role==='consultant' && d.data().active!==false) b.update(d.ref, { active:false }); });
     b.set(doc(db,'users',c2.user.uid), { role:'consultant', name:P.name, username:P.username, active:true, createdAt:nowIso() });
-    delete map[normUser(P.username)]; map[await userKey(P.username)]=email;
+    delete map[normUser(P.username)]; delete map[await userKey(P.username)];
     b.set(secRef('usernames'), { map, updatedAt:nowIso() });
+    b.set(await loginIdRef(P.username), { email, role:'consultant', updatedAt:nowIso() });
     await b.commit();
     $('cpNew').value='';
-    toast('تم تعيين كلمة المرور الجديدة للمستشار'); logAudit('تعيين كلمة مرور جديدة للمستشار');
+    toast('تم تعيين كلمة المرور الجديدة للمستشار — بريد الاسترجاع: '+email); recoveryCache={}; softRefresh(); logAudit('تعيين كلمة مرور جديدة للمستشار');
   }catch(e){ console.error(e); toast('تعذّر التعيين ('+(e.code||e.message)+')','err'); }
 }
 
@@ -1454,7 +1529,7 @@ function shellHtml(){
     <aside class="sidebar ${state.sidebarOpen?'open':''} ${state.sidebarCollapsed?'collapsed':''}" id="sidebar">
       <div class="brand">${brandMark()}
         <div class="hide-c" style="min-width:0"><div class="brand-name">نظام الاستشارات</div><div class="brand-sub">مكتب الدكتور عقيل محمد المقطري</div>
-          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.8</span></div></div>
+          <div class="sync"><span class="sync-dot" id="syncDot"></span><span id="syncLabel"></span><span style="opacity:.6">·</span><span style="opacity:.75">الإصدار 3.9</span></div></div>
       </div>
       <nav class="nav" id="nav">${navHtml()}</nav>
       <div class="sidebar-foot">
@@ -1557,6 +1632,7 @@ function loginHtml(){
       <div class="field"><label class="lbl" for="loginPass">كلمة المرور</label>
         <div class="pass-wrap"><input type="password" id="loginPass" autocomplete="current-password" dir="ltr" style="text-align:right"><button type="button" data-action="toggle-pass" data-for="loginPass" aria-label="إظهار كلمة المرور">${ic('eye')}</button></div></div>
       <button class="btn btn-primary" id="loginBtn" data-action="login" style="width:100%;padding:11px;margin-top:6px">${ic('log-in')}دخول</button>
+      <button class="btn btn-ghost btn-sm" data-action="forgot-pass" style="width:100%;margin-top:8px">${ic('key-round')}نسيت كلمة المرور؟</button>
       <p class="muted" style="text-align:center;margin-top:18px">يبقى دخولك محفوظاً على هذا الجهاز حتى تسجّل الخروج</p>
     </div></div></div>`;
 }
@@ -2606,6 +2682,46 @@ function settingsView(){
     ${(state.settings.suggestions||[]).length?`<ul class="list-plain">${state.settings.suggestions.map((s,i)=>`<li>${ic('dot')}<span class="grow">${esc(s)}</span><button class="btn btn-ghost btn-icon btn-sm" data-action="edit-sug" data-idx="${i}" title="تعديل">${ic('pencil')}</button><button class="btn btn-ghost btn-icon btn-sm" data-action="del-sug" data-idx="${i}" title="حذف">${ic('trash-2')}</button></li>`).join('')}</ul>`:emptyHtml('lightbulb','لا توجد مقترحات')}
   </div></div>`:''}`;
 }
+/* بريد الاسترجاع في الإعدادات */
+let recoveryCache={}, recoveryLoading=false;
+function recoveryValue(role){ const r=recoveryCache[role]; if(!r) return ''; const e=r.email||''; return isInternalEmail(e)?'':e; }
+async function loadRecovery(){
+  if(recoveryLoading) return; recoveryLoading=true;
+  try{
+    const roles=isAdmin()?['admin','consultant']:[state.user.role];
+    for(const r of roles){ const u=(state.profiles[r]||{}).username; recoveryCache[r]=(u && await lookupLogin(u)) || { email:'' }; }
+  }finally{ recoveryLoading=false; }
+  if(state.view==='settings') softRefresh();
+}
+function recoveryPanel(){
+  const role=state.user.role;
+  if(!recoveryCache[role]) { setTimeout(loadRecovery,0); }
+  const r=recoveryCache[role]||{};
+  const cur=auth.currentUser && auth.currentUser.email;
+  const shown=isInternalEmail(cur)?'':(cur||'');
+  return `<div class="section-title" style="margin-top:20px">${ic('mail','ico-sm')}بريد الاسترجاع لحسابي</div>
+    <div class="inline-form"><input type="email" id="myEmail" dir="ltr" value="${esc(shown)}" placeholder="${esc(recoveryEmail(state.user.username, role))}"><button class="btn" data-action="change-my-email">${ic('mail-check')}تحديث البريد</button></div>
+    <p class="muted">${r.pending?'بانتظار تأكيد البريد الجديد '+esc(r.pending)+' — افتح رابط التأكيد الذي وصله. ':''}تصل إليه روابط «نسيت كلمة المرور؟»${shown?'':' — لا يوجد بريد استرجاع بعد'}.</p>`;
+}
+async function changeMyEmail(){
+  const ne=(($('myEmail')?.value)||'').trim().toLowerCase();
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(ne)){ toast('اكتب بريداً صحيحاً','warn'); return; }
+  const u=auth.currentUser; if(!u) return;
+  if(ne===String(u.email).toLowerCase()){ toast('هذا هو البريد الحالي'); return; }
+  try{
+    try{ await verifyBeforeUpdateEmail(u, ne); }
+    catch(e){
+      if(e.code!=='auth/requires-recent-login') throw e;
+      const pw=await promptModal({ title:'تأكيد بكلمة المرور', text:'لأمان حسابك، اكتب كلمة مرورك الحالية لتغيير البريد.', confirm:'متابعة', icon:'lock', required:true, multiline:false });
+      if(!pw) return;
+      await reauthFlexible(u, pw); await verifyBeforeUpdateEmail(u, ne);
+    }
+    await setLoginId(state.user.username, u.email, state.user.role, ne);
+    recoveryCache[state.user.role]={ email:u.email, pending:ne };
+    toast('أُرسل رابط تأكيد إلى '+maskEmail(ne)+' — بعد فتحه يصبح بريد الاسترجاع'); logAudit('طلب تغيير بريد الاسترجاع');
+    softRefresh();
+  }catch(e){ toast('تعذّر تحديث البريد'+(e.code?' ('+e.code+')':''),'err'); }
+}
 function securityPanel(){
   if(state.secure){
     return `<div class="panel"><div class="panel-head"><h3>${ic('shield-check')}الأمان</h3><span class="spacer"></span><span class="chip st-published">${ic('lock','ico-sm')}الدخول الآمن مفعّل</span></div><div class="panel-body">
@@ -2613,9 +2729,12 @@ function securityPanel(){
       <div class="section-title">${ic('key-round','ico-sm')}تغيير كلمة مروري</div>
       <div class="form-grid"><div class="field"><label class="lbl">الحالية</label><input type="password" id="pwCur" dir="ltr"></div><div class="field"><label class="lbl">الجديدة</label><input type="password" id="pwNew" dir="ltr"></div><div class="field"><label class="lbl">تأكيد الجديدة</label><input type="password" id="pwNew2" dir="ltr"></div></div>
       <button class="btn btn-primary" data-action="change-my-pass">${ic('key-round')}تغيير كلمة المرور</button>
+      ${recoveryPanel()}
       ${isAdmin()?`<div class="section-title" style="margin-top:20px">${ic('user-cog','ico-sm')}تعيين كلمة مرور جديدة للمستشار</div>
-      <div class="inline-form"><input type="text" id="cpNew" dir="ltr" placeholder="كلمة المرور الجديدة للمستشار"><button class="btn" data-action="reset-consultant-pass">${ic('key-round')}تعيين</button></div>
-      <p class="muted">استخدمها إن نسي المستشار كلمة مروره. تتوقف القديمة فوراً.</p>`:''}
+      <div class="form-grid"><div class="field"><label class="lbl">البريد الإلكتروني (للاسترجاع)</label><input type="email" id="cpEmail" dir="ltr" value="${esc(recoveryValue('consultant'))}" placeholder="${esc(recoveryEmail(state.profiles.consultant.username,'consultant'))}"></div>
+      <div class="field"><label class="lbl">كلمة المرور الجديدة</label><input type="text" id="cpNew" dir="ltr" placeholder="كلمة المرور الجديدة للمستشار"></div></div>
+      <button class="btn" data-action="reset-consultant-pass">${ic('key-round')}تعيين</button>
+      <p class="muted">استخدمها إن نسي المستشار كلمة مروره، أو لتغيير بريد استرجاعه. تتوقف القديمة فوراً. ويمكن للمستشار أيضاً استخدام «نسيت كلمة المرور؟» من شاشة الدخول.</p>`:''}
     </div></div>`;
   }
   if(!isAdmin()) return '';
@@ -2668,8 +2787,11 @@ async function saveProfile(role){
   if(np.username.toLowerCase()===String(other.username||'').toLowerCase()){ toast('اسم المستخدم مستخدم للحساب الآخر — اختر اسماً مختلفاً','warn'); return; }
   const next={ ...state.profiles, [role]:np };
   if(state.secure && normUser(np.username)!==normUser(old.username)){
-    try{ const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) }; const ok=await userKey(old.username), em=map[ok]||map[normUser(old.username)];
-      if(em){ delete map[ok]; delete map[normUser(old.username)]; map[await userKey(np.username)]=em; await setDoc(secRef('usernames'), { map, updatedAt:nowIso() }); } }
+    try{
+      const li=await lookupLogin(old.username);
+      if(li && li.email){ await setDoc(await loginIdRef(np.username), { email:li.email, role, updatedAt:nowIso(), ...(li.pending?{pending:li.pending}:{}) }); await deleteDoc(await loginIdRef(old.username)).catch(()=>{}); }
+      const m=await getDoc(secRef('usernames')); const map={ ...((m.exists()&&m.data().map)||{}) }; const ok=await userKey(old.username), em=map[ok]||map[normUser(old.username)];
+      if(em){ delete map[ok]; delete map[normUser(old.username)]; await setDoc(secRef('usernames'), { map, updatedAt:nowIso() }); } }
     catch(e){ toast('تعذّر تغيير اسم المستخدم ('+(e.code||'')+')','err'); return; }
   }
   const r=await enqueue({ k:'p', replace:next });
@@ -3204,6 +3326,7 @@ const ACTIONS={
   'restore-day': el=> restoreDailyBackup(el.dataset.day), 'download-day': el=> downloadDailyBackup(el.dataset.day),
   'copy-bookmarklet': async ()=>{ try{ await navigator.clipboard.writeText(bookmarkletCode()); toast('تم نسخ الكود'); }catch(e){ toast('تعذّر النسخ','warn'); } },
   'save-template': async ()=>{ const cat=$('tplCat').value; const txt=$('tplText').value; const r=await enqueue({ k:'t', replace:{ ...(raw.t||{}), [cat]:txt } }); afterCommit(r,'تم حفظ القالب'); },
+  'forgot-pass': forgotPassword, 'change-my-email': changeMyEmail,
   'enable-notif': enableNotifications, 'push-dismiss': ()=>{ lsSet('aq_push_dismiss','1'); pushBanner(false); }, 'push-retry': ()=>{ pushState='working'; softRefresh(); registerPush(); },
   'ext-setup': setupExternalBackup, 'ext-list': renderExternalList,
   'ext-download': el=> extDownload(el.dataset.url, el.dataset.day), 'ext-restore': el=> extRestore(el.dataset.url, el.dataset.day),

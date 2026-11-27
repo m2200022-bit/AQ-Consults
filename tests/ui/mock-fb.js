@@ -42,7 +42,7 @@ export function orderBy(f, dir = 'asc') { return { t: 'order', f, dir }; }
 export function limit(n) { return { t: 'limit', n }; }
 const AU = Symbol('arrayUnion');
 export function arrayUnion(...vals) { return { [AU]: true, vals }; }
-function denied(path) { if (!store.docs.has('security/lock')) return false; if (/^(public|security)\//.test(path)) return false; return !(DA.v && DA.v.currentUser); }
+function denied(path) { if (!store.docs.has('security/lock')) return false; if (/^(public|security|login_ids)\//.test(path)) return false; return !(DA.v && DA.v.currentUser); }
 function snapDoc(ref, data) { return { id: ref.id, ref, exists: () => data !== undefined, data: () => clone(data) }; }
 export async function getDoc(ref) { await tick(); if (denied(ref.path)) throw err('permission-denied'); if (W.__denyRead && W.__denyRead(ref.path)) throw err('permission-denied'); return snapDoc(ref, store.docs.get(ref.path)); }
 function colDocs(path) { const out = []; for (const [k, v] of store.docs) { const [c, id] = k.split('/'); if (c === path) out.push({ id, data: v }); } return out; }
@@ -93,3 +93,11 @@ export function getMessaging() { return { kind: 'messaging' }; }
 export async function isSupported() { return true; }
 export async function getToken(m, opts) { W.__pushOpts = opts; return 'tok-' + (W.__tokN = (W.__tokN || 0) + 1); }
 export async function deleteToken() { W.__tokDeleted = (W.__tokDeleted || 0) + 1; return true; }
+
+// استرجاع كلمة المرور: يُسجَّل الإرسال، ومحاكاة صفحة Firebase تحفظ كلمة المرور خاماً
+export async function sendPasswordResetEmail(a, email) { await tick(); W.__resetSent = (W.__resetSent || []).concat(email); }
+W.__simulateReset = (email, raw) => { const u = store.users.get(email); if (u) { u.password = raw; saveUsers(); return true; } return false; };
+export async function verifyBeforeUpdateEmail(user, email) { await tick(); W.__verifySent = (W.__verifySent || []).concat(email); }
+W.__confirmEmailChange = (oldE, newE) => { const u = store.users.get(oldE); if (!u) return false; store.users.delete(oldE); store.users.set(newE, u); saveUsers(); return true; };
+W.__userPw = (e) => { const u = store.users.get(e); return u ? u.password : null; };
+W.__userEmails = () => [...store.users.keys()];

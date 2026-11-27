@@ -26,10 +26,12 @@ await env.withSecurityRulesDisabled(async (ctx) => {
   await setDoc(doc(db, 'push_tokens/tokAdmin'), { uid: 'admin', role: 'admin', device: 'd', ts: now });
   await setDoc(doc(db, 'push_tokens/tokCons'), { uid: 'cons', role: 'consultant', device: 'd', ts: now });
   await setDoc(doc(db, 'backups/2026-11-27__c'), { value: '[]' });
+  await setDoc(doc(db, 'login_ids/h_admin'), { email: 'm2200022+aq-admin@gmail.com', role: 'admin', updatedAt: now });
+  await setDoc(doc(db, 'login_ids/h_cons'), { email: 'm2200022+aq-aqeel@gmail.com', role: 'consultant', updatedAt: now });
 });
 const anon = env.unauthenticatedContext().firestore();
-const admin = env.authenticatedContext('admin').firestore();
-const cons = env.authenticatedContext('cons').firestore();
+const admin = env.authenticatedContext('admin', { email: 'm2200022+aq-admin@gmail.com' }).firestore();
+const cons = env.authenticatedContext('cons', { email: 'm2200022+aq-aqeel@gmail.com' }).firestore();
 const off = env.authenticatedContext('off').firestore();
 const bak = env.authenticatedContext('bak').firestore();
 const stranger = env.authenticatedContext('stranger').firestore();
@@ -94,6 +96,20 @@ await t('nobody reads device tokens', getDoc(doc(admin, 'push_tokens/tokCons')),
 await t('consultant cannot delete admin device', deleteDoc(doc(cons, 'push_tokens/tokAdmin')), false);
 await t('consultant deletes own device', deleteDoc(doc(cons, 'push_tokens/tokCons')), true);
 await t('suspended consultant cannot register a device', setDoc(doc(off, 'push_tokens/tokOff'), { uid: 'off', role: 'consultant', device: 'd', ts: now }), false);
+
+// اسم المستخدم ← البريد: get فقط، دون استعراض، والكتابة للأعضاء
+const { getDocs, query, limit } = await import('firebase/firestore');
+await t('visitor can get one login id by its hash', getDoc(doc(anon, 'login_ids/h_admin')), true);
+await t('visitor cannot list login ids', getDocs(collection(anon, 'login_ids')), false);
+await t('even admin cannot list login ids', getDocs(query(collection(admin, 'login_ids'), limit(5))), false);
+await t('visitor cannot write a login id', setDoc(doc(anon, 'login_ids/h_x'), { email: 'evil@x.com', role: 'admin', updatedAt: now }), false);
+await t('stranger cannot write a login id', setDoc(doc(stranger, 'login_ids/h_admin'), { email: 'evil@x.com', role: 'admin', updatedAt: now }), false);
+await t('admin writes any login id', setDoc(doc(admin, 'login_ids/h_cons'), { email: 'm2200022+aq-aqeel@gmail.com', role: 'consultant', updatedAt: now }), true);
+await t('consultant writes own login id (own account email)', setDoc(doc(cons, 'login_ids/h_cons'), { email: 'm2200022+aq-aqeel@gmail.com', role: 'consultant', pending: 'new@x.com', updatedAt: now }), true);
+await t('consultant cannot redirect admin login to another email', setDoc(doc(cons, 'login_ids/h_admin'), { email: 'evil@x.com', role: 'admin', updatedAt: now }), false);
+await t('login id with extra fields is refused', setDoc(doc(admin, 'login_ids/h_y'), { email: 'a@b.com', role: 'admin', updatedAt: now, password: 'x' }), false);
+await t('suspended consultant cannot write login ids', setDoc(doc(off, 'login_ids/h_off'), { email: 'm2200022+aq-off@gmail.com', role: 'consultant', updatedAt: now }), false);
+await t('consultant cannot delete login ids', deleteDoc(doc(cons, 'login_ids/h_cons')), false);
 
 await env.cleanup();
 console.log(bad ? 'RULES TESTS FAILED: ' + bad : 'RULES TESTS OK');
