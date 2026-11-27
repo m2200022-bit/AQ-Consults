@@ -48,7 +48,7 @@ jobs:
         run: |
           chmod +x gradlew
           set -o pipefail
-          ./gradlew --no-daemon assembleRelease bundleRelease 2>&1 | tee build.log || { grep -E "^e: |error:|What went wrong|FAILURE|> " build.log | head -25 | sed 's/^/::error::/'; exit 1; }
+          ./gradlew --no-daemon assembleRelease bundleRelease 2>&1 | tee build.log || { (grep -A8 "What went wrong" build.log; grep -E "^e: |error:|ERROR:" build.log) | grep -v "^> Task" | head -30 | sed 's/^/::error::/'; exit 1; }
           ls -la app/build/outputs/apk/release/ app/build/outputs/bundle/release/
       - name: التوقيع
         if: env.UNSIGNED != '1'
