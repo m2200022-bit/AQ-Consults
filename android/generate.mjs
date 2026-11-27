@@ -28,7 +28,7 @@ m.iconUrl = ICONS + 'icon-512.png';
 m.maskableIconUrl = ICONS + 'icon-maskable-512.png';
 m.webManifestUrl = new URL('manifest.webmanifest', ICONS);
 m.signingKey = { path: process.env.KEYSTORE_PATH || join(here, 'build', 'upload.jks'), alias: cfg.keyAlias };
-m.minSdkVersion = 21;
+m.minSdkVersion = 24;   // أندرويد 7 فما فوق (متطلب مكتبة androidbrowserhelper)
 m.generatorApp = 'aq-consults';
 
 await new TwaGenerator().createTwaProject(out, m, new ConsoleLog('twa'));
